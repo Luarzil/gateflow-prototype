@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#143b35">
+  <meta name="description" content="GateFlow V0.1 static gate scanner and admin dashboard prototype.">
+  <title>GateFlow V0.1</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="GateFlow home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 18.5v-13Z"/>
+            <path d="M8 7h8M8 11h5M8 16h8"/>
+          </svg>
+        </span>
+        <span>
+          <strong>GateFlow</strong>
+          <span>V0.1 yard control</span>
+        </span>
+      </a>
+
+      <nav class="top-nav" aria-label="Primary views">
+        <button class="nav-tab is-active" type="button" data-view="scannerView">Scanner</button>
+        <button class="nav-tab" type="button" data-view="adminView">Admin</button>
+        <button class="nav-tab" type="button" data-view="searchView">Search</button>
+        <button class="nav-tab" type="button" data-view="auditView">Audit</button>
+      </nav>
+
+      <div class="top-actions">
+        <span class="save-pill" id="saveStatus">
+          <span class="status-dot" aria-hidden="true"></span>
+          Saved locally
+        </span>
+        <button class="button secondary compact" id="resetDemoButton" type="button">Reset demo</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="view is-active" id="scannerView" aria-labelledby="scannerHeading">
+        <div class="scanner-layout scanner-layout-simple">
+          <section class="handheld-shell" aria-labelledby="scannerHeading">
+            <header class="device-header">
+              <div>
+                <p id="deviceClock">--:--</p>
+                <h1 id="scannerHeading">Gate Scanner</h1>
+              </div>
+              <div class="device-badges" aria-label="Scanner status">
+                <span>SE4710 sim</span>
+                <span>UHF idle</span>
+              </div>
+            </header>
+
+            <div class="scanner-alert neutral" id="scannerNotice" role="status">Ready for scanner input.</div>
+
+            <div class="scanner-stage">
+              <section class="scanner-screen" id="scannerHome">
+                <p class="screen-title">Gate Scanner</p>
+                <p class="screen-subtitle">Select a transaction type to begin.</p>
+                <div class="home-actions">
+                  <button class="big-action-btn out" id="goOutFlow" type="button">
+                    <span aria-hidden="true">OUT</span>
+                    Vehicle Out
+                  </button>
+                  <button class="big-action-btn in" id="goInFlow" type="button">
+                    <span aria-hidden="true">IN</span>
+                    Vehicle In
+                  </button>
+                </div>
+                <div class="compact-metrics" aria-label="Today at this gate">
+                  <div>
+                    <span>OUT</span>
+                    <strong id="todayOutCount">0</strong>
+                  </div>
+                  <div>
+                    <span>IN</span>
+                    <strong id="todayInCount">0</strong>
+                  </div>
+                  <div>
+                    <span>Blocks</span>
+                    <strong id="todayBlockCount">0</strong>
+                  </div>
+                </div>
+                <div class="recent-feed">
+                  <div class="panel-heading tight">
+                    <div>
+                      <p class="eyebrow">Recent</p>
+                      <h2>Gate activity</h2>
+                    </div>
+                  </div>
+                  <div class="mini-feed" id="gateMiniFeed"></div>
+                </div>
+              </section>
+
+              <section class="scanner-screen hidden" id="outWizard">
+                <button class="button ghost compact" id="outCancel" type="button">Back to home</button>
+                <div class="progress-dots" id="outDots" aria-label="OUT progress">
+                  <span class="dot active"></span>
+                  <span class="dot"></span>
+                  <span class="dot"></span>
+                  <span class="dot"></span>
+                  <span class="dot"></span>
+                </div>
+
+                <div class="step-card out-step" data-step="0">
+                  <p class="screen-title">Vehicle OUT</p>
+                  <p class="screen-subtitle">Scan the driver first.</p>
+                  <div class="scan-group">
+                    <label for="outDriver">Driver ID</label>
+                    <div class="scan-input">
+                      <input id="outDriver" name="outDriver" inputmode="text" placeholder="Scan or enter driver ID">
+                      <button class="button ghost scan-sample" type="button" data-scan-target="outDriver">Scan</button>
+                    </div>
+                    <div class="demo-row">
+                      <button class="demo-chip" type="button" data-demo-target="outDriver" data-demo-value="D-1027">D-1027 OK</button>
+                      <button class="demo-chip" type="button" data-demo-target="outDriver" data-demo-value="D-2033">D-2033 needs approval</button>
+                    </div>
+                    <p class="field-status" id="outDriverStatus">Awaiting driver scan.</p>
+                  </div>
+                  <button class="button primary full" id="outDriverNext" type="button">Next</button>
+                </div>
+
+                <div class="step-card out-step hidden" data-step="1">
+                  <p class="screen-title">Vehicle</p>
+                  <p class="screen-subtitle">Scan VIN, plate, or barcode.</p>
+                  <div class="scan-group">
+                    <label for="outVehicle">Vehicle VIN/barcode</label>
+                    <div class="scan-input">
+                      <input id="outVehicle" name="outVehicle" inputmode="text" placeholder="Scan or enter VIN, plate, or barcode">
+                      <button class="button ghost scan-sample" type="button" data-scan-target="outVehicle">Scan</button>
+                    </div>
+                    <div class="demo-row">
+                      <button class="demo-chip" type="button" data-demo-target="outVehicle" data-demo-value="1FTFW1E88PFA10277">YARD-104</button>
+                      <button class="demo-chip" type="button" data-demo-target="outVehicle" data-demo-value="YARD-204">YARD-204</button>
+                    </div>
+                    <p class="field-status" id="outVehicleStatus">Awaiting vehicle scan.</p>
+                  </div>
+                  <div class="button-row">
+                    <button class="button secondary" id="outVehicleBack" type="button">Back</button>
+                    <button class="button primary" id="outVehicleNext" type="button">Next</button>
+                  </div>
+                </div>
+
+                <div class="step-card out-step hidden" data-step="2">
+                  <p class="screen-title">Destination</p>
+                  <p class="screen-subtitle">Where is this vehicle headed?</p>
+                  <div class="form-row">
+                    <label for="outDestination">Destination</label>
+                    <select id="outDestination" name="outDestination" required></select>
+                  </div>
+                  <div class="button-row">
+                    <button class="button secondary" id="outDestinationBack" type="button">Back</button>
+                    <button class="button primary" id="outDestinationNext" type="button">Next</button>
+                  </div>
+                </div>
+
+                <div class="step-card out-step hidden" data-step="3">
+                  <p class="screen-title">Note and photo</p>
+                  <p class="screen-subtitle">Optional details for the audit trail.</p>
+                  <div class="form-row">
+                    <label for="outNote">Optional note</label>
+                    <textarea id="outNote" name="outNote" rows="2" placeholder="Seal, load, visitor, or guard note"></textarea>
+                  </div>
+                  <div class="form-row">
+                    <label for="outPhotoInput">Optional photo</label>
+                    <input id="outPhotoInput" type="file" accept="image/*" capture="environment">
+                    <img class="photo-preview hidden" id="outPhotoPreview" alt="Selected OUT photo preview">
+                  </div>
+                  <div class="button-row">
+                    <button class="button secondary" id="outNoteBack" type="button">Back</button>
+                    <button class="button primary" id="outNoteNext" type="button">Review</button>
+                  </div>
+                </div>
+
+                <div class="step-card out-step hidden" data-step="4">
+                  <p class="screen-title">Review OUT</p>
+                  <ul class="summary-list" id="outSummary"></ul>
+                  <div class="button-row">
+                    <button class="button secondary" id="outReviewBack" type="button">Back</button>
+                    <button class="button primary" id="submitOutButton" type="button">Submit OUT</button>
+                  </div>
+                </div>
+              </section>
+
+              <section class="scanner-screen hidden" id="overridePanel">
+                <div class="override-panel">
+                  <p class="eyebrow">Supervisor required</p>
+                  <h2>OUT blocked</h2>
+                  <p id="overrideReason">This driver is not authorized for today.</p>
+                  <label for="supervisorId">Supervisor ID</label>
+                  <div class="scan-input">
+                    <input id="supervisorId" name="supervisorId" inputmode="text" placeholder="Scan or enter supervisor ID">
+                    <button class="button ghost scan-sample" type="button" data-scan-target="supervisorId">Scan</button>
+                  </div>
+                  <div class="demo-row">
+                    <button class="demo-chip" type="button" data-demo-target="supervisorId" data-demo-value="SUP-1001">SUP-1001</button>
+                    <button class="demo-chip" type="button" data-demo-target="supervisorId" data-demo-value="SUP-BAD">Invalid</button>
+                  </div>
+                  <p class="field-status" id="supervisorStatus">Awaiting supervisor scan.</p>
+                  <div class="button-row">
+                    <button class="button secondary" id="cancelOverrideButton" type="button">Cancel OUT</button>
+                    <button class="button warning" id="approveOverrideButton" type="button">Approve today</button>
+                  </div>
+                </div>
+              </section>
+
+              <section class="scanner-screen hidden" id="inWizard">
+                <button class="button ghost compact" id="inCancel" type="button">Back to home</button>
+                <div class="progress-dots" id="inDots" aria-label="IN progress">
+                  <span class="dot active"></span>
+                  <span class="dot"></span>
+                  <span class="dot"></span>
+                  <span class="dot"></span>
+                </div>
+
+                <div class="step-card in-step" data-step="0">
+                  <p class="screen-title">Vehicle IN</p>
+                  <p class="screen-subtitle">Scan the returning driver.</p>
+                  <div class="scan-group">
+                    <label for="inDriver">Driver ID</label>
+                    <div class="scan-input">
+                      <input id="inDriver" name="inDriver" inputmode="text" placeholder="Scan or enter driver ID">
+                      <button class="button ghost scan-sample" type="button" data-scan-target="inDriver">Scan</button>
+                    </div>
+                    <div class="demo-row">
+                      <button class="demo-chip" type="button" data-demo-target="inDriver" data-demo-value="D-7701">D-7701</button>
+                      <button class="demo-chip" type="button" data-demo-target="inDriver" data-demo-value="D-1027">D-1027</button>
+                    </div>
+                    <p class="field-status" id="inDriverStatus">Awaiting driver scan.</p>
+                  </div>
+                  <button class="button primary full" id="inDriverNext" type="button">Next</button>
+                </div>
+
+                <div class="step-card in-step hidden" data-step="1">
+                  <p class="screen-title">Vehicle</p>
+                  <p class="screen-subtitle">Scan VIN, plate, or barcode.</p>
+                  <div class="scan-group">
+                    <label for="inVehicle">Vehicle VIN/barcode</label>
+                    <div class="scan-input">
+                      <input id="inVehicle" name="inVehicle" inputmode="text" placeholder="Scan or enter VIN, plate, or barcode">
+                      <button class="button ghost scan-sample" type="button" data-scan-target="inVehicle">Scan</button>
+                    </div>
+                    <div class="demo-row">
+                      <button class="demo-chip" type="button" data-demo-target="inVehicle" data-demo-value="3AKJHHDR9NSNN5188">TRK-8877</button>
+                      <button class="demo-chip" type="button" data-demo-target="inVehicle" data-demo-value="YARD-104">YARD-104</button>
+                    </div>
+                    <p class="field-status" id="inVehicleStatus">Awaiting vehicle scan.</p>
+                  </div>
+                  <div class="button-row">
+                    <button class="button secondary" id="inVehicleBack" type="button">Back</button>
+                    <button class="button primary" id="inVehicleNext" type="button">Next</button>
+                  </div>
+                </div>
+
+                <div class="step-card in-step hidden" data-step="2">
+                  <p class="screen-title">From location</p>
+                  <p class="screen-subtitle">Where is this vehicle returning from?</p>
+                  <div class="form-row">
+                    <label for="inFromLocation">From location</label>
+                    <select id="inFromLocation" name="inFromLocation" required></select>
+                  </div>
+                  <div class="button-row">
+                    <button class="button secondary" id="inLocationBack" type="button">Back</button>
+                    <button class="button primary" id="inLocationNext" type="button">Next</button>
+                  </div>
+                </div>
+
+                <div class="step-card in-step hidden" data-step="3">
+                  <p class="screen-title">Review IN</p>
+                  <div class="form-row">
+                    <label for="inNote">Optional note</label>
+                    <textarea id="inNote" name="inNote" rows="2" placeholder="Condition, mileage, damage, or guard note"></textarea>
+                  </div>
+                  <ul class="summary-list" id="inSummary"></ul>
+                  <div class="button-row">
+                    <button class="button secondary" id="inReviewBack" type="button">Back</button>
+                    <button class="button primary" id="submitInButton" type="button">Submit IN</button>
+                  </div>
+                </div>
+              </section>
+
+              <section class="scanner-screen hidden" id="confirmScreen">
+                <div class="scanner-confirm">
+                  <p class="eyebrow">Complete</p>
+                  <h2 id="confirmTitle">Transaction submitted</h2>
+                  <ul class="summary-list" id="confirmSummary"></ul>
+                  <button class="button primary full" id="confirmDone" type="button">Done</button>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <aside class="side-panel detail-panel" aria-label="Scan details">
+            <p class="eyebrow">Current scan</p>
+            <h2 id="currentScanTitle">No scan selected</h2>
+            <div class="detail-list" id="scanDetailList"></div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="view" id="adminView" aria-labelledby="adminHeading">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Manager dashboard</p>
+            <h1 id="adminHeading">Daily authorizations</h1>
+          </div>
+          <span class="date-chip" id="todayChip"></span>
+        </div>
+
+        <div class="dashboard-grid">
+          <section class="panel span-2" aria-labelledby="driversHeading">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Drivers</p>
+                <h2 id="driversHeading">Authorize for today</h2>
+              </div>
+              <span class="count-pill" id="authorizedCount">0 authorized</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Driver</th>
+                    <th>Company</th>
+                    <th>Status</th>
+                    <th>Today</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="driversTableBody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="snapshotHeading">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Snapshot</p>
+                <h2 id="snapshotHeading">Today</h2>
+              </div>
+            </div>
+            <div class="snapshot-grid">
+              <div><span>Transactions</span><strong id="snapshotTransactions">0</strong></div>
+              <div><span>Overrides</span><strong id="snapshotOverrides">0</strong></div>
+              <div><span>Vehicles out</span><strong id="snapshotVehiclesOut">0</strong></div>
+              <div><span>Active drivers</span><strong id="snapshotActiveDrivers">0</strong></div>
+            </div>
+          </section>
+
+          <section class="panel span-2" aria-labelledby="vehiclesHeading">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Vehicles</p>
+                <h2 id="vehiclesHeading">Fleet view</h2>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>VIN</th>
+                    <th>Plate</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Last location</th>
+                  </tr>
+                </thead>
+                <tbody id="vehiclesTableBody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="locationsHeading">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Locations</p>
+                <h2 id="locationsHeading">Known stops</h2>
+              </div>
+            </div>
+            <div class="location-list" id="locationList"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" id="searchView" aria-labelledby="searchHeading">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Manager search</p>
+            <h1 id="searchHeading">Find gate activity</h1>
+          </div>
+        </div>
+
+        <section class="panel">
+          <form class="search-form" id="searchForm">
+            <label>
+              VIN or partial VIN
+              <input id="filterVin" name="filterVin" placeholder="1FTF, 8877, barcode">
+            </label>
+            <label>
+              Plate or partial plate
+              <input id="filterPlate" name="filterPlate" placeholder="YARD, 204">
+            </label>
+            <label>
+              Driver
+              <input id="filterDriver" name="filterDriver" placeholder="ID, name, company">
+            </label>
+            <label>
+              Date
+              <input id="filterDate" name="filterDate" type="date">
+            </label>
+            <label>
+              Location
+              <select id="filterLocation" name="filterLocation"></select>
+            </label>
+            <label>
+              IN/OUT
+              <select id="filterType" name="filterType">
+                <option value="">Any</option>
+                <option value="OUT">OUT</option>
+                <option value="IN">IN</option>
+              </select>
+            </label>
+            <div class="search-actions">
+              <button class="button secondary" type="button" id="clearSearchButton">Clear</button>
+              <button class="button primary" type="submit">Search</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Results</p>
+              <h2 id="searchResultsHeading">Recent transactions</h2>
+            </div>
+            <span class="count-pill" id="searchResultCount">0 matches</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Type</th>
+                  <th>Vehicle</th>
+                  <th>Plate</th>
+                  <th>Driver</th>
+                  <th>Location</th>
+                  <th>Note</th>
+                </tr>
+              </thead>
+              <tbody id="searchResultsBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section class="view" id="auditView" aria-labelledby="auditHeading">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Audit log</p>
+            <h1 id="auditHeading">Security events</h1>
+          </div>
+        </div>
+
+        <section class="panel audit-filter-panel">
+          <label>
+            Event type
+            <select id="auditTypeFilter">
+              <option value="">All events</option>
+              <option value="transaction">IN/OUT transactions</option>
+              <option value="blocked">Blocked attempts</option>
+              <option value="override">Supervisor overrides</option>
+              <option value="authorization">Authorization changes</option>
+            </select>
+          </label>
+          <label>
+            Text search
+            <input id="auditTextFilter" placeholder="Supervisor, driver, VIN, note">
+          </label>
+        </section>
+
+        <section class="audit-list" id="auditList" aria-live="polite"></section>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

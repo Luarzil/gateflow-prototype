@@ -1,0 +1,17 @@
+{
+  "name": "GateFlow V0.1",
+  "short_name": "GateFlow",
+  "description": "Static gate scanner and admin dashboard prototype.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#eef3f0",
+  "theme_color": "#143b35",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
