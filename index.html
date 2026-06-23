@@ -57,120 +57,99 @@
             <div class="scanner-alert neutral" id="scannerNotice" role="status">Select a location, scan the driver and VIN, then choose IN or OUT.</div>
 
             <div class="scanner-stage">
-              <p class="screen-title">Vehicle gate transaction</p>
-              <p class="screen-subtitle">Vehicle gate scanning, daily driver authorization, and searchable movement history.</p>
-
-              <ol class="flow-steps" aria-label="Scanner flow">
-                <li class="is-current"><span>1</span>Location</li>
-                <li><span>2</span>Driver</li>
-                <li><span>3</span>VIN</li>
-                <li><span>4</span>IN / OUT</li>
-                <li><span>5</span>Note</li>
-                <li><span>6</span>Submit</li>
-              </ol>
-
-              <div class="scanner-form">
-                <div class="form-row">
-                  <label for="scannerLocation">1. Location</label>
-                  <select id="scannerLocation" name="scannerLocation"></select>
+              <section class="scanner-screen" id="scannerHome">
+                <p class="screen-title">Gate Scanner</p>
+                <p class="screen-subtitle">Vehicle gate scanning, daily driver authorization, and searchable movement history.</p>
+                <div class="home-actions">
+                  <button class="big-action-btn out" id="goOutFlow" type="button"><span aria-hidden="true">OUT</span>Vehicle OUT</button>
+                  <button class="big-action-btn in" id="goInFlow" type="button"><span aria-hidden="true">IN</span>Vehicle IN</button>
                 </div>
-
-                <div class="form-row">
-                  <label for="driverInput">2. Driver Employee #</label>
-                  <div class="scan-input">
-                    <input id="driverInput" name="driverInput" autocomplete="off" inputmode="text" placeholder="Scan or enter employee #">
-                    <button class="button ghost scan-sample" type="button" data-scan-target="driverInput">Sim scan</button>
-                  </div>
-                  <div class="demo-row" aria-label="Driver scan examples">
-                    <button class="demo-chip" type="button" data-demo-field="driverInput" data-demo-value="EMP-1001">EMP-1001 OK</button>
-                    <button class="demo-chip" type="button" data-demo-field="driverInput" data-demo-value="EMP-1003">EMP-1003 review</button>
-                  </div>
+                <div class="compact-metrics" aria-label="Today at this gate">
+                  <div><span>OUT</span><strong id="todayOutCount">0</strong></div>
+                  <div><span>IN</span><strong id="todayInCount">0</strong></div>
+                  <div><span>Blocks</span><strong id="todayBlockCount">0</strong></div>
                 </div>
-
-                <div class="form-row">
-                  <label for="vinInput">3. Vehicle VIN</label>
-                  <div class="scan-input">
-                    <input id="vinInput" name="vinInput" autocomplete="off" inputmode="text" placeholder="Scan or enter VIN">
-                    <button class="button ghost scan-sample" type="button" data-scan-target="vinInput">Sim scan</button>
-                  </div>
-                  <div class="demo-row" aria-label="Vehicle scan examples">
-                    <button class="demo-chip" type="button" data-demo-field="vinInput" data-demo-value="1HGCM82633A004352">TRK-8877</button>
-                    <button class="demo-chip" type="button" data-demo-field="vinInput" data-demo-value="3FA6P0H75HR123456">YARD-104</button>
-                  </div>
-                </div>
-
-                <div class="form-row">
-                  <span class="field-label">4. Movement</span>
-                  <div class="direction-actions" role="group" aria-label="Vehicle movement direction">
-                    <button class="big-action-btn out is-selected" id="directionOut" type="button" aria-pressed="true"><span>OUT</span>Vehicle OUT</button>
-                    <button class="big-action-btn in" id="directionIn" type="button" aria-pressed="false"><span>IN</span>Vehicle IN</button>
-                  </div>
-                </div>
-
-                <div class="form-row">
-                  <label for="transactionNote">5. Optional note</label>
-                  <textarea id="transactionNote" name="transactionNote" rows="2" placeholder="Optional guard note"></textarea>
-                </div>
-
-                <div class="scan-preview" id="scanPreview" aria-live="polite">
-                  <div><span>Driver</span><strong id="driverPreview">Awaiting employee #</strong></div>
-                  <div><span>Vehicle</span><strong id="vehiclePreview">Awaiting VIN</strong></div>
-                  <div><span>Authorization</span><strong id="authorizationPreview">Checked on submit</strong></div>
-                </div>
-
-                <button class="button primary full submit-transaction" id="submitTransactionButton" type="button">6. Submit Vehicle OUT</button>
-              </div>
-
-              <section class="supervisor-panel hidden" id="supervisorPanel" aria-labelledby="supervisorHeading">
-                <p class="eyebrow">Supervisor authorization required</p>
-                <h2 id="supervisorHeading">Vehicle OUT blocked</h2>
-                <p id="supervisorReason">This driver is not authorized for today.</p>
-                <label for="supervisorInput">Supervisor ID</label>
-                <div class="scan-input">
-                  <input id="supervisorInput" name="supervisorInput" autocomplete="off" inputmode="text" placeholder="Scan or enter supervisor ID">
-                  <button class="button ghost scan-sample" type="button" data-scan-target="supervisorInput">Sim scan</button>
-                </div>
-                <div class="demo-row">
-                  <button class="demo-chip" type="button" data-demo-field="supervisorInput" data-demo-value="SUP-1001">SUP-1001</button>
-                  <button class="demo-chip" type="button" data-demo-field="supervisorInput" data-demo-value="SUP-BAD">Invalid</button>
-                </div>
-                <p class="field-status" id="supervisorStatus">Awaiting a valid supervisor ID.</p>
-                <div class="button-row">
-                  <button class="button secondary" id="cancelSupervisorButton" type="button">Cancel</button>
-                  <button class="button warning" id="approveSupervisorButton" type="button">Approve for today</button>
+                <div class="recent-feed" aria-labelledby="recentHeading">
+                  <div class="panel-heading tight"><div><p class="eyebrow">Recent</p><h2 id="recentHeading">Gate activity</h2></div></div>
+                  <div class="mini-feed" id="gateMiniFeed"></div>
                 </div>
               </section>
 
-              <section class="confirmation-panel hidden" id="transactionConfirmation" aria-live="polite">
-                <p class="eyebrow">Transaction saved</p>
-                <h2 id="confirmationTitle">Vehicle OUT recorded</h2>
-                <p id="confirmationSummary"></p>
-                <button class="button primary" id="confirmationDoneButton" type="button">Next vehicle</button>
+              <section class="scanner-screen hidden" id="scanWizard">
+                <button class="button ghost compact" id="flowCancel" type="button">Back to home</button>
+                <div class="progress-dots" id="wizardDots" aria-label="Transaction progress">
+                  <span class="dot active"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                </div>
+
+                <div class="wizard-step" data-step="0">
+                  <p class="screen-title" id="locationStepTitle">Vehicle OUT</p>
+                  <p class="screen-subtitle">Step 1 of 4. Select the gate location.</p>
+                  <div class="form-row"><label for="scannerLocation">Location</label><select id="scannerLocation" name="scannerLocation"></select></div>
+                  <button class="button primary full" id="locationNext" type="button">Continue to driver</button>
+                </div>
+
+                <div class="wizard-step hidden" data-step="1">
+                  <p class="screen-title">Driver employee number</p>
+                  <p class="screen-subtitle">Step 2 of 4. Scan or enter the driver employee number.</p>
+                  <div class="scan-group">
+                    <label for="driverInput">Driver Employee #</label>
+                    <div class="scan-input"><input id="driverInput" name="driverInput" autocomplete="off" inputmode="text" placeholder="Scan or enter employee #"><button class="button ghost scan-sample" type="button" data-scan-target="driverInput">Sim scan</button></div>
+                    <div class="demo-row"><button class="demo-chip" type="button" data-demo-field="driverInput" data-demo-value="EMP-1001">EMP-1001 OK</button><button class="demo-chip" type="button" data-demo-field="driverInput" data-demo-value="EMP-1003">EMP-1003 review</button></div>
+                    <p class="field-status" id="driverStatus">Awaiting employee number scan.</p>
+                  </div>
+                  <div class="button-row"><button class="button secondary" id="driverBack" type="button">Back</button><button class="button primary" id="driverNext" type="button">Continue to VIN</button></div>
+                </div>
+
+                <div class="wizard-step hidden" data-step="2">
+                  <p class="screen-title">Vehicle VIN</p>
+                  <p class="screen-subtitle">Step 3 of 4. Scan or enter the vehicle VIN.</p>
+                  <div class="scan-group">
+                    <label for="vinInput">Vehicle VIN</label>
+                    <div class="scan-input"><input id="vinInput" name="vinInput" autocomplete="off" inputmode="text" placeholder="Scan or enter VIN"><button class="button ghost scan-sample" type="button" data-scan-target="vinInput">Sim scan</button></div>
+                    <div class="demo-row"><button class="demo-chip" type="button" data-demo-field="vinInput" data-demo-value="1HGCM82633A004352">TRK-8877</button><button class="demo-chip" type="button" data-demo-field="vinInput" data-demo-value="3FA6P0H75HR123456">YARD-104</button></div>
+                    <p class="field-status" id="vinStatus">Awaiting VIN scan.</p>
+                  </div>
+                  <div class="button-row"><button class="button secondary" id="vinBack" type="button">Back</button><button class="button primary" id="vinNext" type="button">Review transaction</button></div>
+                </div>
+
+                <div class="wizard-step hidden" data-step="3">
+                  <p class="screen-title" id="reviewStepTitle">Review Vehicle OUT</p>
+                  <p class="screen-subtitle">Step 4 of 4. Add a note only when needed, then submit.</p>
+                  <div class="form-row"><label for="transactionNote">Optional note</label><textarea id="transactionNote" name="transactionNote" rows="2" placeholder="Optional guard note"></textarea></div>
+                  <ul class="summary-list" id="scanSummary"></ul>
+                  <div class="button-row"><button class="button secondary" id="reviewBack" type="button">Back</button><button class="button primary" id="submitTransactionButton" type="button">Submit Vehicle OUT</button></div>
+                </div>
               </section>
 
-              <section class="recent-activity" aria-labelledby="recentHeading">
-                <div class="panel-heading tight">
-                  <div>
-                    <p class="eyebrow">Recent activity</p>
-                    <h2 id="recentHeading">Gate movements</h2>
-                  </div>
+              <section class="scanner-screen hidden" id="supervisorPanel" aria-labelledby="supervisorHeading">
+                <div class="override-panel">
+                  <p class="eyebrow">Supervisor authorization required</p>
+                  <h2 id="supervisorHeading">Vehicle OUT blocked</h2>
+                  <p id="supervisorReason">This driver is not authorized for today.</p>
+                  <label for="supervisorInput">Supervisor ID</label>
+                  <div class="scan-input"><input id="supervisorInput" name="supervisorInput" autocomplete="off" inputmode="text" placeholder="Scan or enter supervisor ID"><button class="button ghost scan-sample" type="button" data-scan-target="supervisorInput">Sim scan</button></div>
+                  <div class="demo-row"><button class="demo-chip" type="button" data-demo-field="supervisorInput" data-demo-value="SUP-1001">SUP-1001</button><button class="demo-chip" type="button" data-demo-field="supervisorInput" data-demo-value="SUP-BAD">Invalid</button></div>
+                  <p class="field-status" id="supervisorStatus">Awaiting a valid supervisor ID.</p>
+                  <div class="button-row"><button class="button secondary" id="cancelSupervisorButton" type="button">Cancel OUT</button><button class="button warning" id="approveSupervisorButton" type="button">Approve today</button></div>
                 </div>
-                <div class="mini-feed" id="recentActivity"></div>
+              </section>
+
+              <section class="scanner-screen hidden" id="transactionConfirmation" aria-live="polite">
+                <div class="scanner-confirm">
+                  <p class="eyebrow">Complete</p><h2 id="confirmationTitle">Transaction submitted</h2><ul class="summary-list" id="confirmationSummary"></ul>
+                  <button class="button primary full" id="confirmationDoneButton" type="button">Done</button>
+                </div>
               </section>
             </div>
           </section>
 
-          <aside class="gate-context" aria-label="Gate summary">
-            <section class="context-section">
-              <p class="eyebrow">Current gate</p>
-              <h2 id="selectedLocationTitle">Select a location</h2>
-              <p>Small packet prototype. Every transaction stores the selected location.</p>
-            </section>
+          <aside class="gate-context detail-panel" aria-label="Gate summary">
+            <section class="context-section"><p class="eyebrow">Current scan</p><h2 id="currentScanTitle">No transaction selected</h2><div class="detail-list" id="scanDetailList"></div></section>
             <section class="context-section metrics-panel" aria-label="Today at the gate">
-              <div><span>OUT today</span><strong id="todayOutCount">0</strong></div>
-              <div><span>IN today</span><strong id="todayInCount">0</strong></div>
-              <div><span>Blocked OUT</span><strong id="todayBlockCount">0</strong></div>
-              <div><span>Authorized</span><strong id="authorizedTodayCount">0</strong></div>
+              <div><span>OUT today</span><strong id="contextOutCount">0</strong></div>
+              <div><span>IN today</span><strong id="contextInCount">0</strong></div>
+              <div><span>Blocked OUT</span><strong id="contextBlockCount">0</strong></div>
+              <div><span>Authorized</span><strong id="contextAuthorizedCount">0</strong></div>
             </section>
             <section class="context-section">
               <p class="eyebrow">Transaction rule</p>

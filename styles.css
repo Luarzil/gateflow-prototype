@@ -252,3 +252,69 @@ tbody tr:last-child td { border-bottom: 0; }
   .gate-context .context-section { margin-top: 10px; }
   .metrics-panel { display: grid; }
 }
+
+/* Original GateFlow-style handheld wizard, retained for the V0.2 data model. */
+.scanner-layout { grid-template-columns: minmax(320px, 520px) minmax(245px, 330px); }
+.scanner-screen { display: grid; gap: 14px; }
+.home-actions { display: grid; gap: 12px; }
+.big-action-btn {
+  min-height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border: 0;
+  border-radius: 7px;
+  color: #fff;
+  box-shadow: 0 12px 24px rgb(20 48 40 / 18%);
+  font-size: 17px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+.big-action-btn span {
+  display: grid;
+  min-width: 48px;
+  min-height: 48px;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 24%);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 16%);
+  color: #fff;
+  font-size: 12px;
+  letter-spacing: .08em;
+}
+.big-action-btn.out { background: #215a9b; }
+.big-action-btn.in { background: #19704f; }
+.compact-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.compact-metrics div { min-height: 70px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: #f6f9f7; }
+.compact-metrics span, .summary-list span, .detail-list span { display: block; color: var(--muted); font-size: 10px; font-weight: 850; letter-spacing: .04em; text-transform: uppercase; }
+.compact-metrics strong { display: block; margin-top: 3px; font-size: 23px; }
+.recent-feed { display: grid; gap: 8px; padding-top: 2px; }
+.progress-dots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.dot { height: 8px; border-radius: 999px; background: #d7e1dd; }
+.dot.done { background: #8fc7b8; }
+.dot.active { background: var(--green); }
+.wizard-step { display: grid; gap: 14px; padding: 16px; border: 1px solid var(--line); border-radius: 7px; background: #fff; box-shadow: 0 8px 18px rgb(20 35 31 / 7%); }
+.wizard-step .screen-subtitle { margin: -8px 0 0; }
+.scan-group { display: grid; gap: 8px; }
+.demo-chip { border-radius: 999px; color: #164e77; background: #e7f0fb; border-color: #bfd3ec; }
+.summary-list { display: grid; gap: 7px; padding: 0; margin: 0; list-style: none; }
+.summary-list li { display: grid; gap: 2px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 5px; background: #f6f9f7; }
+.summary-list strong { overflow-wrap: anywhere; font-size: 13px; }
+.override-panel, .scanner-confirm { display: grid; gap: 13px; padding: 16px; border: 1px solid #e2be70; border-radius: 7px; background: #fff8ea; }
+.scanner-confirm { border-color: #9dcdb9; background: #effaf4; }
+.override-panel h2, .scanner-confirm h2 { margin: 0; font-size: 19px; }
+.override-panel p, .scanner-confirm p { margin: 0; }
+.detail-panel h2 { margin: 2px 0 10px; font-size: 18px; }
+.detail-list { display: grid; gap: 1px; overflow: hidden; border: 1px solid var(--line); border-radius: 5px; }
+.detail-list li { display: grid; gap: 2px; padding: 9px; background: #fff; list-style: none; }
+.detail-list strong { overflow-wrap: anywhere; font-size: 12px; }
+
+@media (max-width: 1050px) {
+  .scanner-layout { grid-template-columns: minmax(320px, 620px); }
+}
+
+@media (max-width: 760px) {
+  .big-action-btn { min-height: 82px; }
+  .wizard-step { padding: 14px; }
+}

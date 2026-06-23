@@ -21,8 +21,9 @@ const CURRENT_GUARD = "Gate Guard 01";
 const el = {};
 const ui = {
   direction: "OUT",
-  pendingTransaction: null,
-  searchResults: null
+  step: 0,
+  activeFlow: null,
+  pendingOverride: null
 };
 
 const state = loadState();
@@ -44,14 +45,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function cacheElements() {
   [
-    "saveStatus", "resetDemoButton", "deviceClock", "scannerNotice", "scannerLocation",
-    "driverInput", "vinInput", "transactionNote", "directionOut", "directionIn",
-    "submitTransactionButton", "driverPreview", "vehiclePreview", "authorizationPreview",
-    "supervisorPanel", "supervisorReason", "supervisorInput", "supervisorStatus",
-    "cancelSupervisorButton", "approveSupervisorButton", "transactionConfirmation",
-    "confirmationTitle", "confirmationSummary", "confirmationDoneButton", "recentActivity",
-    "todayOutCount", "todayInCount", "todayBlockCount", "authorizedTodayCount",
-    "selectedLocationTitle", "adminAuthorizedCount", "authorizedDriversBody", "driversTableBody",
+    "saveStatus", "resetDemoButton", "deviceClock", "scannerHeading", "scannerNotice",
+    "scannerHome", "scanWizard", "supervisorPanel", "transactionConfirmation", "goOutFlow",
+    "goInFlow", "flowCancel", "wizardDots", "locationStepTitle", "scannerLocation",
+    "locationNext", "driverInput", "driverStatus", "driverBack", "driverNext", "vinInput",
+    "vinStatus", "vinBack", "vinNext", "transactionNote", "reviewStepTitle", "reviewBack",
+    "scanSummary", "submitTransactionButton", "supervisorReason", "supervisorInput",
+    "supervisorStatus", "cancelSupervisorButton", "approveSupervisorButton", "confirmationTitle",
+    "confirmationSummary", "confirmationDoneButton", "gateMiniFeed", "currentScanTitle",
+    "scanDetailList", "todayOutCount", "todayInCount", "todayBlockCount", "contextOutCount",
+    "contextInCount", "contextBlockCount", "contextAuthorizedCount",
+    "adminAuthorizedCount", "authorizedDriversBody", "driversTableBody",
     "deauthorizeAllButton", "locationList", "searchForm", "filterVin", "filterPlate",
     "filterDriver", "filterLocation", "filterDate", "filterType", "clearSearchButton",
     "searchResultCount", "searchResultsBody", "auditTypeFilter", "auditTextFilter", "auditList"
@@ -65,18 +69,22 @@ function bindEvents() {
     button.addEventListener("click", () => showView(button.dataset.view));
   });
 
-  el.scannerLocation.addEventListener("change", () => {
-    renderScannerContext();
-    refreshScannerPreview();
-  });
-  el.driverInput.addEventListener("input", refreshScannerPreview);
-  el.vinInput.addEventListener("input", refreshScannerPreview);
-  el.directionOut.addEventListener("click", () => setDirection("OUT"));
-  el.directionIn.addEventListener("click", () => setDirection("IN"));
+  el.goOutFlow.addEventListener("click", () => startFlow("OUT"));
+  el.goInFlow.addEventListener("click", () => startFlow("IN"));
+  el.flowCancel.addEventListener("click", showScannerHome);
+  el.locationNext.addEventListener("click", validateLocationStep);
+  el.driverBack.addEventListener("click", () => showWizardStep(0));
+  el.driverNext.addEventListener("click", validateDriverStep);
+  el.vinBack.addEventListener("click", () => showWizardStep(1));
+  el.vinNext.addEventListener("click", validateVinStep);
+  el.reviewBack.addEventListener("click", () => showWizardStep(2));
   el.submitTransactionButton.addEventListener("click", startTransaction);
   el.cancelSupervisorButton.addEventListener("click", cancelSupervisorOverride);
   el.approveSupervisorButton.addEventListener("click", approveSupervisorOverride);
-  el.confirmationDoneButton.addEventListener("click", clearTransactionForm);
+  el.confirmationDoneButton.addEventListener("click", showScannerHome);
+  el.scannerLocation.addEventListener("change", renderScanDetails);
+  el.driverInput.addEventListener("input", updateDriverStatus);
+  el.vinInput.addEventListener("input", updateVinStatus);
 
   document.querySelectorAll("[data-demo-field]").forEach((button) => {
     button.addEventListener("click", () => setScannerValue(button.dataset.demoField, button.dataset.demoValue));
@@ -90,8 +98,8 @@ function bindEvents() {
       if (event.key !== "Enter") return;
       event.preventDefault();
       if (id === "supervisorInput") approveSupervisorOverride();
-      else if (id === "vinInput") startTransaction();
-      else el.vinInput.focus();
+      else if (id === "vinInput") validateVinStep();
+      else validateDriverStep();
     });
   });
 
@@ -185,6 +193,7 @@ function showView(viewId) {
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.view === viewId);
   });
+  renderAll();
 }
 
 function populateLocationControls() {
@@ -198,24 +207,78 @@ function optionHtml(value, selected) {
   return `<option value="${escapeHtml(value)}"${selected ? " selected" : ""}>${escapeHtml(value)}</option>`;
 }
 
-function setDirection(direction) {
+function startFlow(direction) {
+  resetFlow();
   ui.direction = direction;
-  const isOut = direction === "OUT";
-  el.directionOut.classList.toggle("is-selected", isOut);
-  el.directionIn.classList.toggle("is-selected", !isOut);
-  el.directionOut.setAttribute("aria-pressed", String(isOut));
-  el.directionIn.setAttribute("aria-pressed", String(!isOut));
-  el.submitTransactionButton.textContent = `6. Submit Vehicle ${direction}`;
-  refreshScannerPreview();
+  ui.activeFlow = direction;
+  el.scannerHeading.textContent = `Vehicle ${direction}`;
+  el.locationStepTitle.textContent = `Vehicle ${direction}`;
+  el.reviewStepTitle.textContent = `Review Vehicle ${direction}`;
+  el.submitTransactionButton.textContent = `Submit ${direction}`;
+  setNotice(`Select the location for this Vehicle ${direction}.`, "neutral");
+  showWizardStep(0);
+}
+
+function showScannerHome() {
+  resetFlow();
+  ui.activeFlow = null;
+  el.scannerHeading.textContent = "Lot Watch / GateFlow";
+  setScannerScreen("home");
+  setNotice("Ready. Choose Vehicle OUT or Vehicle IN.", "neutral");
+  renderAll();
+}
+
+function setScannerScreen(name) {
+  const screens = {
+    home: el.scannerHome,
+    wizard: el.scanWizard,
+    override: el.supervisorPanel,
+    confirm: el.transactionConfirmation
+  };
+  Object.values(screens).forEach((screen) => screen.classList.add("hidden"));
+  screens[name].classList.remove("hidden");
+}
+
+function showWizardStep(step) {
+  ui.step = step;
+  setScannerScreen("wizard");
+  document.querySelectorAll(".wizard-step").forEach((panel) => {
+    panel.classList.toggle("hidden", Number(panel.dataset.step) !== step);
+  });
+  updateWizardDots();
+  if (step === 3) renderScanSummary();
+  if (step === 0) el.scannerLocation.focus();
+  if (step === 1) el.driverInput.focus();
+  if (step === 2) el.vinInput.focus();
+  renderScanDetails();
+}
+
+function updateWizardDots() {
+  el.wizardDots.querySelectorAll(".dot").forEach((dot, index) => {
+    dot.classList.toggle("done", index < ui.step);
+    dot.classList.toggle("active", index === ui.step);
+  });
+}
+
+function resetFlow() {
+  ui.step = 0;
+  ui.pendingOverride = null;
+  el.driverInput.value = "";
+  el.vinInput.value = "";
+  el.transactionNote.value = "";
+  el.supervisorInput.value = "";
+  el.driverStatus.textContent = "Awaiting employee number scan.";
+  el.vinStatus.textContent = "Awaiting VIN scan.";
+  el.supervisorStatus.textContent = "Awaiting a valid supervisor ID.";
+  renderScanDetails();
 }
 
 function setScannerValue(fieldId, value) {
   const input = el[fieldId];
   if (!input) return;
   input.value = value;
-  if (fieldId === "driverInput" || fieldId === "vinInput") refreshScannerPreview();
-  if (fieldId === "driverInput") el.vinInput.focus();
-  if (fieldId === "vinInput") input.focus();
+  if (fieldId === "driverInput") updateDriverStatus();
+  if (fieldId === "vinInput") updateVinStatus();
   if (fieldId === "supervisorInput") input.focus();
 }
 
@@ -230,74 +293,85 @@ function simulateScan(fieldId) {
   setScannerValue(fieldId, next);
 }
 
-function refreshScannerPreview() {
+function updateDriverStatus() {
   const driver = findDriver(el.driverInput.value);
+  if (!driver) el.driverStatus.textContent = "Employee number not found in the demo roster.";
+  else if (isAuthorizedToday(driver.employeeNumber)) el.driverStatus.textContent = `${driver.name} is authorized for today.`;
+  else if (ui.direction === "OUT") el.driverStatus.textContent = `${driver.name} needs supervisor approval for OUT.`;
+  else el.driverStatus.textContent = `${driver.name} is not authorized. IN will be flagged for review.`;
+  renderScanDetails();
+}
+
+function updateVinStatus() {
   const vehicle = findVehicle(el.vinInput.value);
-  const authorized = driver ? isAuthorizedToday(driver.employeeNumber) : false;
+  el.vinStatus.textContent = vehicle ? `${vehicle.vin} / ${vehicle.plate || "No plate"} found.` : "VIN not found in the demo vehicle list.";
+  renderScanDetails();
+}
 
-  el.driverPreview.textContent = driver ? `${driver.employeeNumber} - ${driver.name}` : "Awaiting valid employee #";
-  el.vehiclePreview.textContent = vehicle ? `${vehicle.vin} / ${vehicle.plate || "No plate"}` : "Awaiting valid VIN";
-  if (!driver) el.authorizationPreview.textContent = "Checked on submit";
-  else if (authorized) el.authorizationPreview.textContent = "Authorized today";
-  else el.authorizationPreview.textContent = ui.direction === "OUT" ? "OUT requires approval" : "Unauthorized IN will be flagged";
+function validateLocationStep() {
+  if (!el.scannerLocation.value) {
+    setNotice("Select a location before continuing.", "warning");
+    return;
+  }
+  showWizardStep(1);
+}
 
-  el.driverPreview.parentElement.classList.toggle("is-ready", Boolean(driver));
-  el.vehiclePreview.parentElement.classList.toggle("is-ready", Boolean(vehicle));
-  el.authorizationPreview.parentElement.classList.toggle("is-warning", Boolean(driver && !authorized));
-  renderScannerContext();
+function validateDriverStep() {
+  const driver = findDriver(el.driverInput.value);
+  if (!driver) {
+    setNotice("Scan or enter a valid Driver Employee #.", "warning");
+    el.driverInput.focus();
+    return;
+  }
+  if (ui.direction === "OUT" && !isAuthorizedToday(driver.employeeNumber)) {
+    blockOutForSupervisor(driver);
+    return;
+  }
+  showWizardStep(2);
+}
+
+function validateVinStep() {
+  const vehicle = findVehicle(el.vinInput.value);
+  if (!vehicle) {
+    setNotice("Scan or enter a valid vehicle VIN.", "warning");
+    el.vinInput.focus();
+    return;
+  }
+  showWizardStep(3);
+}
+
+function blockOutForSupervisor(driver) {
+  ui.pendingOverride = { driverEmployee: driver.employeeNumber, location: el.scannerLocation.value };
+  el.supervisorReason.textContent = `${driver.employeeNumber} / ${driver.name} is not authorized for today. Vehicle OUT is blocked until a supervisor approves.`;
+  el.supervisorInput.value = "";
+  el.supervisorStatus.textContent = "Awaiting a valid supervisor ID.";
+  setScannerScreen("override");
+  addAudit("blocked_out", `Blocked Vehicle OUT attempt for ${driver.employeeNumber}.`, CURRENT_GUARD, el.scannerLocation.value);
+  saveState();
+  renderAll();
+  setNotice("Vehicle OUT blocked. Supervisor authorization required.", "warning");
+  el.supervisorInput.focus();
 }
 
 function startTransaction() {
   const draft = readTransactionDraft();
   if (!draft) return;
-
   if (draft.direction === "OUT" && !isAuthorizedToday(draft.driver.employeeNumber)) {
-    ui.pendingTransaction = draft;
-    el.supervisorReason.textContent = `${draft.driver.employeeNumber} / ${draft.driver.name} is not authorized for today. Vehicle OUT is blocked until a supervisor approves.`;
-    el.supervisorPanel.classList.remove("hidden");
-    el.transactionConfirmation.classList.add("hidden");
-    el.supervisorInput.value = "";
-    el.supervisorStatus.textContent = "Awaiting a valid supervisor ID.";
-    el.supervisorInput.focus();
-    addAudit("blocked_out", `Blocked Vehicle OUT attempt for ${draft.driver.employeeNumber} / ${draft.vehicle.plate || draft.vehicle.vin}.`, CURRENT_GUARD, draft.location);
-    saveState();
-    renderAll();
-    setNotice("Vehicle OUT blocked. Supervisor authorization required.", "warning");
+    blockOutForSupervisor(draft.driver);
     return;
   }
-
   completeTransaction(draft);
 }
 
 function readTransactionDraft() {
   const driver = findDriver(el.driverInput.value);
   const vehicle = findVehicle(el.vinInput.value);
-  const location = el.scannerLocation.value;
-  if (!location) {
-    setNotice("Select a location before submitting.", "warning");
-    return null;
-  }
-  if (!driver) {
-    setNotice("Scan or enter a valid Driver Employee #.", "warning");
-    el.driverInput.focus();
-    return null;
-  }
-  if (!vehicle) {
-    setNotice("Scan or enter a valid vehicle VIN.", "warning");
-    el.vinInput.focus();
-    return null;
-  }
-  return {
-    driver,
-    vehicle,
-    location,
-    direction: ui.direction,
-    note: el.transactionNote.value.trim()
-  };
+  if (!driver || !vehicle || !el.scannerLocation.value) return null;
+  return { driver, vehicle, location: el.scannerLocation.value, direction: ui.direction, note: el.transactionNote.value.trim() };
 }
 
 function approveSupervisorOverride() {
-  if (!ui.pendingTransaction) return;
+  if (!ui.pendingOverride) return;
   const supervisor = state.supervisors.find((item) => item.id === normalize(el.supervisorInput.value));
   if (!supervisor) {
     el.supervisorStatus.textContent = "Invalid supervisor ID. Approval was not granted.";
@@ -305,19 +379,18 @@ function approveSupervisorOverride() {
     return;
   }
 
-  const draft = ui.pendingTransaction;
-  addAuthorization(draft.driver.employeeNumber, supervisor.id, draft.location, true);
-  addAudit("supervisor_approval", "Supervisor approved unauthorized driver for today.", `${supervisor.id} / ${supervisor.name}`, draft.location);
+  const pending = ui.pendingOverride;
+  addAuthorization(pending.driverEmployee, supervisor.id, pending.location, true);
+  addAudit("supervisor_approval", "Supervisor approved unauthorized driver for today.", `${supervisor.id} / ${supervisor.name}`, pending.location);
   saveState();
-  ui.pendingTransaction = null;
-  el.supervisorPanel.classList.add("hidden");
-  completeTransaction(draft);
+  ui.pendingOverride = null;
+  renderAll();
+  setNotice("Supervisor approved this driver for today. Continue to the vehicle VIN.", "success");
+  showWizardStep(2);
 }
 
 function cancelSupervisorOverride() {
-  ui.pendingTransaction = null;
-  el.supervisorPanel.classList.add("hidden");
-  el.supervisorInput.value = "";
+  showScannerHome();
   setNotice("Blocked OUT transaction cancelled.", "neutral");
 }
 
@@ -347,30 +420,21 @@ function completeTransaction(draft) {
     addAudit("unauthorized_in_review", "Unauthorized IN activity flagged for audit review.", CURRENT_GUARD, draft.location);
   }
   saveState();
-  ui.searchResults = null;
   renderAll();
   showTransactionConfirmation(transaction);
   setNotice(`Vehicle ${draft.direction} saved.`, "success");
 }
 
 function showTransactionConfirmation(transaction) {
-  el.supervisorPanel.classList.add("hidden");
-  el.transactionConfirmation.classList.remove("hidden");
+  setScannerScreen("confirm");
   el.confirmationTitle.textContent = `Vehicle ${transaction.direction} recorded`;
-  el.confirmationSummary.textContent = `${transaction.driverEmployee} / ${transaction.driverName} - ${transaction.plate || transaction.vin} at ${transaction.location}. ${transaction.authorizationStatus} today.`;
-}
-
-function clearTransactionForm() {
-  el.driverInput.value = "";
-  el.vinInput.value = "";
-  el.transactionNote.value = "";
-  el.supervisorInput.value = "";
-  ui.pendingTransaction = null;
-  el.transactionConfirmation.classList.add("hidden");
-  el.supervisorPanel.classList.add("hidden");
-  refreshScannerPreview();
-  el.driverInput.focus();
-  setNotice("Ready for the next vehicle.", "neutral");
+  el.confirmationSummary.innerHTML = summaryRows([
+    ["Movement", `Vehicle ${transaction.direction}`],
+    ["Location", transaction.location],
+    ["Driver", `${transaction.driverEmployee} - ${transaction.driverName}`],
+    ["Vehicle", `${transaction.vin}${transaction.plate ? ` / ${transaction.plate}` : ""}`],
+    ["Authorization", `${transaction.authorizationStatus} today`]
+  ]);
 }
 
 function findDriver(value) {
@@ -434,10 +498,10 @@ function addAudit(type, description, actor, location) {
 
 function renderAll() {
   renderScannerContext();
-  refreshScannerPreview();
+  renderScanDetails();
   renderRecentActivity();
   renderAdmin();
-  if (ui.searchResults === null) ui.searchResults = state.transactions.slice();
+  ui.searchResults = filterTransactions();
   renderSearchResults();
   renderAuditLog();
 }
@@ -449,13 +513,47 @@ function renderScannerContext() {
   el.todayOutCount.textContent = transactionsToday.filter((item) => item.direction === "OUT").length;
   el.todayInCount.textContent = transactionsToday.filter((item) => item.direction === "IN").length;
   el.todayBlockCount.textContent = auditToday.filter((item) => item.type === "blocked_out").length;
-  el.authorizedTodayCount.textContent = state.drivers.filter((driver) => isAuthorizedToday(driver.employeeNumber)).length;
-  el.selectedLocationTitle.textContent = el.scannerLocation.value || "Select a location";
+  el.contextOutCount.textContent = el.todayOutCount.textContent;
+  el.contextInCount.textContent = el.todayInCount.textContent;
+  el.contextBlockCount.textContent = el.todayBlockCount.textContent;
+  el.contextAuthorizedCount.textContent = state.drivers.filter((driver) => isAuthorizedToday(driver.employeeNumber)).length;
+}
+
+function renderScanDetails() {
+  const driver = findDriver(el.driverInput.value);
+  const vehicle = findVehicle(el.vinInput.value);
+  const location = el.scannerLocation.value || "No location selected";
+  const authorization = driver ? (isAuthorizedToday(driver.employeeNumber) ? "Authorized today" : "Not authorized today") : "Awaiting driver";
+  const title = ui.activeFlow ? `Vehicle ${ui.direction}` : "No transaction selected";
+  el.currentScanTitle.textContent = title;
+  el.scanDetailList.innerHTML = summaryRows([
+    ["Location", location],
+    ["Driver", driver ? `${driver.employeeNumber} - ${driver.name}` : "Awaiting employee #"],
+    ["Vehicle", vehicle ? `${vehicle.vin}${vehicle.plate ? ` / ${vehicle.plate}` : ""}` : "Awaiting VIN"],
+    ["Authorization", authorization]
+  ]);
+}
+
+function renderScanSummary() {
+  const driver = findDriver(el.driverInput.value);
+  const vehicle = findVehicle(el.vinInput.value);
+  const authorization = driver && isAuthorizedToday(driver.employeeNumber) ? "Authorized today" : "Unauthorized - IN will be flagged";
+  el.scanSummary.innerHTML = summaryRows([
+    ["Movement", `Vehicle ${ui.direction}`],
+    ["Location", el.scannerLocation.value],
+    ["Driver", driver ? `${driver.employeeNumber} - ${driver.name}` : "Awaiting employee #"],
+    ["Vehicle", vehicle ? `${vehicle.vin}${vehicle.plate ? ` / ${vehicle.plate}` : ""}` : "Awaiting VIN"],
+    ["Authorization", authorization]
+  ]);
+}
+
+function summaryRows(rows) {
+  return rows.map(([label, value]) => `<li><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></li>`).join("");
 }
 
 function renderRecentActivity() {
   const transactions = state.transactions.slice(0, 5);
-  el.recentActivity.innerHTML = transactions.length ? transactions.map((item) => `
+  el.gateMiniFeed.innerHTML = transactions.length ? transactions.map((item) => `
     <article class="feed-item">
       <span class="movement-chip ${item.direction.toLowerCase()}">${item.direction}</span>
       <div><strong>${escapeHtml(item.plate || item.vin)}</strong><span>${escapeHtml(item.driverEmployee)} - ${escapeHtml(item.location)}</span></div>
@@ -502,12 +600,11 @@ function filterTransactions() {
 function clearSearch() {
   el.searchForm.reset();
   el.filterLocation.value = "";
-  ui.searchResults = state.transactions.slice();
-  renderSearchResults();
+  renderAll();
 }
 
 function renderSearchResults() {
-  const results = ui.searchResults === null ? state.transactions : ui.searchResults;
+  const results = ui.searchResults;
   el.searchResultCount.textContent = results.length;
   el.searchResultsBody.innerHTML = results.length ? results.map((item) => `<tr>
     <td>${formatTimestamp(item.timestamp)}</td><td><span class="movement-chip ${item.direction.toLowerCase()}">${item.direction}</span></td><td>${escapeHtml(item.driverEmployee)}</td><td>${escapeHtml(item.driverName)}</td><td class="mono">${escapeHtml(item.vin)}</td><td>${escapeHtml(item.plate || "-")}</td><td>${escapeHtml(item.location)}</td><td><span class="status-badge ${item.authorizationStatus === "Authorized" ? "authorized" : "unauthorized"}">${escapeHtml(item.authorizationStatus)}</span></td><td>${escapeHtml(item.note || "-")}</td><td>${escapeHtml(item.submittedBy)}</td>
@@ -536,10 +633,9 @@ function resetDemo() {
   Object.keys(state).forEach((key) => delete state[key]);
   Object.assign(state, fresh);
   addAudit("demo_reset", "Demo data reset to V0.2 seed data.", "System", "");
-  ui.searchResults = null;
-  ui.pendingTransaction = null;
+  ui.pendingOverride = null;
   populateLocationControls();
-  clearTransactionForm();
+  showScannerHome();
   saveState();
   renderAll();
   setNotice("Demo data reset.", "success");
