@@ -1,53 +1,42 @@
-# Lot Watch / GateFlow V0.2
+# Lot Watch / GateFlow V0.3
 
-Static HTML/CSS/JS prototype for enterprise-style vehicle gate tracking on a Zebra TC-series Android handheld or a desktop browser. It opens directly to the GateFlow scanner workflow and needs no backend or Zebra hardware for this version.
+Static HTML, CSS, and JavaScript prototype for vehicle gate tracking. V0.3 is optimized for a Zebra TC58e-style Android handheld scanner and also includes a desktop Admin, Search, and Audit dashboard.
 
-## V0.2 Workflow
+## Scanner workflow
 
-The scanner captures the confirmed gate fields in one fast flow:
+The guard selects a persistent **Working Location** once for the session, then completes a fast movement flow:
 
-1. Location
-2. Driver employee number
-3. Vehicle VIN
-4. Vehicle IN or OUT
-5. Optional note
-6. Submit transaction
+1. Scan or enter Driver Employee #.
+2. See the driver name and today's authorization status immediately.
+3. Scan or enter Vehicle VIN.
+4. Choose Vehicle OUT or Vehicle IN.
+5. Add an optional note and submit.
 
-Vehicle OUT requires a driver to be authorized for the current day. A blocked OUT transaction can be approved by a valid supervisor ID, which authorizes that driver for today and writes both authorization and supervisor-approval audit events. Vehicle IN always records the movement; unauthorized IN activity is flagged in the audit view.
+Pressing Enter after the driver field advances to VIN. Pressing Enter after VIN advances to the IN/OUT choice, matching keyboard-style scanner wedge behavior. VIN values are normalized to uppercase. Values that are not 17 characters show a warning but remain allowed for demo use.
 
-The built-in demo data includes the seeded locations, drivers, VINs/plates, supervisors, daily authorizations, transactions, and audit history. All prototype data is stored in browser `localStorage`. Use `Reset demo` to restore the seed data.
+Vehicle OUT requires same-day driver authorization. An unauthorized OUT is blocked until a valid supervisor ID authorizes that driver for today; the blocked attempt, authorization, approval, and completed movement are all recorded in Audit. Vehicle IN is always permitted. Unauthorized IN records an **Unauthorized IN - audit review** event.
 
-## Run It
+The expandable **Scanner input test** panel shows the most recent raw input, receiving field, and detected Enter/Tab terminator for future device testing. Scanner connectivity placeholders show online/offline state, local-save status, sync queue count, and a future 5G/Wi-Fi indicator.
 
-Open `index.html` in a browser for the desktop prototype. When served over HTTP(S), the included `manifest.webmanifest` and `service-worker.js` allow an installable, offline-friendly static demo.
+## Run it
 
-The scanner fields accept normal typing and the `Sim scan` / demo buttons. This mirrors how a keyboard-wedge scanner can fill the focused field without requiring real device hardware.
+Open `index.html` directly in a browser. For the installable offline shell, serve this folder over HTTP(S) so the included manifest and service worker can load.
 
-## Changes From V0.1
+All demo data is stored in browser `localStorage`. Admin actions, transactions, Search results, and Audit events all read from the same local state, so changes appear across tabs immediately. Use **Reset demo** to restore the seeded data.
 
-- Simplified the scanner around driver employee number and vehicle VIN.
-- Added a location selector that is saved with every transaction.
-- Improved daily authorization and supervisor override behavior.
-- Expanded manager search for VIN, partial VIN, plate, driver, location, date, and IN/OUT.
-- Rebuilt recent activity and audit history around the simplified movement model.
-- Removed the photo requirement. Photo capture is intentionally excluded from V0.2 because the client confirmed it is not needed at this stage.
+## Zebra TC58e-style context
 
-## Zebra Device Notes
+The TC58e product family is Android-based and supports Wi-Fi 6E, Bluetooth, and 5G connectivity. This prototype does not require a Zebra device: it uses focused text inputs and Enter/Tab handling to simulate keyboard-style scan input.
 
-V0.2 uses ordinary browser inputs by design. A Zebra DataWedge profile can later send scans through keyboard wedge behavior into the focused employee number, VIN, or supervisor field. A production implementation could also use Android Intents, Zebra Enterprise Browser, or a native Android application. None of those integrations are required for this prototype.
+No real Zebra integration is included yet. Production options may include:
 
-## Future Production Architecture
+- Zebra DataWedge keyboard wedge profiles.
+- Android Intents.
+- Zebra Enterprise Browser.
+- A native Android application.
 
-The prototype intentionally has no real backend yet. Possible production placeholders include:
+## Scope
 
-- AWS Cognito for authentication.
-- API Gateway and Lambda, or an Amplify backend, for application APIs.
-- DynamoDB or RDS/Postgres for driver, vehicle, transaction, and audit records.
-- S3 only if approved file storage is ever needed.
-- Customer-owned or customer-approved data hosting and retention.
-- Role-based permissions for guards, supervisors, managers, and administrators.
-- Offline sync for small scanner transaction packets.
-- Device management for managed Zebra handhelds.
-- Export and reporting workflows for managers.
+V0.3 remains a static prototype. It has no backend, AWS, Supabase, real authentication, or customer data connection. Future production work should use customer-owned or customer-approved data hosting, role-based permissions, and offline sync for field transactions.
 
-Fleet remains the current provider and future integration decisions should follow the client-provided Fleet access and screenshots. Label printing is also deferred until the client provides the printer model and workflow.
+Photo capture is intentionally not included because the client said photos are not needed.

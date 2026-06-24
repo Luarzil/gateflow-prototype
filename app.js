@@ -1,29 +1,42 @@
 "use strict";
 
 /*
-  Lot Watch / GateFlow V0.2 production integration notes:
+  Lot Watch / GateFlow V0.3 production integration notes:
   - This prototype uses normal text inputs so typed values and Zebra DataWedge keyboard
-    wedge scans use the same flow. No Zebra hardware is required in V0.2.
+    wedge scans use the same flow. No Zebra hardware is required in V0.3.
   - A Zebra DataWedge profile can later target the focused driver, VIN, or supervisor
     field. Android Intents can call setScannerValue() from a native wrapper instead.
   - Zebra Enterprise Browser or a native Android app can retain these transaction rules
     while adding EMDK, RFID, NFC, or device-management APIs.
-  - Replace localStorage with a secured customer-owned backend when production access is
-    available. Queue small transaction packets for offline sync and resolve on reconnect.
-  - AWS Cognito, API Gateway/Lambda or Amplify, DynamoDB or RDS/Postgres, role-based
-    permissions, reporting, and approved customer data hosting are future work only.
+  - Replace localStorage with a secured customer-owned or customer-approved hosted database
+    (for example, Postgres) when production access is available. Queue small transaction
+    packets for offline sync and resolve on reconnect.
+  - Role-based permissions, user management, reporting, and approved customer data hosting
+    are future work only. Photo capture is intentionally excluded because it is not required.
 */
 
-const STORAGE_KEY = "lot-watch.gateflow.v0.2.state";
+const STORAGE_KEY = "lot-watch.gateflow.v0.3.state";
 const VIEWS = ["scannerView", "adminView", "searchView", "auditView"];
 const CURRENT_GUARD = "Gate Guard 01";
 
+// Set by loadState() at startup; guards every later localStorage call.
+// Some contexts (most commonly opening this file directly via
+// file:// rather than serving it over http) block localStorage with
+// a thrown SecurityError. Without this guard that error aborts
+// whichever handler triggered it mid-execution, which makes the app
+// look broken/frozen on any action that saves state.
+let storageAvailable = true;
+
 const el = {};
 const ui = {
-  direction: "OUT",
+  direction: null,
   step: 0,
   activeFlow: null,
-  pendingOverride: null
+  pendingOverride: null,
+  lastRawScan: "No scan received",
+  lastScanField: "-",
+  scanTerminator: "No",
+  lastSavedAt: null
 };
 
 const state = loadState();
@@ -36,6 +49,12 @@ document.addEventListener("DOMContentLoaded", () => {
   updateClock();
   setInterval(updateClock, 30000);
 
+  if (!storageAvailable) {
+    setSaveStatus("Not saved (storage unavailable in this browser)");
+    el.saveStatus.classList.add("warn");
+    setNotice("This browser/context blocks local storage (common when opening the file directly). The app still works, but nothing will be saved between reloads. Try a different browser or serve the folder over http(s) to enable saving.", "warning");
+  }
+
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
     navigator.serviceWorker.register("service-worker.js").catch(() => {
       setSaveStatus("Offline cache unavailable");
@@ -46,9 +65,8 @@ document.addEventListener("DOMContentLoaded", () => {
 function cacheElements() {
   [
     "saveStatus", "resetDemoButton", "deviceClock", "scannerHeading", "scannerNotice",
-    "scannerHome", "scanWizard", "supervisorPanel", "transactionConfirmation", "goOutFlow",
-    "goInFlow", "flowCancel", "wizardDots", "locationStepTitle", "scannerLocation",
-    "locationNext", "driverInput", "driverStatus", "driverBack", "driverNext", "vinInput",
+    "scannerHome", "scanWizard", "supervisorPanel", "transactionConfirmation", "startScanButton",
+    "flowCancel", "wizardDots", "scannerLocation", "driverInput", "driverStatus", "driverNext", "vinInput",
     "vinStatus", "vinBack", "vinNext", "transactionNote", "reviewStepTitle", "reviewBack",
     "scanSummary", "submitTransactionButton", "supervisorReason", "supervisorInput",
     "supervisorStatus", "cancelSupervisorButton", "approveSupervisorButton", "confirmationTitle",
@@ -58,7 +76,9 @@ function cacheElements() {
     "adminAuthorizedCount", "authorizedDriversBody", "driversTableBody",
     "deauthorizeAllButton", "locationList", "searchForm", "filterVin", "filterPlate",
     "filterDriver", "filterLocation", "filterDate", "filterType", "clearSearchButton",
-    "searchResultCount", "searchResultsBody", "auditTypeFilter", "auditTextFilter", "auditList"
+    "searchResultCount", "searchResultsBody", "auditTypeFilter", "auditTextFilter", "auditList",
+    "directionOut", "directionIn", "movementBack", "onlineStatus", "lastSavedLocal",
+    "syncQueueCount", "lastRawScan", "lastScanField", "scanTerminator"
   ].forEach((id) => {
     el[id] = document.getElementById(id);
   });
@@ -69,22 +89,26 @@ function bindEvents() {
     button.addEventListener("click", () => showView(button.dataset.view));
   });
 
-  el.goOutFlow.addEventListener("click", () => startFlow("OUT"));
-  el.goInFlow.addEventListener("click", () => startFlow("IN"));
+  el.startScanButton.addEventListener("click", startFlow);
   el.flowCancel.addEventListener("click", showScannerHome);
-  el.locationNext.addEventListener("click", validateLocationStep);
-  el.driverBack.addEventListener("click", () => showWizardStep(0));
   el.driverNext.addEventListener("click", validateDriverStep);
-  el.vinBack.addEventListener("click", () => showWizardStep(1));
+  el.vinBack.addEventListener("click", () => showWizardStep(0));
   el.vinNext.addEventListener("click", validateVinStep);
+  el.directionOut.addEventListener("click", () => chooseDirection("OUT"));
+  el.directionIn.addEventListener("click", () => chooseDirection("IN"));
+  el.movementBack.addEventListener("click", () => showWizardStep(1));
   el.reviewBack.addEventListener("click", () => showWizardStep(2));
   el.submitTransactionButton.addEventListener("click", startTransaction);
   el.cancelSupervisorButton.addEventListener("click", cancelSupervisorOverride);
   el.approveSupervisorButton.addEventListener("click", approveSupervisorOverride);
   el.confirmationDoneButton.addEventListener("click", showScannerHome);
-  el.scannerLocation.addEventListener("change", renderScanDetails);
-  el.driverInput.addEventListener("input", updateDriverStatus);
-  el.vinInput.addEventListener("input", updateVinStatus);
+  el.scannerLocation.addEventListener("change", () => {
+    state.workingLocation = el.scannerLocation.value;
+    saveState();
+    renderAll();
+  });
+  el.driverInput.addEventListener("input", () => handleScanInput("driverInput"));
+  el.vinInput.addEventListener("input", () => handleScanInput("vinInput"));
 
   document.querySelectorAll("[data-demo-field]").forEach((button) => {
     button.addEventListener("click", () => setScannerValue(button.dataset.demoField, button.dataset.demoValue));
@@ -95,6 +119,8 @@ function bindEvents() {
 
   ["driverInput", "vinInput", "supervisorInput"].forEach((id) => {
     el[id].addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== "Tab") return;
+      recordScannerInput(id, el[id].value, event.key);
       if (event.key !== "Enter") return;
       event.preventDefault();
       if (id === "supervisorInput") approveSupervisorOverride();
@@ -116,6 +142,8 @@ function bindEvents() {
   el.auditTypeFilter.addEventListener("change", renderAuditLog);
   el.auditTextFilter.addEventListener("input", renderAuditLog);
   el.resetDemoButton.addEventListener("click", resetDemo);
+  window.addEventListener("online", renderConnectivityStatus);
+  window.addEventListener("offline", renderConnectivityStatus);
 }
 
 function createSeedState() {
@@ -124,7 +152,8 @@ function createSeedState() {
   const isoMinutesAgo = (minutes) => new Date(now.getTime() - minutes * 60000).toISOString();
 
   return {
-    version: "0.2",
+    version: "0.3",
+    workingLocation: "Division Street",
     drivers: [
       { employeeNumber: "EMP-1001", name: "Nina Patel" },
       { employeeNumber: "EMP-1002", name: "Marcus Reed" },
@@ -172,10 +201,26 @@ function seedAudit(id, timestamp, type, description, actor, location) {
   return { id, timestamp, type, description, actor, location };
 }
 
+function isStorageUsable() {
+  try {
+    const testKey = "lot-watch.gateflow.storage-check";
+    localStorage.setItem(testKey, "1");
+    localStorage.removeItem(testKey);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
 function loadState() {
+  storageAvailable = isStorageUsable();
+  if (!storageAvailable) {
+    console.warn("localStorage is not available in this context (often happens when opening the file directly via file://). Lot Watch / GateFlow will run with in-memory data only for this session.");
+    return createSeedState();
+  }
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (saved && saved.version === "0.2" && Array.isArray(saved.transactions)) return saved;
+    if (saved && saved.version === "0.3" && Array.isArray(saved.transactions)) return saved;
   } catch (error) {
     console.warn("Could not load Lot Watch state", error);
   }
@@ -183,13 +228,28 @@ function loadState() {
 }
 
 function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  setSaveStatus("Saved locally");
+  if (!storageAvailable) return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    ui.lastSavedAt = new Date();
+    setSaveStatus("Saved locally");
+    renderConnectivityStatus();
+  } catch (error) {
+    storageAvailable = false;
+    console.warn("Could not save Lot Watch state locally; continuing in-memory only for this session.", error);
+    setSaveStatus("Not saved (storage unavailable in this browser)");
+    el.saveStatus.classList.add("warn");
+  }
 }
 
 function showView(viewId) {
   if (!VIEWS.includes(viewId)) return;
-  VIEWS.forEach((id) => document.getElementById(id).classList.toggle("is-active", id === viewId));
+  VIEWS.forEach((id) => {
+    const section = document.getElementById(id);
+    const isActive = id === viewId;
+    section.classList.toggle("is-active", isActive);
+    if (isActive) animateIn(section);
+  });
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.view === viewId);
   });
@@ -197,34 +257,33 @@ function showView(viewId) {
 }
 
 function populateLocationControls() {
-  const selectedScannerLocation = el.scannerLocation.value || state.locations[0];
+  const selectedScannerLocation = state.workingLocation || el.scannerLocation.value || state.locations[0];
   const selectedSearchLocation = el.filterLocation.value;
   el.scannerLocation.innerHTML = state.locations.map((location) => optionHtml(location, location === selectedScannerLocation)).join("");
   el.filterLocation.innerHTML = `<option value="">All locations</option>${state.locations.map((location) => optionHtml(location, location === selectedSearchLocation)).join("")}`;
+  state.workingLocation = el.scannerLocation.value || state.locations[0];
 }
 
 function optionHtml(value, selected) {
   return `<option value="${escapeHtml(value)}"${selected ? " selected" : ""}>${escapeHtml(value)}</option>`;
 }
 
-function startFlow(direction) {
+function startFlow() {
   resetFlow();
-  ui.direction = direction;
-  ui.activeFlow = direction;
-  el.scannerHeading.textContent = `Vehicle ${direction}`;
-  el.locationStepTitle.textContent = `Vehicle ${direction}`;
-  el.reviewStepTitle.textContent = `Review Vehicle ${direction}`;
-  el.submitTransactionButton.textContent = `Submit ${direction}`;
-  setNotice(`Select the location for this Vehicle ${direction}.`, "neutral");
+  ui.direction = null;
+  ui.activeFlow = "scan";
+  el.scannerHeading.textContent = "Vehicle Scan";
+  setNotice("Scan the driver employee #, then the vehicle VIN.", "neutral");
   showWizardStep(0);
 }
 
 function showScannerHome() {
   resetFlow();
   ui.activeFlow = null;
+  ui.direction = null;
   el.scannerHeading.textContent = "Lot Watch / GateFlow";
   setScannerScreen("home");
-  setNotice("Ready. Choose Vehicle OUT or Vehicle IN.", "neutral");
+  setNotice("Ready. Working location stays selected for this session.", "neutral");
   renderAll();
 }
 
@@ -237,19 +296,41 @@ function setScannerScreen(name) {
   };
   Object.values(screens).forEach((screen) => screen.classList.add("hidden"));
   screens[name].classList.remove("hidden");
+  animateIn(screens[name]);
+}
+
+// Restarts a short fade/slide-in animation on an element — used any
+// time a scanner screen, wizard step, or tab becomes visible so the
+// UI feels responsive instead of snapping instantly between states.
+function animateIn(target) {
+  if (!target) return;
+  target.classList.remove("enter-anim");
+  void target.offsetWidth; // force reflow so the animation restarts
+  target.classList.add("enter-anim");
+}
+
+// Briefly shakes a field to draw the eye to an invalid value, paired
+// with the existing field-status text and scanner-alert tone.
+function shake(target) {
+  if (!target) return;
+  target.classList.remove("shake");
+  void target.offsetWidth;
+  target.classList.add("shake");
 }
 
 function showWizardStep(step) {
   ui.step = step;
   setScannerScreen("wizard");
   document.querySelectorAll(".wizard-step").forEach((panel) => {
-    panel.classList.toggle("hidden", Number(panel.dataset.step) !== step);
+    const isActive = Number(panel.dataset.step) === step;
+    panel.classList.toggle("hidden", !isActive);
+    if (isActive) animateIn(panel);
   });
   updateWizardDots();
   if (step === 3) renderScanSummary();
-  if (step === 0) el.scannerLocation.focus();
-  if (step === 1) el.driverInput.focus();
-  if (step === 2) el.vinInput.focus();
+  if (step === 0) el.driverInput.focus();
+  if (step === 1) el.vinInput.focus();
+  if (step === 2) el.directionOut.focus();
   renderScanDetails();
 }
 
@@ -277,8 +358,12 @@ function setScannerValue(fieldId, value) {
   const input = el[fieldId];
   if (!input) return;
   input.value = value;
+  recordScannerInput(fieldId, value, "Simulated scan");
   if (fieldId === "driverInput") updateDriverStatus();
-  if (fieldId === "vinInput") updateVinStatus();
+  if (fieldId === "vinInput") {
+    input.value = normalize(value);
+    updateVinStatus();
+  }
   if (fieldId === "supervisorInput") input.focus();
 }
 
@@ -296,47 +381,49 @@ function simulateScan(fieldId) {
 function updateDriverStatus() {
   const driver = findDriver(el.driverInput.value);
   if (!driver) el.driverStatus.textContent = "Employee number not found in the demo roster.";
-  else if (isAuthorizedToday(driver.employeeNumber)) el.driverStatus.textContent = `${driver.name} is authorized for today.`;
-  else if (ui.direction === "OUT") el.driverStatus.textContent = `${driver.name} needs supervisor approval for OUT.`;
-  else el.driverStatus.textContent = `${driver.name} is not authorized. IN will be flagged for review.`;
+  else if (isAuthorizedToday(driver.employeeNumber)) el.driverStatus.textContent = `${driver.name} - Authorized today.`;
+  else el.driverStatus.textContent = `${driver.name} - Not authorized today. Vehicle OUT requires supervisor approval.`;
   renderScanDetails();
 }
 
 function updateVinStatus() {
-  const vehicle = findVehicle(el.vinInput.value);
-  el.vinStatus.textContent = vehicle ? `${vehicle.vin} / ${vehicle.plate || "No plate"} found.` : "VIN not found in the demo vehicle list.";
-  renderScanDetails();
-}
-
-function validateLocationStep() {
-  if (!el.scannerLocation.value) {
-    setNotice("Select a location before continuing.", "warning");
-    return;
+  const value = normalize(el.vinInput.value);
+  const vehicle = findVehicle(value);
+  if (!value) el.vinStatus.textContent = "Awaiting VIN scan.";
+  else {
+    const lengthNote = value.length === 17 ? "" : ` VIN is ${value.length} characters; 17 expected. Allowed for demo.`;
+    el.vinStatus.textContent = vehicle ? `${vehicle.vin} / ${vehicle.plate || "No plate"} found.${lengthNote}` : `VIN not found in the demo list.${lengthNote}`;
   }
-  showWizardStep(1);
+  renderScanDetails();
 }
 
 function validateDriverStep() {
   const driver = findDriver(el.driverInput.value);
   if (!driver) {
     setNotice("Scan or enter a valid Driver Employee #.", "warning");
+    shake(el.driverInput);
     el.driverInput.focus();
     return;
   }
-  if (ui.direction === "OUT" && !isAuthorizedToday(driver.employeeNumber)) {
-    blockOutForSupervisor(driver);
+  showWizardStep(1);
+}
+
+function validateVinStep() {
+  const vin = normalize(el.vinInput.value);
+  el.vinInput.value = vin;
+  if (!vin) {
+    setNotice("Scan or enter a vehicle VIN.", "warning");
+    shake(el.vinInput);
+    el.vinInput.focus();
     return;
   }
   showWizardStep(2);
 }
 
-function validateVinStep() {
-  const vehicle = findVehicle(el.vinInput.value);
-  if (!vehicle) {
-    setNotice("Scan or enter a valid vehicle VIN.", "warning");
-    el.vinInput.focus();
-    return;
-  }
+function chooseDirection(direction) {
+  ui.direction = direction;
+  el.reviewStepTitle.textContent = `Review Vehicle ${direction}`;
+  el.submitTransactionButton.textContent = `Submit ${direction}`;
   showWizardStep(3);
 }
 
@@ -346,7 +433,8 @@ function blockOutForSupervisor(driver) {
   el.supervisorInput.value = "";
   el.supervisorStatus.textContent = "Awaiting a valid supervisor ID.";
   setScannerScreen("override");
-  addAudit("blocked_out", `Blocked Vehicle OUT attempt for ${driver.employeeNumber}.`, CURRENT_GUARD, el.scannerLocation.value);
+  const vehicle = readVehicleInput();
+  addAudit("blocked_out", `Blocked Vehicle OUT attempt for ${driver.employeeNumber} / ${vehicle ? vehicle.plate || vehicle.vin : "vehicle pending"}.`, CURRENT_GUARD, el.scannerLocation.value);
   saveState();
   renderAll();
   setNotice("Vehicle OUT blocked. Supervisor authorization required.", "warning");
@@ -365,8 +453,8 @@ function startTransaction() {
 
 function readTransactionDraft() {
   const driver = findDriver(el.driverInput.value);
-  const vehicle = findVehicle(el.vinInput.value);
-  if (!driver || !vehicle || !el.scannerLocation.value) return null;
+  const vehicle = readVehicleInput();
+  if (!driver || !vehicle || !el.scannerLocation.value || !ui.direction) return null;
   return { driver, vehicle, location: el.scannerLocation.value, direction: ui.direction, note: el.transactionNote.value.trim() };
 }
 
@@ -376,6 +464,7 @@ function approveSupervisorOverride() {
   if (!supervisor) {
     el.supervisorStatus.textContent = "Invalid supervisor ID. Approval was not granted.";
     setNotice("Supervisor ID is not valid.", "danger");
+    shake(el.supervisorInput);
     return;
   }
 
@@ -385,8 +474,8 @@ function approveSupervisorOverride() {
   saveState();
   ui.pendingOverride = null;
   renderAll();
-  setNotice("Supervisor approved this driver for today. Continue to the vehicle VIN.", "success");
-  showWizardStep(2);
+  setNotice("Supervisor approved this driver for today. Vehicle OUT can continue.", "success");
+  chooseDirection("OUT");
 }
 
 function cancelSupervisorOverride() {
@@ -427,6 +516,7 @@ function completeTransaction(draft) {
 
 function showTransactionConfirmation(transaction) {
   setScannerScreen("confirm");
+  window.setTimeout(() => el.confirmationDoneButton.focus(), 30);
   el.confirmationTitle.textContent = `Vehicle ${transaction.direction} recorded`;
   el.confirmationSummary.innerHTML = summaryRows([
     ["Movement", `Vehicle ${transaction.direction}`],
@@ -445,6 +535,34 @@ function findDriver(value) {
 function findVehicle(value) {
   const needle = normalize(value);
   return state.vehicles.find((vehicle) => vehicle.vin === needle || vehicle.plate === needle) || null;
+}
+
+function readVehicleInput() {
+  const vin = normalize(el.vinInput.value);
+  if (!vin) return null;
+  return findVehicle(vin) || { vin, plate: "" };
+}
+
+function handleScanInput(fieldId) {
+  const input = el[fieldId];
+  if (!input) return;
+  const rawValue = input.value;
+  recordScannerInput(fieldId, rawValue, "Input");
+  if (fieldId === "vinInput") input.value = normalize(rawValue);
+  if (fieldId === "driverInput") updateDriverStatus();
+  if (fieldId === "vinInput") updateVinStatus();
+}
+
+function recordScannerInput(fieldId, rawValue, terminator) {
+  const labels = {
+    driverInput: "Driver Employee #",
+    vinInput: "Vehicle VIN",
+    supervisorInput: "Supervisor ID"
+  };
+  ui.lastRawScan = rawValue || "No scan received";
+  ui.lastScanField = labels[fieldId] || fieldId;
+  ui.scanTerminator = terminator === "Enter" || terminator === "Tab" ? `${terminator} detected` : terminator;
+  renderScannerTestPanel();
 }
 
 function isAuthorizedToday(employeeNumber) {
@@ -497,6 +615,8 @@ function addAudit(type, description, actor, location) {
 }
 
 function renderAll() {
+  renderConnectivityStatus();
+  renderScannerTestPanel();
   renderScannerContext();
   renderScanDetails();
   renderRecentActivity();
@@ -521,10 +641,10 @@ function renderScannerContext() {
 
 function renderScanDetails() {
   const driver = findDriver(el.driverInput.value);
-  const vehicle = findVehicle(el.vinInput.value);
+  const vehicle = readVehicleInput();
   const location = el.scannerLocation.value || "No location selected";
   const authorization = driver ? (isAuthorizedToday(driver.employeeNumber) ? "Authorized today" : "Not authorized today") : "Awaiting driver";
-  const title = ui.activeFlow ? `Vehicle ${ui.direction}` : "No transaction selected";
+  const title = ui.activeFlow ? (ui.direction ? `Vehicle ${ui.direction}` : "Scan in progress") : "No transaction selected";
   el.currentScanTitle.textContent = title;
   el.scanDetailList.innerHTML = summaryRows([
     ["Location", location],
@@ -536,15 +656,35 @@ function renderScanDetails() {
 
 function renderScanSummary() {
   const driver = findDriver(el.driverInput.value);
-  const vehicle = findVehicle(el.vinInput.value);
-  const authorization = driver && isAuthorizedToday(driver.employeeNumber) ? "Authorized today" : "Unauthorized - IN will be flagged";
+  const vehicle = readVehicleInput();
+  const authorization = driver && isAuthorizedToday(driver.employeeNumber) ? "Authorized today" : (ui.direction === "OUT" ? "Supervisor approval required" : "Unauthorized IN - audit review");
+  const vinValue = normalize(el.vinInput.value);
   el.scanSummary.innerHTML = summaryRows([
     ["Movement", `Vehicle ${ui.direction}`],
     ["Location", el.scannerLocation.value],
     ["Driver", driver ? `${driver.employeeNumber} - ${driver.name}` : "Awaiting employee #"],
     ["Vehicle", vehicle ? `${vehicle.vin}${vehicle.plate ? ` / ${vehicle.plate}` : ""}` : "Awaiting VIN"],
+    ["VIN validation", vinValue.length === 17 ? "17 characters" : `${vinValue.length} characters - allowed for demo`],
     ["Authorization", authorization]
   ]);
+}
+
+function renderScannerTestPanel() {
+  if (!el.lastRawScan) return;
+  el.lastRawScan.textContent = ui.lastRawScan;
+  el.lastScanField.textContent = ui.lastScanField;
+  el.scanTerminator.textContent = ui.scanTerminator;
+}
+
+function renderConnectivityStatus() {
+  if (!el.onlineStatus) return;
+  const isOnline = typeof navigator === "undefined" || navigator.onLine;
+  el.onlineStatus.textContent = isOnline ? "Online" : "Offline";
+  el.onlineStatus.classList.toggle("offline", !isOnline);
+  if (!storageAvailable) el.lastSavedLocal.textContent = "Local save unavailable";
+  else if (ui.lastSavedAt) el.lastSavedLocal.textContent = `Saved locally ${formatTime(ui.lastSavedAt)}`;
+  else el.lastSavedLocal.textContent = "Saved locally";
+  el.syncQueueCount.textContent = "Sync queue: 0";
 }
 
 function summaryRows(rows) {
@@ -632,7 +772,7 @@ function resetDemo() {
   const fresh = createSeedState();
   Object.keys(state).forEach((key) => delete state[key]);
   Object.assign(state, fresh);
-  addAudit("demo_reset", "Demo data reset to V0.2 seed data.", "System", "");
+  addAudit("demo_reset", "Demo data reset to V0.3 seed data.", "System", "");
   ui.pendingOverride = null;
   populateLocationControls();
   showScannerHome();

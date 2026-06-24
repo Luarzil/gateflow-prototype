@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#123b35">
-  <meta name="description" content="Lot Watch / GateFlow V0.2 static vehicle gate tracking prototype.">
-  <title>Lot Watch / GateFlow V0.2</title>
+  <meta name="description" content="Lot Watch / GateFlow V0.3 static Zebra TC-series gate tracking prototype.">
+  <title>Lot Watch / GateFlow V0.3</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
@@ -22,7 +22,7 @@
         </span>
         <span>
           <strong>Lot Watch / GateFlow</strong>
-          <span>V0.2 vehicle movement control</span>
+          <span>V0.3 Zebra scan realism</span>
         </span>
       </a>
 
@@ -49,20 +49,26 @@
                 <h1 id="scannerHeading">Lot Watch / GateFlow</h1>
               </div>
               <div class="device-badges" aria-label="Scanner status">
-                <span>SE4710 sim</span>
+                <span>Zebra TC-series scan sim</span>
                 <span>Scanner ready</span>
               </div>
             </header>
 
-            <div class="scanner-alert neutral" id="scannerNotice" role="status">Select a location, scan the driver and VIN, then choose IN or OUT.</div>
+            <div class="scanner-alert neutral" id="scannerNotice" role="status">Working location set. Scan the driver, then the VIN.</div>
+
+            <section class="working-location-bar" aria-label="Working location and device state">
+              <div class="working-location-select"><label for="scannerLocation">Working Location</label><select id="scannerLocation" name="scannerLocation"></select></div>
+              <div class="connectivity-strip" aria-label="Prototype connectivity status">
+                <span id="onlineStatus">Online</span><span id="lastSavedLocal">Saved locally</span><span id="syncQueueCount">Sync queue: 0</span><span>5G / Wi-Fi: future</span>
+              </div>
+            </section>
 
             <div class="scanner-stage">
               <section class="scanner-screen" id="scannerHome">
                 <p class="screen-title">Gate Scanner</p>
-                <p class="screen-subtitle">Vehicle gate scanning, daily driver authorization, and searchable movement history.</p>
+                <p class="screen-subtitle">Scan the driver, scan the VIN, then choose the vehicle movement.</p>
                 <div class="home-actions">
-                  <button class="big-action-btn out" id="goOutFlow" type="button"><span aria-hidden="true">OUT</span>Vehicle OUT</button>
-                  <button class="big-action-btn in" id="goInFlow" type="button"><span aria-hidden="true">IN</span>Vehicle IN</button>
+                  <button class="big-action-btn start" id="startScanButton" type="button"><span aria-hidden="true">SCAN</span>Start vehicle scan</button>
                 </div>
                 <div class="compact-metrics" aria-label="Today at this gate">
                   <div><span>OUT</span><strong id="todayOutCount">0</strong></div>
@@ -82,42 +88,42 @@
                 </div>
 
                 <div class="wizard-step" data-step="0">
-                  <p class="screen-title" id="locationStepTitle">Vehicle OUT</p>
-                  <p class="screen-subtitle">Step 1 of 4. Select the gate location.</p>
-                  <div class="form-row"><label for="scannerLocation">Location</label><select id="scannerLocation" name="scannerLocation"></select></div>
-                  <button class="button primary full" id="locationNext" type="button">Continue to driver</button>
-                </div>
-
-                <div class="wizard-step hidden" data-step="1">
-                  <p class="screen-title">Driver employee number</p>
-                  <p class="screen-subtitle">Step 2 of 4. Scan or enter the driver employee number.</p>
+                  <p class="screen-title">Driver Employee #</p>
+                  <p class="screen-subtitle">Step 1 of 4. Scan or enter the driver employee number.</p>
                   <div class="scan-group">
                     <label for="driverInput">Driver Employee #</label>
                     <div class="scan-input"><input id="driverInput" name="driverInput" autocomplete="off" inputmode="text" placeholder="Scan or enter employee #"><button class="button ghost scan-sample" type="button" data-scan-target="driverInput">Sim scan</button></div>
                     <div class="demo-row"><button class="demo-chip" type="button" data-demo-field="driverInput" data-demo-value="EMP-1001">EMP-1001 OK</button><button class="demo-chip" type="button" data-demo-field="driverInput" data-demo-value="EMP-1003">EMP-1003 review</button></div>
                     <p class="field-status" id="driverStatus">Awaiting employee number scan.</p>
                   </div>
-                  <div class="button-row"><button class="button secondary" id="driverBack" type="button">Back</button><button class="button primary" id="driverNext" type="button">Continue to VIN</button></div>
+                  <button class="button primary full" id="driverNext" type="button">Continue to VIN</button>
                 </div>
 
-                <div class="wizard-step hidden" data-step="2">
+                <div class="wizard-step hidden" data-step="1">
                   <p class="screen-title">Vehicle VIN</p>
-                  <p class="screen-subtitle">Step 3 of 4. Scan or enter the vehicle VIN.</p>
+                  <p class="screen-subtitle">Step 2 of 4. Scan or enter the vehicle VIN.</p>
                   <div class="scan-group">
                     <label for="vinInput">Vehicle VIN</label>
                     <div class="scan-input"><input id="vinInput" name="vinInput" autocomplete="off" inputmode="text" placeholder="Scan or enter VIN"><button class="button ghost scan-sample" type="button" data-scan-target="vinInput">Sim scan</button></div>
                     <div class="demo-row"><button class="demo-chip" type="button" data-demo-field="vinInput" data-demo-value="1HGCM82633A004352">TRK-8877</button><button class="demo-chip" type="button" data-demo-field="vinInput" data-demo-value="3FA6P0H75HR123456">YARD-104</button></div>
                     <p class="field-status" id="vinStatus">Awaiting VIN scan.</p>
                   </div>
-                  <div class="button-row"><button class="button secondary" id="vinBack" type="button">Back</button><button class="button primary" id="vinNext" type="button">Review transaction</button></div>
+                  <div class="button-row"><button class="button secondary" id="vinBack" type="button">Back</button><button class="button primary" id="vinNext" type="button">Choose movement</button></div>
+                </div>
+
+                <div class="wizard-step hidden" data-step="2">
+                  <p class="screen-title">Choose movement</p>
+                  <p class="screen-subtitle">Step 3 of 4. Select the vehicle direction after the VIN scan.</p>
+                  <div class="home-actions"><button class="big-action-btn out" id="directionOut" type="button"><span aria-hidden="true">OUT</span>Vehicle OUT</button><button class="big-action-btn in" id="directionIn" type="button"><span aria-hidden="true">IN</span>Vehicle IN</button></div>
+                  <button class="button secondary full" id="movementBack" type="button">Back to VIN</button>
                 </div>
 
                 <div class="wizard-step hidden" data-step="3">
-                  <p class="screen-title" id="reviewStepTitle">Review Vehicle OUT</p>
+                  <p class="screen-title" id="reviewStepTitle">Review movement</p>
                   <p class="screen-subtitle">Step 4 of 4. Add a note only when needed, then submit.</p>
                   <div class="form-row"><label for="transactionNote">Optional note</label><textarea id="transactionNote" name="transactionNote" rows="2" placeholder="Optional guard note"></textarea></div>
                   <ul class="summary-list" id="scanSummary"></ul>
-                  <div class="button-row"><button class="button secondary" id="reviewBack" type="button">Back</button><button class="button primary" id="submitTransactionButton" type="button">Submit Vehicle OUT</button></div>
+                  <div class="button-row"><button class="button secondary" id="reviewBack" type="button">Back</button><button class="button primary" id="submitTransactionButton" type="button">Submit movement</button></div>
                 </div>
               </section>
 
@@ -140,6 +146,11 @@
                   <button class="button primary full" id="confirmationDoneButton" type="button">Done</button>
                 </div>
               </section>
+
+              <details class="scanner-test-panel" id="scannerInputTest">
+                <summary>Scanner input test</summary>
+                <dl><div><dt>Last raw scan value</dt><dd id="lastRawScan">No scan received</dd></div><div><dt>Receiving field</dt><dd id="lastScanField">-</dd></div><div><dt>Enter / Tab detected</dt><dd id="scanTerminator">No</dd></div></dl>
+              </details>
             </div>
           </section>
 
@@ -157,7 +168,7 @@
             </section>
             <section class="context-section scanner-note">
               <p class="eyebrow">Scanner input</p>
-              <p>Normal text inputs simulate keyboard wedge scans in V0.2. No Zebra hardware is required for this prototype.</p>
+              <p>Normal text inputs simulate Zebra keyboard-wedge scans. No Zebra hardware is required for this prototype.</p>
             </section>
           </aside>
         </div>

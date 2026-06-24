@@ -318,3 +318,120 @@ tbody tr:last-child td { border-bottom: 0; }
   .big-action-btn { min-height: 82px; }
   .wizard-step { padding: 14px; }
 }
+
+/* ===================================================================
+   Visual polish + usability pass (v0.2.1)
+   Smoother transitions, hover/press feedback, table/row clarity, and
+   shake/fade feedback for the scanner flow. No new features — purely
+   presentational on top of the existing markup and structure above.
+=================================================================== */
+
+:root {
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --shadow-lift: 0 10px 22px rgb(20 35 31 / 12%);
+}
+
+/* Generic enter animation, restarted via JS (animateIn()) whenever a
+   scanner screen / wizard step / tab becomes the active one. */
+@keyframes enterFade {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.enter-anim { animation: enterFade 0.26s var(--ease) both; }
+
+/* Shake feedback for invalid fields, restarted via JS (shake()). */
+@keyframes shakeX {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-4px); }
+  40%, 60% { transform: translateX(4px); }
+}
+.shake { animation: shakeX 0.4s var(--ease); }
+
+/* Buttons + tabs: a touch of lift and smoother color/transform change. */
+.button,
+.big-action-btn,
+.nav-tab,
+.demo-chip {
+  transition: transform 0.15s var(--ease), box-shadow 0.15s var(--ease), filter 0.15s var(--ease), background-color 0.15s var(--ease), color 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+.button:hover:not(:disabled),
+.big-action-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgb(20 35 31 / 10%);
+}
+.button:active:not(:disabled),
+.big-action-btn:active:not(:disabled) {
+  transform: translateY(0);
+  filter: brightness(0.96);
+}
+.demo-chip:hover { transform: translateY(-1px); }
+
+/* Inputs: smoother focus/border transition instead of an abrupt snap. */
+input, select, textarea {
+  transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+
+/* Table rows: zebra striping + hover highlight for easier scanning of
+   longer Search/Admin lists. */
+tbody tr { transition: background-color 0.12s var(--ease); }
+tbody tr:nth-child(even) { background: rgb(20 59 53 / 2.5%); }
+tbody tr:hover { background: var(--green-soft); }
+
+/* Audit cards: subtle lift on hover so the list feels responsive even
+   though entries aren't clickable. */
+.audit-event { transition: box-shadow 0.15s var(--ease), transform 0.15s var(--ease); }
+.audit-event:hover { box-shadow: var(--shadow-lift); transform: translateY(-1px); }
+
+/* Simple-list / location rows: consistent hover with the rest of the app. */
+.simple-list li { transition: background-color 0.12s var(--ease); }
+.simple-list li:hover { background: var(--green-soft); }
+
+/* Progress dots: smooth fill/scale as a step completes. */
+.dot { transition: background-color 0.2s var(--ease), transform 0.2s var(--ease); }
+.dot.active { transform: scaleY(1.3); }
+
+/* Respect reduced-motion preferences. */
+@media (prefers-reduced-motion: reduce) {
+  .enter-anim, .shake, .button, .big-action-btn, .demo-chip, .audit-event, .dot {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Storage-unavailable warning state for the "Saved locally" pill. */
+.save-pill.warn { color: var(--amber); }
+.save-pill.warn .status-dot { background: #c98a1f; }
+
+/* V0.3 scanner realism: one working location per handheld session plus
+   low-noise device diagnostics for future Zebra keyboard-wedge testing. */
+.working-location-bar {
+  display: grid;
+  gap: 9px;
+  padding: 11px 12px;
+  border: 1px solid #c7d7d0;
+  border-radius: 6px;
+  background: #f2f7f4;
+}
+.working-location-select { display: grid; grid-template-columns: 118px minmax(0, 1fr); align-items: center; gap: 9px; }
+.working-location-select label { color: var(--green-deep); font-size: 11px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }
+.working-location-select select { min-width: 0; margin: 0; }
+.connectivity-strip { display: flex; flex-wrap: wrap; gap: 6px; }
+.connectivity-strip span { padding: 3px 6px; border: 1px solid #d5e1db; border-radius: 4px; background: #fff; color: #3d584f; font-size: 10px; font-weight: 800; }
+.connectivity-strip #onlineStatus { color: #14583f; background: var(--green-soft); border-color: #b5d9c7; }
+.connectivity-strip #onlineStatus.offline { color: #8a5500; background: var(--amber-soft); border-color: #e5c480; }
+.big-action-btn.start { background: #15594f; }
+.scanner-test-panel { border: 1px solid var(--line); border-radius: 6px; background: #fbfcfb; }
+.scanner-test-panel summary { padding: 10px 12px; color: var(--green-deep); cursor: pointer; font-size: 12px; font-weight: 850; }
+.scanner-test-panel dl { display: grid; gap: 1px; margin: 0; padding: 0 10px 10px; }
+.scanner-test-panel dl div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 8px; padding: 7px 8px; background: #fff; }
+.scanner-test-panel dt { color: var(--muted); font-size: 11px; font-weight: 750; }
+.scanner-test-panel dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--green-deep); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; font-weight: 750; text-align: right; }
+
+@media (max-width: 420px) {
+  .working-location-select { grid-template-columns: 1fr; gap: 4px; }
+  .connectivity-strip { gap: 4px; }
+  .connectivity-strip span { font-size: 9px; }
+  .scanner-test-panel dl div { grid-template-columns: 1fr; gap: 2px; }
+  .scanner-test-panel dd { text-align: left; }
+}
