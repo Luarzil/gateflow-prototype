@@ -1,7 +1,7 @@
 {
-  "name": "Lot Watch / GateFlow V0.3",
+  "name": "Lot Watch / GateFlow V0.5 Patrick Response Review",
   "short_name": "Lot Watch",
-  "description": "Static gate scanner and admin dashboard prototype.",
+  "description": "Static V0.5 gate scanner, authorization, and movement-search review prototype.",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#eef3f0",
