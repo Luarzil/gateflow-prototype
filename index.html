@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#123b35">
-  <meta name="description" content="Lot Watch / GateFlow V0.3 static Zebra TC-series gate tracking prototype.">
-  <title>Lot Watch / GateFlow V0.3</title>
+  <meta name="description" content="Lot Watch / GateFlow V0.5 Patrick response prototype for Zebra TC-series gate tracking.">
+  <title>Lot Watch / GateFlow V0.5 Review</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
@@ -22,7 +22,7 @@
         </span>
         <span>
           <strong>Lot Watch / GateFlow</strong>
-          <span>V0.3 Zebra scan realism</span>
+          <span>V0.5 Patrick response review</span>
         </span>
       </a>
 
@@ -30,7 +30,6 @@
         <button class="nav-tab is-active" type="button" data-view="scannerView">Scanner</button>
         <button class="nav-tab" type="button" data-view="adminView">Admin</button>
         <button class="nav-tab" type="button" data-view="searchView">Search</button>
-        <button class="nav-tab" type="button" data-view="auditView">Audit</button>
       </nav>
 
       <div class="top-actions">
@@ -49,7 +48,7 @@
                 <h1 id="scannerHeading">Lot Watch / GateFlow</h1>
               </div>
               <div class="device-badges" aria-label="Scanner status">
-                <span>Zebra TC-series scan sim</span>
+                <span>Zebra TC-series input</span>
                 <span>Scanner ready</span>
               </div>
             </header>
@@ -58,6 +57,7 @@
 
             <section class="working-location-bar" aria-label="Working location and device state">
               <div class="working-location-select"><label for="scannerLocation">Working Location</label><select id="scannerLocation" name="scannerLocation"></select></div>
+              <div class="station-account"><span>Station account</span><strong id="stationIdentity">Division Street Scanner</strong></div>
               <div class="connectivity-strip" aria-label="Prototype connectivity status">
                 <span id="onlineStatus">Online</span><span id="lastSavedLocal">Saved locally</span><span id="syncQueueCount">Sync queue: 0</span><span>5G / Wi-Fi: future</span>
               </div>
@@ -92,7 +92,8 @@
                   <p class="screen-subtitle">Step 1 of 4. Scan or enter the driver employee number.</p>
                   <div class="scan-group">
                     <label for="driverInput">Driver Employee #</label>
-                    <div class="scan-input"><input id="driverInput" name="driverInput" autocomplete="off" inputmode="text" placeholder="Scan or enter employee #"><button class="button ghost scan-sample" type="button" data-scan-target="driverInput">Sim scan</button></div>
+                    <div class="scan-input single"><input id="driverInput" name="driverInput" autocomplete="off" inputmode="text" placeholder="Scan or enter employee #"></div>
+                    <button class="button secondary full manual-entry-trigger" id="openManualEmployeeButton" type="button">Enter Employee Number Manually</button>
                     <div class="demo-row"><button class="demo-chip" type="button" data-demo-field="driverInput" data-demo-value="EMP-1001">EMP-1001 OK</button><button class="demo-chip" type="button" data-demo-field="driverInput" data-demo-value="EMP-1003">EMP-1003 review</button></div>
                     <p class="field-status" id="driverStatus">Awaiting employee number scan.</p>
                   </div>
@@ -104,7 +105,7 @@
                   <p class="screen-subtitle">Step 2 of 4. Scan or enter the vehicle VIN.</p>
                   <div class="scan-group">
                     <label for="vinInput">Vehicle VIN</label>
-                    <div class="scan-input"><input id="vinInput" name="vinInput" autocomplete="off" inputmode="text" placeholder="Scan or enter VIN"><button class="button ghost scan-sample" type="button" data-scan-target="vinInput">Sim scan</button></div>
+                    <div class="scan-input single"><input id="vinInput" name="vinInput" autocomplete="off" inputmode="text" placeholder="Scan or enter VIN"></div>
                     <div class="demo-row"><button class="demo-chip" type="button" data-demo-field="vinInput" data-demo-value="1HGCM82633A004352">TRK-8877</button><button class="demo-chip" type="button" data-demo-field="vinInput" data-demo-value="3FA6P0H75HR123456">YARD-104</button></div>
                     <p class="field-status" id="vinStatus">Awaiting VIN scan.</p>
                   </div>
@@ -131,12 +132,14 @@
                 <div class="override-panel">
                   <p class="eyebrow">Supervisor authorization required</p>
                   <h2 id="supervisorHeading">Vehicle OUT blocked</h2>
-                  <p id="supervisorReason">This driver is not authorized for today.</p>
+                  <p id="supervisorReason">This driver is not authorized for this movement.</p>
                   <label for="supervisorInput">Supervisor ID</label>
-                  <div class="scan-input"><input id="supervisorInput" name="supervisorInput" autocomplete="off" inputmode="text" placeholder="Scan or enter supervisor ID"><button class="button ghost scan-sample" type="button" data-scan-target="supervisorInput">Sim scan</button></div>
+                  <div class="scan-input single"><input id="supervisorInput" name="supervisorInput" autocomplete="off" inputmode="text" placeholder="Scan or enter supervisor ID"></div>
                   <div class="demo-row"><button class="demo-chip" type="button" data-demo-field="supervisorInput" data-demo-value="SUP-1001">SUP-1001</button><button class="demo-chip" type="button" data-demo-field="supervisorInput" data-demo-value="SUP-BAD">Invalid</button></div>
                   <p class="field-status" id="supervisorStatus">Awaiting a valid supervisor ID.</p>
-                  <div class="button-row"><button class="button secondary" id="cancelSupervisorButton" type="button">Cancel OUT</button><button class="button warning" id="approveSupervisorButton" type="button">Approve today</button></div>
+                  <label for="supervisorDuration">Temporary authorization</label>
+                  <select id="supervisorDuration"><option value="9_hours">9 Hours</option><option value="12_hours">12 Hours</option><option value="today">Today</option></select>
+                  <div class="button-row"><button class="button secondary" id="cancelSupervisorButton" type="button">Cancel OUT</button><button class="button warning" id="approveSupervisorButton" type="button">Approve temporary authorization</button></div>
                 </div>
               </section>
 
@@ -164,7 +167,7 @@
             </section>
             <section class="context-section">
               <p class="eyebrow">Transaction rule</p>
-              <p><strong>OUT</strong> requires daily authorization. <strong>IN</strong> records the movement even when authorization is missing and flags it for audit review.</p>
+              <p><strong>OUT</strong> requires an active authorization across all current locations. <strong>IN</strong> records the movement even when authorization is missing and flags it for operational review.</p>
             </section>
             <section class="context-section scanner-note">
               <p class="eyebrow">Scanner input</p>
@@ -179,7 +182,7 @@
           <div>
             <p class="eyebrow">Daily access control</p>
             <h1 id="adminHeading">Driver authorization</h1>
-            <p>Daily authorization resets each day in production. This prototype stores the current day locally.</p>
+            <p>Authorize active drivers for 9 Hours, 12 Hours, Today, 48 Hours, or 3 Days. Every authorization applies to all current locations. Expired licenses are blocked.</p>
           </div>
           <button class="button danger" id="deauthorizeAllButton" type="button">Deauthorize all drivers</button>
         </div>
@@ -189,13 +192,13 @@
             <div class="panel-heading">
               <div>
                 <p class="eyebrow">Today</p>
-                <h2>Today's Authorized Drivers</h2>
+                <h2>Active Driver Authorizations</h2>
               </div>
               <strong class="number-badge" id="adminAuthorizedCount">0</strong>
             </div>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Employee #</th><th>Driver</th><th>Authorized by</th><th></th></tr></thead>
+                <thead><tr><th>Employee #</th><th>Driver</th><th>Duration</th><th>Scope</th><th>Expires</th><th></th></tr></thead>
                 <tbody id="authorizedDriversBody"></tbody>
               </table>
             </div>
@@ -208,9 +211,22 @@
                 <h2>All Drivers</h2>
               </div>
             </div>
+            <div class="bulk-toolbar" aria-label="Bulk driver authorization controls">
+              <div><label for="driverRosterSearch">Search drivers</label><input id="driverRosterSearch" type="search" placeholder="Name or employee #"></div>
+              <div><label for="authorizationDuration">Authorization duration</label><select id="authorizationDuration"><option value="9_hours">9 Hours</option><option value="12_hours">12 Hours</option><option value="today">Today</option><option value="48_hours">48 Hours</option><option value="3_days">3 Days</option></select></div>
+              <button class="button secondary" id="selectVisibleDriversButton" type="button">Select visible</button>
+              <button class="button primary" id="bulkAuthorizeButton" type="button">Authorize selected</button>
+            </div>
+            <div class="license-summary" aria-label="Driver license warning counts">
+              <div><span>30 days</span><strong id="license30Count">0</strong></div>
+              <div><span>15 days</span><strong id="license15Count">0</strong></div>
+              <div><span>5 days</span><strong id="license5Count">0</strong></div>
+              <div><span>Expired</span><strong id="licenseExpiredCount">0</strong></div>
+            </div>
+            <p class="field-status" id="bulkActionStatus">No bulk action yet.</p>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Employee #</th><th>Driver</th><th>Today</th><th>Action</th></tr></thead>
+                <thead><tr><th><span class="sr-only">Select</span></th><th>Employee #</th><th>Driver</th><th>Active</th><th>License</th><th>Authorization</th><th>Scope</th><th>Expires</th><th>Action</th></tr></thead>
                 <tbody id="driversTableBody"></tbody>
               </table>
             </div>
@@ -225,8 +241,8 @@
           </section>
           <section class="panel">
             <p class="eyebrow">Users</p>
-            <h2>Future user management</h2>
-            <p>Guard, supervisor, manager, and admin access will be role-based in production.</p>
+            <h2>Future role-based permissions</h2>
+            <p>Owner / System Administrator may assign any role, including Manager. A Manager may manage Supervisor and Scanner User accounts but cannot create or promote a Manager. This static prototype is a role simulation only; real enforcement requires backend authentication and server/API/database authorization.</p>
           </section>
           <section class="panel">
             <p class="eyebrow">Label printer</p>
@@ -269,22 +285,19 @@
         </section>
       </section>
 
-      <section class="view" id="auditView" aria-labelledby="auditHeading">
-        <div class="view-heading">
-          <div>
-            <p class="eyebrow">Traceability</p>
-            <h1 id="auditHeading">Audit activity</h1>
-            <p>Transactions, blocked attempts, approvals, authorization changes, and demo actions are recorded here.</p>
-          </div>
-        </div>
-
-        <div class="audit-filters panel">
-          <div><label for="auditTypeFilter">Type</label><select id="auditTypeFilter"><option value="">All activity</option><option value="in_transaction">IN transaction</option><option value="out_transaction">OUT transaction</option><option value="blocked_out">Blocked OUT</option><option value="supervisor_approval">Supervisor approval</option><option value="driver_authorized">Driver authorized</option><option value="driver_deauthorized">Driver deauthorized</option><option value="demo_reset">Reset/demo</option></select></div>
-          <div><label for="auditTextFilter">Find audit activity</label><input id="auditTextFilter" type="search" placeholder="Driver, vehicle, location, or actor"></div>
-        </div>
-        <section class="audit-list" id="auditList" aria-live="polite"></section>
-      </section>
     </main>
+  </div>
+  <div class="modal-backdrop hidden" id="manualEmployeeModal" role="dialog" aria-modal="true" aria-labelledby="manualEmployeeHeading">
+    <section class="modal-panel">
+      <div class="panel-heading tight">
+        <div><p class="eyebrow">Manual entry</p><h2 id="manualEmployeeHeading">Enter Employee Number</h2></div>
+        <button class="button ghost compact" id="closeManualEmployeeButton" type="button" aria-label="Close manual employee entry">Close</button>
+      </div>
+      <label for="manualEmployeeInput">Driver Employee #</label>
+      <input id="manualEmployeeInput" autocomplete="off" inputmode="text" placeholder="EMP-1001">
+      <p class="field-status" id="manualEmployeeStatus">Manual entries follow the same validation as scans.</p>
+      <div class="button-row"><button class="button secondary" id="cancelManualEmployeeButton" type="button">Cancel</button><button class="button primary" id="submitManualEmployeeButton" type="button">Use employee #</button></div>
+    </section>
   </div>
   <script src="app.js"></script>
 </body>

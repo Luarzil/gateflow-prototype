@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#123b35">
+  <meta name="description" content="Local regression validator for the Lot Watch GateFlow prototype.">
+  <title>GateFlow Validator</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div><p class="eyebrow">Internal quality assurance</p><h1>GateFlow Validator</h1></div>
+    <div class="header-actions"><span class="status-pill" id="runnerStatus">Ready</span><button id="runAllButton" class="button primary" type="button">Run full validation</button></div>
+  </header>
+
+  <main>
+    <section class="intro">
+      <div><p class="eyebrow">V0.5 review build</p><h2>Real click-path regression testing</h2><p>This internal runner drives the Scanner, Admin, and Search screens like an operator would. It reads the resulting browser state, reports each checkpoint, and restores the existing demo data after the run.</p></div>
+      <dl class="run-facts"><div><dt>Target</dt><dd id="targetStatus">Connecting</dd></div><div><dt>Tests</dt><dd id="testCount">20</dd></div><div><dt>Data safety</dt><dd>Restored after run</dd></div></dl>
+    </section>
+
+    <section class="dashboard" aria-label="Validation dashboard">
+      <section class="panel test-panel">
+        <div class="panel-heading"><div><p class="eyebrow">Test suite</p><h2>Scenario results</h2></div><button id="resetTargetButton" class="button secondary" type="button">Restore target data</button></div>
+        <ol class="test-list" id="testList" aria-live="polite"></ol>
+        <div class="summary" id="summaryBox"><strong>Awaiting validation</strong><span>Run the suite before sharing a new customer build.</span></div>
+      </section>
+
+      <section class="panel evidence-panel">
+        <div class="panel-heading"><div><p class="eyebrow">Evidence</p><h2>Run log</h2></div><button id="clearLogButton" class="icon-button" type="button" aria-label="Clear run log" title="Clear run log">Clear</button></div>
+        <pre id="runLog" aria-live="polite">Validator ready. Target app will load below.</pre>
+      </section>
+    </section>
+
+    <section class="target-section">
+      <div class="section-heading"><div><p class="eyebrow">Controlled target</p><h2>Lot Watch / GateFlow under test</h2></div><span>Interactions run in this frame</span></div>
+      <iframe id="targetFrame" title="Lot Watch GateFlow test target" src="../index.html"></iframe>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
