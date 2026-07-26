@@ -1,54 +1,46 @@
-# Lot Watch / GateFlow V0.5 Patrick Response Review
+# Lot Watch / GateFlow V0.6 Supervisor and Vehicle Inventory Review
 
-Static HTML, CSS, and JavaScript review prototype for vehicle gate tracking. This V0.5 build was rebuilt from the latest local V0.4 files, not an older GitHub copy.
+Static HTML, CSS, and JavaScript PWA prototype for Zebra TC-series style gate operations. V0.6 keeps the V0.5 transaction rules and adds Supervisor-based driver management, vehicle inventory, and assigned-barcode scanning.
 
-## What V0.5 Represents
+## Run locally
 
-- One station account per active location: Division Street Scanner, North Ave Scanner, EWR Scanner, and Linden Scanner.
-- The selected Working Location determines the station account shown on the scanner and saved with each movement.
-- Station identity is not individual guard accountability. Individual login, PIN, and shift identification are future requirements.
-- The customer-facing Audit page has been removed. Internal event history remains in local state for troubleshooting and future reporting.
-- Driver authorization applies to **All current locations**. The administrative action location is retained internally but does not limit a valid authorization.
+Open `index.html` for a quick review, or serve the repository for service-worker and offline behavior:
 
-## Scanner Flow
+```powershell
+python -m http.server 8800 --bind 127.0.0.1
+```
 
-1. Select Working Location for the scanner session.
-2. Scan or enter the Driver Employee #, or use manual employee-number entry.
-3. Confirm driver status, then scan or enter the vehicle VIN.
-4. Choose Vehicle OUT or Vehicle IN and submit an optional note.
+Open `http://127.0.0.1:8800/`.
 
-Enter after the driver moves to VIN; Enter after VIN moves to Vehicle IN/OUT. VIN input is normalized to uppercase. A non-17-character VIN warns but remains available for demo review.
+## V0.6 workflow
 
-Vehicle OUT requires an active authorization. A blocked OUT can receive a Supervisor temporary authorization for 9 Hours, 12 Hours, or Today. Vehicle IN can still be recorded when unauthorized and is flagged for operational review. The unclear SIM Scan control remains removed.
+1. Choose one Working Location: Division Street, North Ave, EWR, or Linden.
+2. Scan or enter Driver Employee #.
+3. Scan the assigned Vehicle Barcode, such as `GFV-0001`.
+4. GateFlow resolves the active vehicle profile and shows its barcode, year, make, model, color, VIN, and plate.
+5. Select IN or OUT and submit.
 
-## Authorization Rules
+OUT still requires active driver authorization and an unexpired license. Unauthorized OUT remains blocked for Supervisor temporary authorization. Unauthorized IN remains allowed and is flagged for operational review. Inactive inventory vehicles are blocked from new IN and OUT movements.
 
-Admin and Manager simulation controls support these non-permanent durations:
+## Supervisor
 
-- 9 Hours: exactly nine elapsed hours after approval.
-- 12 Hours: exactly twelve elapsed hours after approval.
-- Today: 11:59:59 PM on the approval date in America/New_York.
-- 48 Hours: exactly forty-eight elapsed hours after approval.
-- 3 Days: 11:59:59 PM, three local calendar days after the approval date.
+The Supervisor view contains Drivers and Vehicles sub-sections:
 
-Times are stored as ISO/UTC and displayed in local business time. Authorizations are global across Division Street, North Ave, EWR, and Linden. Elizabeth Repair Facility remains historical-only for searches.
+- Drivers: create, edit, mark inactive/reactivate, bulk-authorize, revoke authorizations, and review license urgency.
+- Vehicles: create, edit, remove from inventory, restore to inventory, filter status, and search barcode/VIN/plate/make/model/year/color.
 
-## Admin and Roles
+Vehicle removal is a soft deactivation. Historical records and assigned barcode values remain searchable; a removed barcode cannot be reused.
 
-License warnings remain in the Admin/Manager area. The most urgent applicable warning is shown once: 30 days, 15 days, 5 days, or Expired. A license remains valid through its printed expiration date and becomes blocked after that date ends in America/New_York.
+## Data and migration
 
-The prototype data model explains four roles: Owner / System Administrator, Manager, Supervisor, and Scanner User. Only Owner / System Administrator may create or promote a Manager. A Manager may manage Supervisor and Scanner User accounts. This is a visual business-rule simulation, not secure production RBAC: real enforcement requires backend authentication and server/API/database authorization.
+V0.6 stores data in `lot-watch.gateflow.v0.6.state`. It migrates a valid V0.5 state from `lot-watch.gateflow.v0.5.state` without deleting or overwriting that key. Migration adds deterministic vehicle IDs and `GFV-0001` through `GFV-0005` demo barcodes, then maps historical transactions to vehicle snapshots.
 
-## Run Locally
+`Elizabeth Repair Facility` remains historical-only: it is searchable but cannot be selected for a new scan.
 
-Open `index.html` for a quick review. For the manifest and offline cache, serve the folder over HTTP(S). Demo data is stored in browser `localStorage`; scanner actions, Admin, and Search all read from the same local state.
+## Validation
 
-V0.5 first tries `lot-watch.gateflow.v0.5.state`. If it does not exist, it safely migrates V0.4 state from `lot-watch.gateflow.v0.4.state`, preserving drivers, vehicles, locations, transactions, internal events, and original authorization expiration timestamps. The V0.4 key is not deleted during review.
+The in-house `gateflow-validator/` runs UI regression checks. Serve the repository, then open `http://127.0.0.1:8800/gateflow-validator/`. It restores the browser's prior local state after each full run.
 
-## Internal Validation
+## Prototype boundaries
 
-The separate `gateflow-validator/` app runs repeatable in-house regression checks against this prototype. Serve the repository folder over HTTP and open `http://127.0.0.1:8800/gateflow-validator/`, then select **Run full validation**. It drives the real Scanner, Admin, and Search UI and restores the pre-run browser data afterwards. Do not use it against a customer or production deployment.
-
-## Prototype Boundaries
-
-This is a static review build. It has no production backend, customer database, authentication, email, SMS, real Zebra integration, native Android app, photo capture, or secure role enforcement. Future production may use Zebra DataWedge, Android Intents, Zebra Enterprise Browser, or native Android, plus customer-owned or customer-approved hosted data, offline sync, and server-side authorization.
+This is not production software. It has no shared database, real authentication, secure server-side role enforcement, printer integration, barcode-image generation, Samsung/Verizon integration, native Android app, or real Zebra device integration. Future production may use DataWedge, Android Intents, Enterprise Browser or native Android, customer-owned hosting, and offline synchronization.

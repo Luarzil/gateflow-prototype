@@ -1,13 +1,13 @@
 "use strict";
 
 /*
-  Lot Watch / GateFlow V0.5 Patrick response review prototype integration notes:
+  Lot Watch / GateFlow V0.6 Supervisor and vehicle inventory review prototype notes:
   - This is still a static HTML/CSS/JS prototype. It uses normal focused text inputs
     so typed values and future Zebra DataWedge keyboard-wedge scans exercise the same
     validation flow.
   - A production Zebra TC-series build may use DataWedge profile output, Android
     Intents, Zebra Enterprise Browser, or a native Android/EMDK wrapper to call the
-    same driver/VIN/supervisor transaction rules.
+    same driver/vehicle-barcode/supervisor transaction rules.
   - Production needs customer-owned or customer-approved hosted data storage
     (Postgres, Supabase/Postgres, or enterprise-hosted database), server-side role
     enforcement, reversible migrations, audit immutability, and offline sync queues.
@@ -19,9 +19,10 @@
     not needed for this workflow.
 */
 
-const STORAGE_KEY = "lot-watch.gateflow.v0.5.state";
+const STORAGE_KEY = "lot-watch.gateflow.v0.6.state";
+const V05_STORAGE_KEY = "lot-watch.gateflow.v0.5.state";
 const LEGACY_STORAGE_KEY = "lot-watch.gateflow.v0.4.state";
-const VIEWS = ["scannerView", "adminView", "searchView"];
+const VIEWS = ["scannerView", "supervisorView", "searchView"];
 const BUSINESS_TIMEZONE = "America/New_York";
 const LICENSE_VALID_THROUGH_PRINTED_DATE = true;
 
@@ -37,7 +38,9 @@ const ui = {
   lastRawScan: "No scan received",
   lastScanField: "-",
   scanTerminator: "No",
-  lastSavedAt: null
+  lastSavedAt: null,
+  activeSupervisorSection: "driversSection",
+  modalTrigger: null
 };
 
 const state = loadState();
@@ -66,24 +69,30 @@ function cacheElements() {
   [
     "saveStatus", "resetDemoButton", "deviceClock", "scannerHeading", "scannerNotice",
     "scannerHome", "scanWizard", "supervisorPanel", "transactionConfirmation", "startScanButton",
-    "flowCancel", "wizardDots", "scannerLocation", "driverInput", "driverStatus", "driverNext", "vinInput",
-    "vinStatus", "vinBack", "vinNext", "transactionNote", "reviewStepTitle", "reviewBack",
+    "flowCancel", "wizardDots", "scannerLocation", "driverInput", "driverStatus", "driverNext", "barcodeInput",
+    "barcodeStatus", "barcodeBack", "barcodeNext", "transactionNote", "reviewStepTitle", "reviewBack",
     "scanSummary", "submitTransactionButton", "supervisorReason", "supervisorInput",
     "supervisorStatus", "cancelSupervisorButton", "approveSupervisorButton", "confirmationTitle",
     "confirmationSummary", "confirmationDoneButton", "gateMiniFeed", "currentScanTitle",
     "scanDetailList", "todayOutCount", "todayInCount", "todayBlockCount", "contextOutCount",
     "contextInCount", "contextBlockCount", "contextAuthorizedCount",
-    "adminAuthorizedCount", "authorizedDriversBody", "driversTableBody",
-    "deauthorizeAllButton", "locationList", "searchForm", "filterVin", "filterPlate",
+    "adminAuthorizedCount", "authorizedDriversBody", "driversTableBody", "licenseWarningBody",
+    "deauthorizeAllButton", "locationList", "searchForm", "filterVehicle",
     "filterDriver", "filterLocation", "filterDate", "filterType", "clearSearchButton",
     "searchResultCount", "searchResultsBody",
     "directionOut", "directionIn", "movementBack", "onlineStatus", "lastSavedLocal",
     "syncQueueCount", "lastRawScan", "lastScanField", "scanTerminator",
     "openManualEmployeeButton", "manualEmployeeModal", "manualEmployeeInput", "manualEmployeeStatus",
     "submitManualEmployeeButton", "closeManualEmployeeButton", "cancelManualEmployeeButton",
-    "driverRosterSearch", "authorizationDuration", "selectVisibleDriversButton", "bulkAuthorizeButton",
+    "driverRosterSearch", "authorizationDuration", "bulkAuthorizeButton",
     "license30Count", "license15Count", "license5Count", "licenseExpiredCount", "bulkActionStatus",
-    "stationIdentity", "supervisorDuration"
+    "stationIdentity", "supervisorDuration", "addDriverButton", "driverModal", "driverForm",
+    "driverEditEmployee", "driverEmployeeNumber", "driverName", "driverLicenseExpires", "driverActive",
+    "driverEmployeeError", "driverNameError", "driverLicenseError", "closeDriverModalButton", "cancelDriverButton",
+    "addVehicleButton", "vehicleSearch", "vehicleStatusFilter", "vehiclesTableBody", "vehicleModal", "vehicleForm",
+    "vehicleEditId", "vehicleMake", "vehicleModel", "vehicleYear", "vehicleColor", "vehicleVin", "vehicleBarcode",
+    "vehiclePlate", "vehicleActive", "vehicleMakeError", "vehicleModelError", "vehicleYearError", "vehicleColorError",
+    "vehicleVinError", "vehicleBarcodeError", "vehicleFormStatus", "closeVehicleModalButton", "cancelVehicleButton"
   ].forEach((id) => {
     el[id] = document.getElementById(id);
   });
@@ -97,8 +106,8 @@ function bindEvents() {
   el.startScanButton.addEventListener("click", startFlow);
   el.flowCancel.addEventListener("click", showScannerHome);
   el.driverNext.addEventListener("click", validateDriverStep);
-  el.vinBack.addEventListener("click", () => showWizardStep(0));
-  el.vinNext.addEventListener("click", validateVinStep);
+  el.barcodeBack.addEventListener("click", () => showWizardStep(0));
+  el.barcodeNext.addEventListener("click", validateBarcodeStep);
   el.directionOut.addEventListener("click", () => chooseDirection("OUT"));
   el.directionIn.addEventListener("click", () => chooseDirection("IN"));
   el.movementBack.addEventListener("click", () => showWizardStep(1));
@@ -116,21 +125,21 @@ function bindEvents() {
   });
 
   el.driverInput.addEventListener("input", () => handleScanInput("driverInput"));
-  el.vinInput.addEventListener("input", () => handleScanInput("vinInput"));
+  el.barcodeInput.addEventListener("input", () => handleScanInput("barcodeInput"));
   el.supervisorInput.addEventListener("input", () => recordScannerInput("supervisorInput", el.supervisorInput.value, "Input"));
 
   document.querySelectorAll("[data-demo-field]").forEach((button) => {
     button.addEventListener("click", () => setScannerValue(button.dataset.demoField, button.dataset.demoValue));
   });
 
-  ["driverInput", "vinInput", "supervisorInput", "manualEmployeeInput"].forEach((id) => {
+  ["driverInput", "barcodeInput", "supervisorInput", "manualEmployeeInput"].forEach((id) => {
     el[id].addEventListener("keydown", (event) => {
       if (event.key !== "Enter" && event.key !== "Tab") return;
       recordScannerInput(id, el[id].value, event.key);
       if (event.key !== "Enter") return;
       event.preventDefault();
       if (id === "supervisorInput") approveSupervisorOverride();
-      else if (id === "vinInput") validateVinStep();
+      else if (id === "barcodeInput") validateBarcodeStep();
       else if (id === "manualEmployeeInput") submitManualEmployee();
       else validateDriverStep();
     });
@@ -147,9 +156,23 @@ function bindEvents() {
   el.driversTableBody.addEventListener("click", handleDriverTableAction);
   el.authorizedDriversBody.addEventListener("click", handleDriverTableAction);
   el.deauthorizeAllButton.addEventListener("click", deauthorizeAllDrivers);
-  el.driverRosterSearch.addEventListener("input", renderAdmin);
-  el.selectVisibleDriversButton.addEventListener("click", selectVisibleDrivers);
+  el.driverRosterSearch.addEventListener("input", renderSupervisor);
   el.bulkAuthorizeButton.addEventListener("click", bulkAuthorizeDrivers);
+
+  document.querySelectorAll("[data-supervisor-section]").forEach((button) => button.addEventListener("click", () => showSupervisorSection(button.dataset.supervisorSection)));
+  el.addDriverButton.addEventListener("click", () => openDriverModal());
+  el.closeDriverModalButton.addEventListener("click", closeDriverModal);
+  el.cancelDriverButton.addEventListener("click", closeDriverModal);
+  el.driverForm.addEventListener("submit", saveDriverForm);
+  el.addVehicleButton.addEventListener("click", () => openVehicleModal());
+  el.closeVehicleModalButton.addEventListener("click", closeVehicleModal);
+  el.cancelVehicleButton.addEventListener("click", closeVehicleModal);
+  el.vehicleForm.addEventListener("submit", saveVehicleForm);
+  el.vehicleSearch.addEventListener("input", renderVehicles);
+  el.vehicleStatusFilter.addEventListener("change", renderVehicles);
+  el.vehiclesTableBody.addEventListener("click", handleVehicleTableAction);
+  [el.driverModal, el.vehicleModal].forEach((modal) => modal.addEventListener("click", (event) => { if (event.target === modal) closeManagedModal(modal); }));
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") { closeManagedModal(el.driverModal); closeManagedModal(el.vehicleModal); } });
 
   el.searchForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -170,8 +193,8 @@ function createSeedState() {
   const threeDayAuth = createAuthorization("auth-003", "EMP-1004", "3_days", "System seed", "Linden", now);
 
   return {
-    version: "0.5",
-    migrationVersion: 5,
+    version: "0.6",
+    migrationVersion: 6,
     businessTimezone: BUSINESS_TIMEZONE,
     workingLocation: "Division Street",
     drivers: [
@@ -183,11 +206,11 @@ function createSeedState() {
       seedDriver("EMP-1006", "Angela Cruz", 180, false)
     ],
     vehicles: [
-      { vin: "1HGCM82633A004352", plate: "TRK-8877" },
-      { vin: "2T1BURHE5JC034789", plate: "NJK-2214" },
-      { vin: "3FA6P0H75HR123456", plate: "YARD-104" },
-      { vin: "5NPE24AF8FH001234", plate: "EWR-5521" },
-      { vin: "1FTFW1EF1EFA00001", plate: "LIND-7710" }
+      seedVehicle("veh-001", "GFV-0001", "1HGCM82633A004352", "TRK-8877", "Ford", "Transit", 2022, "White"),
+      seedVehicle("veh-002", "GFV-0002", "2T1BURHE5JC034789", "NJK-2214", "Toyota", "Camry", 2021, "Silver"),
+      seedVehicle("veh-003", "GFV-0003", "3FA6P0H75HR123456", "YARD-104", "Ford", "Fusion", 2019, "Blue"),
+      seedVehicle("veh-004", "GFV-0004", "5NPE24AF8FH001234", "EWR-5521", "Hyundai", "Sonata", 2020, "Gray"),
+      seedVehicle("veh-005", "GFV-0005", "1FTFW1EF1EFA00001", "LIND-7710", "Ford", "F-150", 2023, "Black")
     ],
     locations: [
       { name: "Division Street", active: true },
@@ -202,10 +225,10 @@ function createSeedState() {
     ],
     authorizations: [todayAuth, twoDayAuth, threeDayAuth].filter(Boolean),
     transactions: [
-      seedTransaction("tx-001", isoMinutesAgo(16), "OUT", "EMP-1001", "Nina Patel", "1HGCM82633A004352", "TRK-8877", "Division Street", "Authorized", "Customer delivery", "Division Street Scanner"),
-      seedTransaction("tx-002", isoMinutesAgo(41), "IN", "EMP-1003", "Tyrone Brooks", "3FA6P0H75HR123456", "YARD-104", "EWR", "Unauthorized", "Unauthorized IN - operational review", "EWR Scanner"),
-      seedTransaction("tx-003", isoMinutesAgo(68), "OUT", "EMP-1004", "Maria Torres", "5NPE24AF8FH001234", "EWR-5521", "Linden", "Authorized", "", "Linden Scanner"),
-      seedTransaction("tx-004", isoMinutesAgo(210), "IN", "EMP-1002", "Marcus Reed", "2T1BURHE5JC034789", "NJK-2214", "Elizabeth Repair Facility", "Authorized", "Historical location still visible", "Division Street Scanner")
+      seedTransaction("tx-001", isoMinutesAgo(16), "OUT", "EMP-1001", "Nina Patel", "veh-001", "GFV-0001", "1HGCM82633A004352", "TRK-8877", "Division Street", "Authorized", "Customer delivery", "Division Street Scanner"),
+      seedTransaction("tx-002", isoMinutesAgo(41), "IN", "EMP-1003", "Tyrone Brooks", "veh-003", "GFV-0003", "3FA6P0H75HR123456", "YARD-104", "EWR", "Unauthorized", "Unauthorized IN - operational review", "EWR Scanner"),
+      seedTransaction("tx-003", isoMinutesAgo(68), "OUT", "EMP-1004", "Maria Torres", "veh-004", "GFV-0004", "5NPE24AF8FH001234", "EWR-5521", "Linden", "Authorized", "", "Linden Scanner"),
+      seedTransaction("tx-004", isoMinutesAgo(210), "IN", "EMP-1002", "Marcus Reed", "veh-002", "GFV-0002", "2T1BURHE5JC034789", "NJK-2214", "Elizabeth Repair Facility", "Authorized", "Historical location still visible", "Division Street Scanner")
     ],
     auditEvents: [
       seedAudit("audit-001", isoMinutesAgo(16), "out_transaction", "Vehicle OUT recorded for EMP-1001 / TRK-8877.", "Division Street Scanner", "Division Street"),
@@ -232,8 +255,13 @@ function seedDriver(employeeNumber, name, licenseOffsetDays, active) {
   };
 }
 
-function seedTransaction(id, timestamp, direction, driverEmployee, driverName, vin, plate, location, authorizationStatus, note, submittedBy) {
-  return { id, timestamp, direction, driverEmployee, driverName, vin, plate, location, authorizationStatus, note, submittedBy };
+function seedVehicle(id, barcode, vin, plate, make, model, year, color) {
+  const now = new Date().toISOString();
+  return { id, assignedBarcode: barcode, vin, plate, make, model, year, color, active: true, createdAt: now, updatedAt: now, createdBy: "System seed", updatedBy: "System seed", removedAt: "", removedBy: "", reactivatedAt: "" };
+}
+
+function seedTransaction(id, timestamp, direction, driverEmployee, driverName, vehicleId, vehicleBarcode, vin, plate, location, authorizationStatus, note, submittedBy) {
+  return { id, timestamp, direction, driverEmployee, driverName, vehicleId, vehicleBarcode, vin, plate, location, authorizationStatus, note, submittedBy };
 }
 
 function seedAudit(id, timestamp, type, description, actor, location) {
@@ -256,10 +284,16 @@ function loadState() {
   if (!storageAvailable) return createSeedState();
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (saved && saved.version === "0.5" && Array.isArray(saved.transactions)) return normalizeV05State(saved);
+    if (saved && saved.version === "0.6" && Array.isArray(saved.transactions)) return normalizeV06State(saved);
+    const v05 = JSON.parse(localStorage.getItem(V05_STORAGE_KEY));
+    if (v05 && v05.version === "0.5" && Array.isArray(v05.transactions)) {
+      const migrated = migrateV05State(v05);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+      return migrated;
+    }
     const legacy = JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY));
     if (legacy && legacy.version === "0.4" && Array.isArray(legacy.transactions)) {
-      const migrated = migrateV04State(legacy);
+      const migrated = migrateV05State(migrateV04State(legacy));
       localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
       return migrated;
     }
@@ -279,6 +313,51 @@ function normalizeV05State(saved) {
     actionLocation: auth.actionLocation || auth.location || ""
   }));
   return saved;
+}
+
+function normalizeV06State(saved) {
+  saved.version = "0.6";
+  saved.migrationVersion = 6;
+  saved.businessTimezone = BUSINESS_TIMEZONE;
+  saved.vehicles = (saved.vehicles || []).map((vehicle, index) => normalizeVehicle(vehicle, index));
+  saved.transactions = (saved.transactions || []).map((transaction) => mapTransactionVehicle(transaction, saved.vehicles));
+  return saved;
+}
+
+function migrateV05State(v05) {
+  const migrated = JSON.parse(JSON.stringify(v05));
+  migrated.version = "0.6";
+  migrated.migrationVersion = 6;
+  migrated.businessTimezone = migrated.businessTimezone || BUSINESS_TIMEZONE;
+  migrated.authorizations = (migrated.authorizations || []).map((auth) => ({
+    ...auth,
+    scopeType: auth.scopeType || "all_current_locations",
+    scopeIds: Array.isArray(auth.scopeIds) ? auth.scopeIds : [],
+    actionLocation: auth.actionLocation || auth.location || ""
+  }));
+  migrated.vehicles = (migrated.vehicles || []).map((vehicle, index) => normalizeVehicle(vehicle, index));
+  migrated.transactions = (migrated.transactions || []).map((transaction) => mapTransactionVehicle(transaction, migrated.vehicles));
+  migrated.migratedFrom = v05.version || "0.5";
+  migrated.migratedAt = new Date().toISOString();
+  return migrated;
+}
+
+function normalizeVehicle(vehicle, index) {
+  const demo = [
+    ["Ford", "Transit", 2022, "White"], ["Toyota", "Camry", 2021, "Silver"], ["Ford", "Fusion", 2019, "Blue"], ["Hyundai", "Sonata", 2020, "Gray"], ["Ford", "F-150", 2023, "Black"]
+  ][index % 5];
+  const now = new Date().toISOString();
+  return {
+    id: vehicle.id || `veh-${String(index + 1).padStart(3, "0")}`,
+    assignedBarcode: normalize(vehicle.assignedBarcode || `GFV-${String(index + 1).padStart(4, "0")}`),
+    vin: normalize(vehicle.vin), plate: normalize(vehicle.plate), make: vehicle.make || demo[0], model: vehicle.model || demo[1], year: Number(vehicle.year || demo[2]), color: vehicle.color || demo[3], active: vehicle.active !== false,
+    createdAt: vehicle.createdAt || now, updatedAt: vehicle.updatedAt || now, createdBy: vehicle.createdBy || "V0.5 migration", updatedBy: vehicle.updatedBy || "V0.5 migration", removedAt: vehicle.removedAt || "", removedBy: vehicle.removedBy || "", reactivatedAt: vehicle.reactivatedAt || ""
+  };
+}
+
+function mapTransactionVehicle(transaction, vehicles) {
+  const vehicle = vehicles.find((item) => item.id === transaction.vehicleId || item.vin === normalize(transaction.vin) || (transaction.plate && item.plate === normalize(transaction.plate)));
+  return { ...transaction, vehicleId: transaction.vehicleId || (vehicle ? vehicle.id : ""), vehicleBarcode: transaction.vehicleBarcode || (vehicle ? vehicle.assignedBarcode : "") };
 }
 
 function migrateV04State(legacy) {
@@ -352,7 +431,7 @@ function startFlow() {
   ui.direction = null;
   ui.activeFlow = "scan";
   el.scannerHeading.textContent = "Vehicle Scan";
-  setNotice("Scan the driver employee #, then the vehicle VIN.", "neutral");
+  setNotice("Scan the driver employee #, then the assigned vehicle barcode.", "neutral");
   showWizardStep(0);
 }
 
@@ -403,7 +482,7 @@ function showWizardStep(step) {
   updateWizardDots();
   if (step === 3) renderScanSummary();
   if (step === 0) el.driverInput.focus();
-  if (step === 1) el.vinInput.focus();
+  if (step === 1) el.barcodeInput.focus();
   if (step === 2) el.directionOut.focus();
   renderScanDetails();
 }
@@ -419,11 +498,11 @@ function resetFlow() {
   ui.step = 0;
   ui.pendingOverride = null;
   el.driverInput.value = "";
-  el.vinInput.value = "";
+  el.barcodeInput.value = "";
   el.transactionNote.value = "";
   el.supervisorInput.value = "";
   el.driverStatus.textContent = "Awaiting employee number scan.";
-  el.vinStatus.textContent = "Awaiting VIN scan.";
+  el.barcodeStatus.textContent = "Awaiting vehicle barcode scan.";
   el.supervisorStatus.textContent = "Awaiting a valid supervisor ID.";
   renderScanDetails();
 }
@@ -431,10 +510,10 @@ function resetFlow() {
 function setScannerValue(fieldId, value) {
   const input = el[fieldId];
   if (!input) return;
-  input.value = fieldId === "vinInput" ? normalize(value) : value;
+  input.value = fieldId === "barcodeInput" ? normalize(value) : value;
   recordScannerInput(fieldId, value, "Demo value");
   if (fieldId === "driverInput") updateDriverStatus();
-  if (fieldId === "vinInput") updateVinStatus();
+  if (fieldId === "barcodeInput") updateBarcodeStatus();
   input.focus();
 }
 
@@ -442,15 +521,15 @@ function handleScanInput(fieldId) {
   const input = el[fieldId];
   const rawValue = input.value;
   recordScannerInput(fieldId, rawValue, "Input");
-  if (fieldId === "vinInput") input.value = normalize(rawValue);
+  if (fieldId === "barcodeInput") input.value = normalize(rawValue);
   if (fieldId === "driverInput") updateDriverStatus();
-  if (fieldId === "vinInput") updateVinStatus();
+  if (fieldId === "barcodeInput") updateBarcodeStatus();
 }
 
 function recordScannerInput(fieldId, rawValue, terminator) {
   const labels = {
     driverInput: "Driver Employee #",
-    vinInput: "Vehicle VIN",
+    barcodeInput: "Vehicle Barcode",
     supervisorInput: "Supervisor ID",
     manualEmployeeInput: "Manual Employee #"
   };
@@ -497,7 +576,7 @@ function submitManualEmployee() {
   saveState();
   closeManualEmployeeModal();
   updateDriverStatus();
-  setNotice("Manual employee number accepted. Continue to VIN.", "success");
+  setNotice("Manual employee number accepted. Continue to vehicle barcode.", "success");
   showWizardStep(1);
 }
 
@@ -514,14 +593,18 @@ function updateDriverStatus() {
   renderScanDetails();
 }
 
-function updateVinStatus() {
-  const value = normalize(el.vinInput.value);
-  const vehicle = findVehicle(value);
+function updateBarcodeStatus() {
+  const value = normalize(el.barcodeInput.value);
+  const vehicle = findVehicleByBarcode(value);
   if (!value) {
-    el.vinStatus.textContent = "Awaiting VIN scan.";
+    el.barcodeStatus.textContent = "Awaiting vehicle barcode scan.";
+  } else if (!vehicle) {
+    el.barcodeStatus.textContent = "Vehicle barcode was not found. Scan an assigned inventory barcode.";
+  } else if (!vehicle.active) {
+    el.barcodeStatus.textContent = "Vehicle is inactive and cannot be used for a new movement.";
   } else {
-    const lengthNote = value.length === 17 ? "17 characters." : `Warning: VIN is ${value.length} characters; 17 expected. Demo submission is still allowed.`;
-    el.vinStatus.textContent = vehicle ? `${vehicle.vin} / ${vehicle.plate || "No plate"} found. ${lengthNote}` : `VIN not found in demo vehicles. ${lengthNote}`;
+    const vinWarning = vehicle.vin.length === 17 ? "VIN is 17 characters." : `VIN warning: ${vehicle.vin.length} characters.`;
+    el.barcodeStatus.textContent = `${vehicle.assignedBarcode}: ${vehicle.year} ${vehicle.make} ${vehicle.model}, ${vehicle.color}. VIN ${vehicle.vin}; ${vehicle.plate || "No plate"}. ${vinWarning}`;
   }
   renderScanDetails();
 }
@@ -538,16 +621,27 @@ function validateDriverStep() {
   showWizardStep(1);
 }
 
-function validateVinStep() {
-  const vin = normalize(el.vinInput.value);
-  el.vinInput.value = vin;
-  if (!vin) {
-    setNotice("Scan or enter a vehicle VIN.", "warning");
-    shake(el.vinInput);
-    el.vinInput.focus();
+function validateBarcodeStep() {
+  const barcode = normalize(el.barcodeInput.value);
+  el.barcodeInput.value = barcode;
+  if (!barcode) {
+    setNotice("Scan or enter an assigned vehicle barcode.", "warning");
+    shake(el.barcodeInput);
+    el.barcodeInput.focus();
     return;
   }
-  updateVinStatus();
+  const vehicle = findVehicleByBarcode(barcode);
+  if (!vehicle) {
+    setNotice("Vehicle barcode was not found. New movements require an assigned inventory barcode.", "danger");
+    shake(el.barcodeInput);
+    return;
+  }
+  if (!vehicle.active) {
+    setNotice("Vehicle is inactive and cannot be used for a new movement.", "danger");
+    shake(el.barcodeInput);
+    return;
+  }
+  updateBarcodeStatus();
   showWizardStep(2);
 }
 
@@ -585,7 +679,7 @@ function blockOutForSupervisor(driver) {
   el.supervisorStatus.textContent = "Awaiting a valid supervisor ID.";
   setScannerScreen("override");
   const vehicle = readVehicleInput();
-  addAudit("blocked_out", `Blocked Vehicle OUT attempt for ${driver.employeeNumber} / ${vehicle ? vehicle.plate || vehicle.vin : "vehicle pending"}.`, currentStationIdentity(), el.scannerLocation.value);
+  addAudit("blocked_out", `Blocked Vehicle OUT attempt for ${driver.employeeNumber} / ${vehicle ? vehicle.assignedBarcode : "vehicle pending"}.`, currentStationIdentity(), el.scannerLocation.value);
   saveState();
   renderAll();
   setNotice("Vehicle OUT blocked. Supervisor authorization required.", "warning");
@@ -629,8 +723,8 @@ function readTransactionDraft() {
     setNotice("Driver must be scanned or entered before submitting.", "warning");
     return null;
   }
-  if (!vehicle) {
-    setNotice("Vehicle VIN must be scanned or entered before submitting.", "warning");
+  if (!vehicle || !vehicle.active) {
+    setNotice("An active vehicle barcode must be scanned before submitting.", "warning");
     return null;
   }
   if (!el.scannerLocation.value || !ui.direction) return null;
@@ -649,6 +743,8 @@ function completeTransaction(draft) {
     direction: draft.direction,
     driverEmployee: draft.driver.employeeNumber,
     driverName: draft.driver.name,
+    vehicleId: draft.vehicle.id,
+    vehicleBarcode: draft.vehicle.assignedBarcode,
     vin: draft.vehicle.vin,
     plate: draft.vehicle.plate || "",
     location: draft.location,
@@ -659,7 +755,7 @@ function completeTransaction(draft) {
   state.transactions.unshift(transaction);
   addAudit(
     draft.direction === "OUT" ? "out_transaction" : "in_transaction",
-    `Vehicle ${draft.direction} recorded for ${draft.driver.employeeNumber} / ${draft.vehicle.plate || draft.vehicle.vin}.`,
+    `Vehicle ${draft.direction} recorded for ${draft.driver.employeeNumber} / ${draft.vehicle.assignedBarcode}.`,
     currentStationIdentity(),
     draft.location
   );
@@ -680,7 +776,7 @@ function showTransactionConfirmation(transaction) {
     ["Movement", `Vehicle ${transaction.direction}`],
     ["Location", transaction.location],
     ["Driver", `${transaction.driverEmployee} - ${transaction.driverName}`],
-    ["Vehicle", `${transaction.vin}${transaction.plate ? ` / ${transaction.plate}` : ""}`],
+    ["Vehicle", `${transaction.vehicleBarcode || "No barcode"} - ${transaction.vin}${transaction.plate ? ` / ${transaction.plate}` : ""}`],
     ["Authorization", transaction.authorizationStatus],
     ["Note", transaction.note || "-"]
   ]);
@@ -698,13 +794,18 @@ function findDriverAny(value) {
 
 function findVehicle(value) {
   const needle = normalize(value);
-  return state.vehicles.find((vehicle) => vehicle.vin === needle || vehicle.plate === needle) || null;
+  return state.vehicles.find((vehicle) => vehicle.vin === needle || vehicle.plate === needle || vehicle.assignedBarcode === needle) || null;
+}
+
+function findVehicleByBarcode(value) {
+  const needle = normalize(value);
+  return state.vehicles.find((vehicle) => vehicle.assignedBarcode === needle) || null;
 }
 
 function readVehicleInput() {
-  const vin = normalize(el.vinInput.value);
-  if (!vin) return null;
-  return findVehicle(vin) || { vin, plate: "" };
+  const barcode = normalize(el.barcodeInput.value);
+  if (!barcode) return null;
+  return findVehicleByBarcode(barcode);
 }
 
 function createAuthorization(id, employeeNumber, type, actor, location, now = new Date()) {
@@ -825,13 +926,23 @@ function handleDriverTableAction(event) {
   if (!button) return;
   const employeeNumber = button.dataset.driverEmployee;
   const driver = findDriverAny(employeeNumber);
+  if (!driver) return;
   if (button.dataset.driverAction === "authorize") {
-    const result = authorizeDriver(driver, el.authorizationDuration.value, "Admin Console", "", "user action");
+    const result = authorizeDriver(driver, el.authorizationDuration.value, "Supervisor Console", "", "user action");
     el.bulkActionStatus.textContent = result.ok ? `Authorized ${employeeNumber}.` : result.reason;
   }
   if (button.dataset.driverAction === "deauthorize") {
-    revokeAuthorization(employeeNumber, "Admin Console");
+    revokeAuthorization(employeeNumber, "Supervisor Console");
     el.bulkActionStatus.textContent = `Revoked authorization for ${employeeNumber}.`;
+  }
+  if (button.dataset.driverAction === "edit") openDriverModal(driver);
+  if (button.dataset.driverAction === "toggle") {
+    driver.active = !driver.active;
+    driver.updatedAt = new Date().toISOString();
+    driver.updatedBy = "Supervisor Console";
+    if (!driver.active) revokeAuthorization(employeeNumber, "Supervisor Console", "Driver deactivated");
+    addAudit(driver.active ? "driver_reactivated" : "driver_deactivated", `Driver ${employeeNumber} ${driver.active ? "reactivated" : "deactivated"}.`, "Supervisor Console", "");
+    el.bulkActionStatus.textContent = `${employeeNumber} marked ${driver.active ? "active" : "inactive"}.`;
   }
   saveState();
   renderAll();
@@ -845,17 +956,10 @@ function deauthorizeAllDrivers() {
   }
   const ok = typeof confirm === "function" ? confirm(`Revoke ${active.length} active driver authorizations?`) : true;
   if (!ok) return;
-  active.forEach((auth) => revokeAuthorization(auth.driverEmployee, "Admin Console", "Bulk revocation"));
+  active.forEach((auth) => revokeAuthorization(auth.driverEmployee, "Supervisor Console", "Bulk revocation"));
   saveState();
   renderAll();
   setNotice("All active driver authorizations revoked.", "warning");
-}
-
-function selectVisibleDrivers() {
-  document.querySelectorAll("#driversTableBody .row-check:not(:disabled)").forEach((checkbox) => {
-    checkbox.checked = true;
-  });
-  el.bulkActionStatus.textContent = "Visible eligible drivers selected.";
 }
 
 function bulkAuthorizeDrivers() {
@@ -870,13 +974,155 @@ function bulkAuthorizeDrivers() {
   const blocked = [];
   selected.forEach((checkbox) => {
     const driver = findDriverAny(checkbox.value);
-    const result = authorizeDriver(driver, el.authorizationDuration.value, "Admin Console", "", "bulk action");
+    const result = authorizeDriver(driver, el.authorizationDuration.value, "Supervisor Console", "", "bulk action");
     if (result.ok) successful += 1;
     else blocked.push(`${checkbox.value}: ${result.reason}`);
   });
   saveState();
   renderAll();
   el.bulkActionStatus.textContent = `${successful} successful, ${blocked.length} blocked${blocked.length ? ` (${blocked.join("; ")})` : ""}.`;
+}
+
+function showSupervisorSection(sectionId) {
+  ui.activeSupervisorSection = sectionId;
+  document.querySelectorAll(".supervisor-section").forEach((section) => {
+    const active = section.id === sectionId;
+    section.hidden = !active;
+    section.classList.toggle("is-active", active);
+  });
+  document.querySelectorAll("[data-supervisor-section]").forEach((button) => {
+    const active = button.dataset.supervisorSection === sectionId;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  if (sectionId === "vehiclesSection") renderVehicles();
+}
+
+function clearDriverErrors() {
+  [el.driverEmployeeError, el.driverNameError, el.driverLicenseError].forEach((node) => { node.textContent = ""; });
+}
+
+function openDriverModal(driver = null) {
+  ui.modalTrigger = document.activeElement;
+  clearDriverErrors();
+  el.driverForm.reset();
+  el.driverEditEmployee.value = driver ? driver.employeeNumber : "";
+  el.driverEmployeeNumber.value = driver ? driver.employeeNumber : "";
+  el.driverEmployeeNumber.disabled = Boolean(driver);
+  el.driverName.value = driver ? driver.name : "";
+  el.driverLicenseExpires.value = driver ? dateKey(new Date(driver.licenseExpires)) : "";
+  el.driverActive.value = driver && !driver.active ? "false" : "true";
+  document.getElementById("driverModalHeading").textContent = driver ? "Edit Driver" : "Add Driver";
+  el.driverModal.classList.remove("hidden");
+  window.setTimeout(() => (driver ? el.driverName : el.driverEmployeeNumber).focus(), 20);
+}
+
+function closeDriverModal() { closeManagedModal(el.driverModal); }
+
+function closeManagedModal(modal) {
+  if (!modal || modal.classList.contains("hidden")) return;
+  modal.classList.add("hidden");
+  const trigger = ui.modalTrigger;
+  ui.modalTrigger = null;
+  if (trigger && typeof trigger.focus === "function") trigger.focus();
+}
+
+function saveDriverForm(event) {
+  event.preventDefault();
+  clearDriverErrors();
+  const originalEmployee = normalize(el.driverEditEmployee.value);
+  const employeeNumber = normalize(el.driverEmployeeNumber.value);
+  const name = el.driverName.value.trim();
+  const licenseExpires = el.driverLicenseExpires.value;
+  let invalid = false;
+  if (!employeeNumber) { el.driverEmployeeError.textContent = "Employee Number is required."; invalid = true; }
+  if (!originalEmployee && state.drivers.some((driver) => driver.employeeNumber === employeeNumber)) { el.driverEmployeeError.textContent = "Employee Number must be unique."; invalid = true; }
+  if (!name) { el.driverNameError.textContent = "Driver Name is required."; invalid = true; }
+  if (!licenseExpires || Number.isNaN(new Date(`${licenseExpires}T12:00:00`).getTime())) { el.driverLicenseError.textContent = "A valid license expiration date is required."; invalid = true; }
+  if (invalid) return;
+  const now = new Date().toISOString();
+  const existing = originalEmployee ? findDriverAny(originalEmployee) : null;
+  if (existing) {
+    existing.name = name; existing.licenseExpires = new Date(`${licenseExpires}T12:00:00`).toISOString(); existing.active = el.driverActive.value === "true"; existing.updatedAt = now; existing.updatedBy = "Supervisor Console";
+    if (!existing.active) revokeAuthorization(existing.employeeNumber, "Supervisor Console", "Driver marked inactive during edit");
+    addAudit("driver_edited", `Driver ${existing.employeeNumber} edited.`, "Supervisor Console", "");
+  } else {
+    state.drivers.push({ employeeNumber, name, licenseExpires: new Date(`${licenseExpires}T12:00:00`).toISOString(), active: el.driverActive.value === "true", createdAt: now, updatedAt: now, createdBy: "Supervisor Console", updatedBy: "Supervisor Console" });
+    addAudit("driver_created", `Driver ${employeeNumber} created.`, "Supervisor Console", "");
+  }
+  saveState(); closeDriverModal(); renderAll();
+}
+
+function clearVehicleErrors() {
+  [el.vehicleMakeError, el.vehicleModelError, el.vehicleYearError, el.vehicleColorError, el.vehicleVinError, el.vehicleBarcodeError, el.vehicleFormStatus].forEach((node) => { node.textContent = ""; });
+}
+
+function openVehicleModal(vehicle = null) {
+  ui.modalTrigger = document.activeElement;
+  clearVehicleErrors(); el.vehicleForm.reset();
+  el.vehicleEditId.value = vehicle ? vehicle.id : "";
+  [[el.vehicleMake, "make"], [el.vehicleModel, "model"], [el.vehicleYear, "year"], [el.vehicleColor, "color"], [el.vehicleVin, "vin"], [el.vehicleBarcode, "assignedBarcode"], [el.vehiclePlate, "plate"]].forEach(([input, key]) => { input.value = vehicle ? vehicle[key] || "" : ""; });
+  el.vehicleActive.value = vehicle && !vehicle.active ? "false" : "true";
+  document.getElementById("vehicleModalHeading").textContent = vehicle ? "Edit Vehicle" : "Add Vehicle";
+  el.vehicleModal.classList.remove("hidden");
+  window.setTimeout(() => el.vehicleMake.focus(), 20);
+}
+
+function closeVehicleModal() { closeManagedModal(el.vehicleModal); }
+
+function saveVehicleForm(event) {
+  event.preventDefault(); clearVehicleErrors();
+  const vehicleId = el.vehicleEditId.value;
+  const fields = { make: el.vehicleMake.value.trim(), model: el.vehicleModel.value.trim(), year: Number(el.vehicleYear.value.trim()), color: el.vehicleColor.value.trim(), vin: normalize(el.vehicleVin.value), assignedBarcode: normalize(el.vehicleBarcode.value), plate: normalize(el.vehiclePlate.value), active: el.vehicleActive.value === "true" };
+  let invalid = false;
+  [["make", el.vehicleMakeError, "Make is required."], ["model", el.vehicleModelError, "Model is required."], ["color", el.vehicleColorError, "Color is required."], ["vin", el.vehicleVinError, "VIN is required."], ["assignedBarcode", el.vehicleBarcodeError, "Assigned Barcode is required."]].forEach(([key, node, message]) => { if (!fields[key]) { node.textContent = message; invalid = true; } });
+  if (!Number.isInteger(fields.year) || fields.year < 1900 || fields.year > new Date().getFullYear() + 2) { el.vehicleYearError.textContent = "Year must be a reasonable four-digit value."; invalid = true; }
+  if (state.vehicles.some((vehicle) => vehicle.id !== vehicleId && vehicle.vin === fields.vin)) { el.vehicleVinError.textContent = "VIN must be unique."; invalid = true; }
+  if (state.vehicles.some((vehicle) => vehicle.id !== vehicleId && vehicle.assignedBarcode === fields.assignedBarcode)) { el.vehicleBarcodeError.textContent = "Assigned Barcode must be unique and is never reused."; invalid = true; }
+  if (invalid) return;
+  const now = new Date().toISOString();
+  const existing = state.vehicles.find((vehicle) => vehicle.id === vehicleId);
+  if (existing) {
+    const barcodeChanged = existing.assignedBarcode !== fields.assignedBarcode;
+    Object.assign(existing, fields, { updatedAt: now, updatedBy: "Supervisor Console" });
+    addAudit("vehicle_edited", `Vehicle ${existing.id} edited.`, "Supervisor Console", "");
+    if (barcodeChanged) addAudit("barcode_changed", `Vehicle ${existing.id} barcode changed to ${fields.assignedBarcode}.`, "Supervisor Console", "");
+  } else {
+    const vehicle = { id: makeId("veh"), ...fields, createdAt: now, updatedAt: now, createdBy: "Supervisor Console", updatedBy: "Supervisor Console", removedAt: "", removedBy: "", reactivatedAt: "" };
+    state.vehicles.push(vehicle);
+    addAudit("vehicle_created", `Vehicle ${vehicle.id} created.`, "Supervisor Console", "");
+    addAudit("barcode_assigned", `Barcode ${vehicle.assignedBarcode} assigned to ${vehicle.id}.`, "Supervisor Console", "");
+  }
+  if (fields.vin.length !== 17) el.vehicleFormStatus.textContent = "VIN saved with a non-17-character warning for prototype flexibility.";
+  saveState(); closeVehicleModal(); renderAll();
+}
+
+function handleVehicleTableAction(event) {
+  const button = event.target.closest("[data-vehicle-action]");
+  if (!button) return;
+  const vehicle = state.vehicles.find((item) => item.id === button.dataset.vehicleId);
+  if (!vehicle) return;
+  if (button.dataset.vehicleAction === "edit") { openVehicleModal(vehicle); return; }
+  const restoring = button.dataset.vehicleAction === "restore";
+  const prompt = restoring ? `Restore ${vehicle.assignedBarcode} to active inventory?` : `Remove ${vehicle.assignedBarcode} from inventory? It will remain searchable but cannot be scanned for new movements.`;
+  if (typeof confirm === "function" && !confirm(prompt)) return;
+  vehicle.active = restoring;
+  vehicle.updatedAt = new Date().toISOString(); vehicle.updatedBy = "Supervisor Console";
+  if (restoring) { vehicle.reactivatedAt = vehicle.updatedAt; addAudit("vehicle_restored", `Vehicle ${vehicle.assignedBarcode} restored to inventory.`, "Supervisor Console", ""); }
+  else { vehicle.removedAt = vehicle.updatedAt; vehicle.removedBy = "Supervisor Console"; addAudit("vehicle_removed_from_inventory", `Vehicle ${vehicle.assignedBarcode} removed from inventory.`, "Supervisor Console", ""); }
+  saveState(); renderAll();
+}
+
+function renderVehicles() {
+  if (!el.vehiclesTableBody) return;
+  const needle = normalize(el.vehicleSearch.value);
+  const status = el.vehicleStatusFilter.value;
+  const vehicles = state.vehicles.filter((vehicle) => {
+    const matchesStatus = status === "all" || (status === "active" && vehicle.active) || (status === "inactive" && !vehicle.active);
+    const haystack = [vehicle.assignedBarcode, vehicle.vin, vehicle.plate, vehicle.make, vehicle.model, vehicle.year, vehicle.color].join(" ").toUpperCase();
+    return matchesStatus && (!needle || haystack.includes(needle));
+  });
+  el.vehiclesTableBody.innerHTML = vehicles.length ? vehicles.map((vehicle) => `<tr><td class="mono">${escapeHtml(vehicle.assignedBarcode)}</td><td>${escapeHtml(vehicle.year)}</td><td>${escapeHtml(vehicle.make)}</td><td>${escapeHtml(vehicle.model)}</td><td>${escapeHtml(vehicle.color)}</td><td class="mono">${escapeHtml(vehicle.vin)}</td><td>${escapeHtml(vehicle.plate || "-")}</td><td><span class="status-badge ${vehicle.active ? "authorized" : "inactive"}">${vehicle.active ? "Active" : "Inactive"}</span></td><td class="action-stack"><button class="table-action" type="button" data-vehicle-action="edit" data-vehicle-id="${escapeHtml(vehicle.id)}">Edit</button><button class="table-action ${vehicle.active ? "danger-text" : "success-text"}" type="button" data-vehicle-action="${vehicle.active ? "remove" : "restore"}" data-vehicle-id="${escapeHtml(vehicle.id)}">${vehicle.active ? "Remove from Inventory" : "Restore to Inventory"}</button></td></tr>`).join("") : `<tr><td colspan="9" class="empty-cell">No vehicles match this inventory view.</td></tr>`;
 }
 
 function addAudit(type, description, actor, location, source = "user action") {
@@ -897,7 +1143,8 @@ function renderAll() {
   renderScannerContext();
   renderScanDetails();
   renderRecentActivity();
-  renderAdmin();
+  renderSupervisor();
+  renderVehicles();
   ui.searchResults = filterTransactions();
   renderSearchResults();
 }
@@ -924,7 +1171,7 @@ function renderScanDetails() {
   el.scanDetailList.innerHTML = summaryRows([
     ["Location", location],
     ["Driver", driver ? `${driver.employeeNumber} - ${driver.name}` : "Awaiting employee #"],
-    ["Vehicle", vehicle ? `${vehicle.vin}${vehicle.plate ? ` / ${vehicle.plate}` : ""}` : "Awaiting VIN"],
+    ["Vehicle", vehicle ? `${vehicle.assignedBarcode} - ${vehicle.year} ${vehicle.make} ${vehicle.model} / ${vehicle.vin}${vehicle.plate ? ` / ${vehicle.plate}` : ""}` : "Awaiting barcode"],
     ["Authorization", authorization]
   ]);
 }
@@ -932,14 +1179,14 @@ function renderScanDetails() {
 function renderScanSummary() {
   const driver = findDriver(el.driverInput.value);
   const vehicle = readVehicleInput();
-  const vinValue = normalize(el.vinInput.value);
   const authorization = driver ? authorizationLabel(driver, ui.direction) : "Awaiting driver";
   el.scanSummary.innerHTML = summaryRows([
     ["Movement", `Vehicle ${ui.direction}`],
     ["Location", el.scannerLocation.value],
     ["Driver", driver ? `${driver.employeeNumber} - ${driver.name}` : "Awaiting employee #"],
-    ["Vehicle", vehicle ? `${vehicle.vin}${vehicle.plate ? ` / ${vehicle.plate}` : ""}` : "Awaiting VIN"],
-    ["VIN validation", vinValue.length === 17 ? "17 characters" : `${vinValue.length} characters - warning, allowed for demo`],
+    ["Vehicle", vehicle ? `${vehicle.assignedBarcode} - ${vehicle.year} ${vehicle.make} ${vehicle.model} / ${vehicle.vin}${vehicle.plate ? ` / ${vehicle.plate}` : ""}` : "Awaiting barcode"],
+    ["Barcode", vehicle ? vehicle.assignedBarcode : "Awaiting assigned barcode"],
+    ["VIN", vehicle ? `${vehicle.vin}${vehicle.vin.length === 17 ? " (17 characters)" : ` (${vehicle.vin.length} characters - warning)`}` : "-"],
     ["Authorization", authorization]
   ]);
 }
@@ -987,7 +1234,7 @@ function renderRecentActivity() {
   `).join("") : emptyState("No gate activity recorded yet.");
 }
 
-function renderAdmin() {
+function renderSupervisor() {
   expireAuthorizations("render");
   const activeAuths = state.authorizations.filter((auth) => auth.status === "active");
   el.adminAuthorizedCount.textContent = activeAuths.length;
@@ -998,8 +1245,9 @@ function renderAdmin() {
 
   const rosterNeedle = normalize(el.driverRosterSearch.value);
   const roster = state.drivers.filter((driver) => !rosterNeedle || driver.employeeNumber.includes(rosterNeedle) || driver.name.toUpperCase().includes(rosterNeedle));
-  el.driversTableBody.innerHTML = roster.map(renderDriverRow).join("") || `<tr><td colspan="9" class="empty-cell">No drivers match this search.</td></tr>`;
+  el.driversTableBody.innerHTML = roster.map(renderDriverRow).join("") || `<tr><td colspan="10" class="empty-cell">No drivers match this search.</td></tr>`;
   renderLicenseCounts();
+  renderLicenseWarnings();
   renderLocationList();
 }
 
@@ -1013,11 +1261,12 @@ function renderDriverRow(driver) {
     <td>${escapeHtml(driver.employeeNumber)}</td>
     <td>${escapeHtml(driver.name)}</td>
     <td><span class="status-badge ${driver.active ? "authorized" : "inactive"}">${driver.active ? "Active" : "Inactive"}</span></td>
-    <td><span class="status-badge ${statusClass}">${escapeHtml(license.label)}</span><br><span class="muted-small">${escapeHtml(formatDate(driver.licenseExpires))}</span></td>
+    <td><span class="status-badge ${statusClass}">${escapeHtml(license.label)}</span></td>
+    <td>${escapeHtml(formatDate(driver.licenseExpires))}</td>
     <td><span class="status-badge ${auth ? "authorized" : "unauthorized"}">${auth ? "Authorized" : "Not authorized"}</span></td>
-    <td>${auth ? '<span class="scope-label">All current locations</span>' : "-"}</td>
+    <td>${auth ? escapeHtml(humanDuration(auth.type)) : "-"}</td>
     <td>${auth ? escapeHtml(formatTimestamp(auth.expiresAt)) : "-"}</td>
-    <td><button class="table-action ${auth ? "danger-text" : "success-text"}" type="button" data-driver-action="${auth ? "deauthorize" : "authorize"}" data-driver-employee="${escapeHtml(driver.employeeNumber)}" ${eligible || auth ? "" : "disabled"}>${auth ? "Revoke" : "Authorize"}</button></td>
+    <td class="action-stack"><button class="table-action" type="button" data-driver-action="edit" data-driver-employee="${escapeHtml(driver.employeeNumber)}">Edit</button><button class="table-action" type="button" data-driver-action="toggle" data-driver-employee="${escapeHtml(driver.employeeNumber)}">${driver.active ? "Mark inactive" : "Reactivate"}</button>${auth ? `<button class="table-action danger-text" type="button" data-driver-action="deauthorize" data-driver-employee="${escapeHtml(driver.employeeNumber)}">Revoke</button>` : `<button class="table-action success-text" type="button" data-driver-action="authorize" data-driver-employee="${escapeHtml(driver.employeeNumber)}" ${eligible ? "" : "disabled"}>Authorize</button>`}</td>
   </tr>`;
 }
 
@@ -1033,26 +1282,32 @@ function renderLicenseCounts() {
   el.licenseExpiredCount.textContent = counts.expired;
 }
 
+function renderLicenseWarnings() {
+  const warnings = state.drivers
+    .map((driver) => ({ driver, license: licenseStatus(driver) }))
+    .filter((item) => item.license.tone !== "current")
+    .sort((a, b) => new Date(a.driver.licenseExpires) - new Date(b.driver.licenseExpires));
+  el.licenseWarningBody.innerHTML = warnings.length ? warnings.map(({ driver, license }) => `<tr><td>${escapeHtml(driver.employeeNumber)}</td><td>${escapeHtml(driver.name)}</td><td>${escapeHtml(formatDate(driver.licenseExpires))}</td><td><span class="status-badge ${license.tone === "expired" ? "expired" : "unauthorized"}">${escapeHtml(license.label)}</span></td><td>${driver.active ? "Active" : "Inactive"}</td></tr>`).join("") : `<tr><td colspan="5" class="empty-cell">No licenses approaching expiration.</td></tr>`;
+}
+
 function renderLocationList() {
   el.locationList.innerHTML = state.locations.map((location) => `<li>${escapeHtml(location.name)}<span>${location.active ? "Active scanner option" : "Inactive - history only"}</span></li>`).join("");
 }
 
 function filterTransactions() {
-  const vin = normalize(el.filterVin.value);
-  const plate = normalize(el.filterPlate.value);
+  const vehicle = normalize(el.filterVehicle.value);
   const driver = normalize(el.filterDriver.value);
   const location = el.filterLocation.value;
   const date = el.filterDate.value;
   const type = el.filterType.value;
 
   return state.transactions.filter((item) => {
-    const matchesVin = !vin || item.vin.includes(vin);
-    const matchesPlate = !plate || (item.plate || "").includes(plate);
+    const matchesVehicle = !vehicle || (item.vehicleBarcode || "").includes(vehicle) || item.vin.includes(vehicle) || (item.plate || "").includes(vehicle);
     const matchesDriver = !driver || item.driverEmployee.includes(driver) || item.driverName.toUpperCase().includes(driver);
     const matchesLocation = !location || item.location === location;
     const matchesDate = !date || dateKey(new Date(item.timestamp)) === date;
     const matchesType = !type || item.direction === type;
-    return matchesVin && matchesPlate && matchesDriver && matchesLocation && matchesDate && matchesType;
+    return matchesVehicle && matchesDriver && matchesLocation && matchesDate && matchesType;
   });
 }
 
@@ -1066,15 +1321,15 @@ function renderSearchResults() {
   const results = ui.searchResults || [];
   el.searchResultCount.textContent = results.length;
   el.searchResultsBody.innerHTML = results.length ? results.map((item) => `<tr>
-    <td>${formatTimestamp(item.timestamp)}</td><td><span class="movement-chip ${item.direction.toLowerCase()}">${item.direction}</span></td><td>${escapeHtml(item.driverEmployee)}</td><td>${escapeHtml(item.driverName)}</td><td class="mono">${escapeHtml(item.vin)}</td><td>${escapeHtml(item.plate || "-")}</td><td>${escapeHtml(item.location)}</td><td><span class="status-badge ${item.authorizationStatus === "Authorized" ? "authorized" : "unauthorized"}">${escapeHtml(item.authorizationStatus)}</span></td><td>${escapeHtml(item.note || "-")}</td><td>${escapeHtml(item.submittedBy)}</td>
-  </tr>`).join("") : `<tr><td colspan="10" class="empty-cell">No transactions match these filters.</td></tr>`;
+    <td>${formatTimestamp(item.timestamp)}</td><td><span class="movement-chip ${item.direction.toLowerCase()}">${item.direction}</span></td><td>${escapeHtml(item.driverEmployee)}</td><td>${escapeHtml(item.driverName)}</td><td class="mono">${escapeHtml(item.vehicleBarcode || "-")}</td><td class="mono">${escapeHtml(item.vin)}</td><td>${escapeHtml(item.plate || "-")}</td><td>${escapeHtml(item.location)}</td><td><span class="status-badge ${item.authorizationStatus === "Authorized" ? "authorized" : "unauthorized"}">${escapeHtml(item.authorizationStatus)}</span></td><td>${escapeHtml(item.note || "-")}</td><td>${escapeHtml(item.submittedBy)}</td>
+  </tr>`).join("") : `<tr><td colspan="11" class="empty-cell">No transactions match these filters.</td></tr>`;
 }
 
 function resetDemo() {
   const fresh = createSeedState();
   Object.keys(state).forEach((key) => delete state[key]);
   Object.assign(state, fresh);
-  addAudit("demo_reset", "Demo data reset to V0.5 Patrick response seed data.", "System", "");
+  addAudit("demo_reset", "Demo data reset to V0.6 Supervisor and vehicle inventory seed data.", "System", "");
   ui.pendingOverride = null;
   populateLocationControls();
   showScannerHome();

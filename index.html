@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#123b35">
-  <meta name="description" content="Lot Watch / GateFlow V0.5 Patrick response prototype for Zebra TC-series gate tracking.">
-  <title>Lot Watch / GateFlow V0.5 Review</title>
+  <meta name="description" content="Lot Watch / GateFlow V0.6 Supervisor and vehicle inventory review prototype for Zebra TC-series gate tracking.">
+  <title>Lot Watch / GateFlow V0.6 Review</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
@@ -22,13 +22,13 @@
         </span>
         <span>
           <strong>Lot Watch / GateFlow</strong>
-          <span>V0.5 Patrick response review</span>
+          <span>V0.6 Supervisor and vehicle inventory review</span>
         </span>
       </a>
 
       <nav class="top-nav" aria-label="Primary views">
         <button class="nav-tab is-active" type="button" data-view="scannerView">Scanner</button>
-        <button class="nav-tab" type="button" data-view="adminView">Admin</button>
+        <button class="nav-tab" type="button" data-view="supervisorView">Supervisor</button>
         <button class="nav-tab" type="button" data-view="searchView">Search</button>
       </nav>
 
@@ -53,7 +53,7 @@
               </div>
             </header>
 
-            <div class="scanner-alert neutral" id="scannerNotice" role="status">Working location set. Scan the driver, then the VIN.</div>
+            <div class="scanner-alert neutral" id="scannerNotice" role="status">Working location set. Scan the driver, then the vehicle barcode.</div>
 
             <section class="working-location-bar" aria-label="Working location and device state">
               <div class="working-location-select"><label for="scannerLocation">Working Location</label><select id="scannerLocation" name="scannerLocation"></select></div>
@@ -66,7 +66,7 @@
             <div class="scanner-stage">
               <section class="scanner-screen" id="scannerHome">
                 <p class="screen-title">Gate Scanner</p>
-                <p class="screen-subtitle">Scan the driver, scan the VIN, then choose the vehicle movement.</p>
+                <p class="screen-subtitle">Scan the driver, scan the vehicle barcode, then choose the vehicle movement.</p>
                 <div class="home-actions">
                   <button class="big-action-btn start" id="startScanButton" type="button"><span aria-hidden="true">SCAN</span>Start vehicle scan</button>
                 </div>
@@ -97,26 +97,26 @@
                     <div class="demo-row"><button class="demo-chip" type="button" data-demo-field="driverInput" data-demo-value="EMP-1001">EMP-1001 OK</button><button class="demo-chip" type="button" data-demo-field="driverInput" data-demo-value="EMP-1003">EMP-1003 review</button></div>
                     <p class="field-status" id="driverStatus">Awaiting employee number scan.</p>
                   </div>
-                  <button class="button primary full" id="driverNext" type="button">Continue to VIN</button>
+                  <button class="button primary full" id="driverNext" type="button">Continue to vehicle barcode</button>
                 </div>
 
                 <div class="wizard-step hidden" data-step="1">
-                  <p class="screen-title">Vehicle VIN</p>
-                  <p class="screen-subtitle">Step 2 of 4. Scan or enter the vehicle VIN.</p>
+                  <p class="screen-title">Vehicle Barcode</p>
+                  <p class="screen-subtitle">Step 2 of 4. Scan the assigned vehicle barcode.</p>
                   <div class="scan-group">
-                    <label for="vinInput">Vehicle VIN</label>
-                    <div class="scan-input single"><input id="vinInput" name="vinInput" autocomplete="off" inputmode="text" placeholder="Scan or enter VIN"></div>
-                    <div class="demo-row"><button class="demo-chip" type="button" data-demo-field="vinInput" data-demo-value="1HGCM82633A004352">TRK-8877</button><button class="demo-chip" type="button" data-demo-field="vinInput" data-demo-value="3FA6P0H75HR123456">YARD-104</button></div>
-                    <p class="field-status" id="vinStatus">Awaiting VIN scan.</p>
+                    <label for="barcodeInput">Vehicle Barcode</label>
+                    <div class="scan-input single"><input id="barcodeInput" name="barcodeInput" autocomplete="off" inputmode="text" placeholder="Scan assigned vehicle barcode"></div>
+                    <div class="demo-row"><button class="demo-chip" type="button" data-demo-field="barcodeInput" data-demo-value="GFV-0001">GFV-0001</button><button class="demo-chip" type="button" data-demo-field="barcodeInput" data-demo-value="GFV-0003">GFV-0003</button></div>
+                    <p class="field-status" id="barcodeStatus">Awaiting vehicle barcode scan.</p>
                   </div>
-                  <div class="button-row"><button class="button secondary" id="vinBack" type="button">Back</button><button class="button primary" id="vinNext" type="button">Choose movement</button></div>
+                  <div class="button-row"><button class="button secondary" id="barcodeBack" type="button">Back</button><button class="button primary" id="barcodeNext" type="button">Choose movement</button></div>
                 </div>
 
                 <div class="wizard-step hidden" data-step="2">
                   <p class="screen-title">Choose movement</p>
-                  <p class="screen-subtitle">Step 3 of 4. Select the vehicle direction after the VIN scan.</p>
+                  <p class="screen-subtitle">Step 3 of 4. Select the vehicle direction after the barcode lookup.</p>
                   <div class="home-actions"><button class="big-action-btn out" id="directionOut" type="button"><span aria-hidden="true">OUT</span>Vehicle OUT</button><button class="big-action-btn in" id="directionIn" type="button"><span aria-hidden="true">IN</span>Vehicle IN</button></div>
-                  <button class="button secondary full" id="movementBack" type="button">Back to VIN</button>
+                  <button class="button secondary full" id="movementBack" type="button">Back to barcode</button>
                 </div>
 
                 <div class="wizard-step hidden" data-step="3">
@@ -177,61 +177,56 @@
         </div>
       </section>
 
-      <section class="view" id="adminView" aria-labelledby="adminHeading">
+      <section class="view" id="supervisorView" aria-labelledby="supervisorViewHeading">
         <div class="view-heading">
           <div>
-            <p class="eyebrow">Daily access control</p>
-            <h1 id="adminHeading">Driver authorization</h1>
-            <p>Authorize active drivers for 9 Hours, 12 Hours, Today, 48 Hours, or 3 Days. Every authorization applies to all current locations. Expired licenses are blocked.</p>
+            <p class="eyebrow">Supervisor control</p>
+            <h1 id="supervisorViewHeading">Drivers, authorizations, licenses, and vehicles</h1>
+            <p>Manage the shared gate roster and vehicle inventory. This remains a local browser review prototype, not secure production access control.</p>
           </div>
-          <button class="button danger" id="deauthorizeAllButton" type="button">Deauthorize all drivers</button>
+        </div>
+        <div class="supervisor-tabs" role="tablist" aria-label="Supervisor sections">
+          <button class="supervisor-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="driversSection" id="driversTab" data-supervisor-section="driversSection">Drivers</button>
+          <button class="supervisor-tab" type="button" role="tab" aria-selected="false" aria-controls="vehiclesSection" id="vehiclesTab" data-supervisor-section="vehiclesSection">Vehicles</button>
         </div>
 
-        <div class="admin-grid">
+        <section id="driversSection" class="supervisor-section is-active" role="tabpanel" aria-labelledby="driversTab">
+          <div class="supervisor-driver-grid">
+            <section class="panel driver-roster-panel">
+              <div class="panel-heading">
+                <div><p class="eyebrow">Driver roster</p><h2>All Drivers</h2></div>
+                <button class="button secondary" id="addDriverButton" type="button">Add Driver</button>
+              </div>
+              <div class="bulk-toolbar" aria-label="Bulk driver authorization controls">
+                <div><label for="driverRosterSearch">Search drivers</label><input id="driverRosterSearch" type="search" placeholder="Name or employee #"></div>
+                <div><label for="authorizationDuration">Authorization duration</label><select id="authorizationDuration"><option value="9_hours">9 Hours</option><option value="12_hours">12 Hours</option><option value="today">Today</option><option value="48_hours">48 Hours</option><option value="3_days">3 Days</option></select></div>
+                <button class="button primary" id="bulkAuthorizeButton" type="button">Authorize selected</button>
+              </div>
+              <p class="field-status" id="bulkActionStatus">No bulk action yet.</p>
+              <div class="table-wrap"><table><thead><tr><th><span class="sr-only">Select</span></th><th>Employee #</th><th>Driver</th><th>Status</th><th>License</th><th>License expiration</th><th>Authorization</th><th>Duration</th><th>Authorization expiration</th><th>Actions</th></tr></thead><tbody id="driversTableBody"></tbody></table></div>
+            </section>
+            <aside class="supervisor-side-stack">
+              <section class="panel compact-panel">
+                <div class="panel-heading"><div><p class="eyebrow">Today</p><h2>Active Driver Authorizations</h2></div><strong class="number-badge" id="adminAuthorizedCount">0</strong></div>
+                <button class="button danger compact" id="deauthorizeAllButton" type="button">Deauthorize all</button>
+                <div class="table-wrap"><table><thead><tr><th>Employee #</th><th>Driver</th><th>Duration</th><th>Scope</th><th>Expires</th><th></th></tr></thead><tbody id="authorizedDriversBody"></tbody></table></div>
+              </section>
+              <section class="panel compact-panel">
+                <div class="panel-heading"><div><p class="eyebrow">License review</p><h2>Licenses Approaching Expiration</h2></div></div>
+                <div class="license-summary" aria-label="Driver license warning counts"><div><span>30 days</span><strong id="license30Count">0</strong></div><div><span>15 days</span><strong id="license15Count">0</strong></div><div><span>5 days</span><strong id="license5Count">0</strong></div><div><span>Expired</span><strong id="licenseExpiredCount">0</strong></div></div>
+                <div class="table-wrap"><table><thead><tr><th>Employee #</th><th>Driver</th><th>Expiration</th><th>Warning</th><th>Status</th></tr></thead><tbody id="licenseWarningBody"></tbody></table></div>
+              </section>
+            </aside>
+          </div>
+        </section>
+
+        <section id="vehiclesSection" class="supervisor-section" role="tabpanel" aria-labelledby="vehiclesTab" hidden>
           <section class="panel">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">Today</p>
-                <h2>Active Driver Authorizations</h2>
-              </div>
-              <strong class="number-badge" id="adminAuthorizedCount">0</strong>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Employee #</th><th>Driver</th><th>Duration</th><th>Scope</th><th>Expires</th><th></th></tr></thead>
-                <tbody id="authorizedDriversBody"></tbody>
-              </table>
-            </div>
+            <div class="panel-heading"><div><p class="eyebrow">Vehicle inventory</p><h2>Active fleet vehicles</h2></div><button class="button secondary" id="addVehicleButton" type="button">Add Vehicle</button></div>
+            <div class="bulk-toolbar vehicle-toolbar"><div><label for="vehicleSearch">Search vehicles</label><input id="vehicleSearch" type="search" placeholder="Barcode, VIN, plate, make, model, year, or color"></div><div><label for="vehicleStatusFilter">Inventory status</label><select id="vehicleStatusFilter"><option value="active">Active</option><option value="inactive">Inactive</option><option value="all">All</option></select></div></div>
+            <div class="table-wrap"><table><thead><tr><th>Assigned Barcode</th><th>Year</th><th>Make</th><th>Model</th><th>Color</th><th>VIN</th><th>Plate</th><th>Status</th><th>Actions</th></tr></thead><tbody id="vehiclesTableBody"></tbody></table></div>
           </section>
-
-          <section class="panel wide-panel">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">Driver roster</p>
-                <h2>All Drivers</h2>
-              </div>
-            </div>
-            <div class="bulk-toolbar" aria-label="Bulk driver authorization controls">
-              <div><label for="driverRosterSearch">Search drivers</label><input id="driverRosterSearch" type="search" placeholder="Name or employee #"></div>
-              <div><label for="authorizationDuration">Authorization duration</label><select id="authorizationDuration"><option value="9_hours">9 Hours</option><option value="12_hours">12 Hours</option><option value="today">Today</option><option value="48_hours">48 Hours</option><option value="3_days">3 Days</option></select></div>
-              <button class="button secondary" id="selectVisibleDriversButton" type="button">Select visible</button>
-              <button class="button primary" id="bulkAuthorizeButton" type="button">Authorize selected</button>
-            </div>
-            <div class="license-summary" aria-label="Driver license warning counts">
-              <div><span>30 days</span><strong id="license30Count">0</strong></div>
-              <div><span>15 days</span><strong id="license15Count">0</strong></div>
-              <div><span>5 days</span><strong id="license5Count">0</strong></div>
-              <div><span>Expired</span><strong id="licenseExpiredCount">0</strong></div>
-            </div>
-            <p class="field-status" id="bulkActionStatus">No bulk action yet.</p>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th><span class="sr-only">Select</span></th><th>Employee #</th><th>Driver</th><th>Active</th><th>License</th><th>Authorization</th><th>Scope</th><th>Expires</th><th>Action</th></tr></thead>
-                <tbody id="driversTableBody"></tbody>
-              </table>
-            </div>
-          </section>
-        </div>
+        </section>
 
         <div class="placeholder-grid">
           <section class="panel">
@@ -257,13 +252,12 @@
           <div>
             <p class="eyebrow">Manager tools</p>
             <h1 id="searchHeading">Movement search</h1>
-            <p>Search VINs, plates, drivers, locations, dates, and gate direction.</p>
+            <p>Search assigned barcodes, VINs, plates, drivers, locations, dates, and gate direction.</p>
           </div>
         </div>
 
         <form class="search-grid panel" id="searchForm">
-          <div><label for="filterVin">VIN or partial VIN</label><input id="filterVin" type="search" placeholder="e.g. 1HGCM"></div>
-          <div><label for="filterPlate">Plate or partial plate</label><input id="filterPlate" type="search" placeholder="e.g. TRK"></div>
+          <div><label for="filterVehicle">Barcode, VIN, or Plate</label><input id="filterVehicle" type="search" placeholder="e.g. GFV-0001, 1HGCM, or TRK"></div>
           <div><label for="filterDriver">Employee # or driver</label><input id="filterDriver" type="search" placeholder="e.g. EMP-1001 or Nina"></div>
           <div><label for="filterLocation">Location</label><select id="filterLocation"></select></div>
           <div><label for="filterDate">Date</label><input id="filterDate" type="date"></div>
@@ -278,7 +272,7 @@
           </div>
           <div class="table-wrap">
             <table class="results-table">
-              <thead><tr><th>Timestamp</th><th>IN / OUT</th><th>Employee #</th><th>Driver</th><th>VIN</th><th>Plate</th><th>Location</th><th>Authorization</th><th>Notes</th><th>Submitted by</th></tr></thead>
+              <thead><tr><th>Timestamp</th><th>IN / OUT</th><th>Employee #</th><th>Driver</th><th>Barcode</th><th>VIN</th><th>Plate</th><th>Location</th><th>Authorization</th><th>Notes</th><th>Submitted by</th></tr></thead>
               <tbody id="searchResultsBody"></tbody>
             </table>
           </div>
@@ -297,6 +291,39 @@
       <input id="manualEmployeeInput" autocomplete="off" inputmode="text" placeholder="EMP-1001">
       <p class="field-status" id="manualEmployeeStatus">Manual entries follow the same validation as scans.</p>
       <div class="button-row"><button class="button secondary" id="cancelManualEmployeeButton" type="button">Cancel</button><button class="button primary" id="submitManualEmployeeButton" type="button">Use employee #</button></div>
+    </section>
+  </div>
+  <div class="modal-backdrop hidden" id="driverModal" role="dialog" aria-modal="true" aria-labelledby="driverModalHeading">
+    <section class="modal-panel" role="document">
+      <div class="panel-heading tight"><div><p class="eyebrow">Supervisor</p><h2 id="driverModalHeading">Add Driver</h2></div><button class="button ghost compact" id="closeDriverModalButton" type="button" aria-label="Close driver form">Close</button></div>
+      <form id="driverForm" novalidate>
+        <input id="driverEditEmployee" type="hidden">
+        <div class="form-row"><label for="driverEmployeeNumber">Employee Number</label><input id="driverEmployeeNumber" required autocomplete="off" placeholder="EMP-1007"><p class="field-status" id="driverEmployeeError"></p></div>
+        <div class="form-row"><label for="driverName">Driver Name</label><input id="driverName" required autocomplete="off" placeholder="Driver name"><p class="field-status" id="driverNameError"></p></div>
+        <div class="form-row"><label for="driverLicenseExpires">Driver-license expiration date</label><input id="driverLicenseExpires" type="date" required><p class="field-status" id="driverLicenseError"></p></div>
+        <div class="form-row"><label for="driverActive">Driver status</label><select id="driverActive"><option value="true">Active</option><option value="false">Inactive</option></select></div>
+        <div class="button-row"><button class="button secondary" id="cancelDriverButton" type="button">Cancel</button><button class="button primary" type="submit">Save Driver</button></div>
+      </form>
+    </section>
+  </div>
+  <div class="modal-backdrop hidden" id="vehicleModal" role="dialog" aria-modal="true" aria-labelledby="vehicleModalHeading">
+    <section class="modal-panel modal-wide" role="document">
+      <div class="panel-heading tight"><div><p class="eyebrow">Supervisor</p><h2 id="vehicleModalHeading">Add Vehicle</h2></div><button class="button ghost compact" id="closeVehicleModalButton" type="button" aria-label="Close vehicle form">Close</button></div>
+      <form id="vehicleForm" novalidate>
+        <input id="vehicleEditId" type="hidden">
+        <div class="modal-form-grid">
+          <div class="form-row"><label for="vehicleMake">Make</label><input id="vehicleMake" required><p class="field-status" id="vehicleMakeError"></p></div>
+          <div class="form-row"><label for="vehicleModel">Model</label><input id="vehicleModel" required><p class="field-status" id="vehicleModelError"></p></div>
+          <div class="form-row"><label for="vehicleYear">Year</label><input id="vehicleYear" required inputmode="numeric" placeholder="2024"><p class="field-status" id="vehicleYearError"></p></div>
+          <div class="form-row"><label for="vehicleColor">Color</label><input id="vehicleColor" required><p class="field-status" id="vehicleColorError"></p></div>
+          <div class="form-row"><label for="vehicleVin">VIN</label><input id="vehicleVin" required autocomplete="off"><p class="field-status" id="vehicleVinError"></p></div>
+          <div class="form-row"><label for="vehicleBarcode">Assigned Barcode</label><input id="vehicleBarcode" required autocomplete="off" placeholder="GFV-0006"><p class="field-status" id="vehicleBarcodeError"></p></div>
+          <div class="form-row"><label for="vehiclePlate">Plate (optional)</label><input id="vehiclePlate" autocomplete="off"></div>
+          <div class="form-row"><label for="vehicleActive">Inventory status</label><select id="vehicleActive"><option value="true">Active</option><option value="false">Inactive</option></select></div>
+        </div>
+        <p class="field-status" id="vehicleFormStatus"></p>
+        <div class="button-row"><button class="button secondary" id="cancelVehicleButton" type="button">Cancel</button><button class="button primary" type="submit">Save Vehicle</button></div>
+      </form>
     </section>
   </div>
   <script src="app.js"></script>
