@@ -21,12 +21,14 @@ const summaryBox = document.getElementById("summaryBox");
 
 let running = false;
 let savedStorage = null;
+let targetConfirmResponse = true;
 
 const tests = [
   ["V0.6 navigation and Audit removal", testSurface],
   ["Connectivity and scanner-test surfaces", testConnectivity],
   ["Location-derived station identity", testStations],
   ["Working Location persists after reload", testLocationPersistence],
+  ["Scanner cancel abandons an unfinished transaction", testScannerCancel],
   ["Invalid and inactive driver blocks", testInvalidDriver],
   ["Vehicle barcode lookup and inactive block", testBarcodeRules],
   ["Authorized Vehicle OUT", testAuthorizedOut],
@@ -37,16 +39,28 @@ const tests = [
   ["Expired license blocks Vehicle OUT", testExpiredLicenseBlock],
   ["Manual employee rejection", testManualEntry],
   ["Supervisor drivers layout and license warnings", testSupervisor],
+  ["Supervisor section navigation", testSupervisorSectionNavigation],
+  ["Driver required-field validation", testDriverRequiredValidation],
   ["Driver creation, duplicate protection, and reactivation", testDriverManagement],
+  ["Driver edit records an audit event", testDriverEditAudit],
+  ["Bulk driver authorization applies to selected drivers", testBulkAuthorize],
+  ["Bulk deauthorization respects confirmation", testBulkDeauthorize],
+  ["Vehicle required-field validation", testVehicleRequiredValidation],
   ["Vehicle inventory, barcode protection, and restore", testVehicleInventory],
+  ["Vehicle VIN warning remains reviewable", testVehicleVinWarning],
+  ["Vehicle edit records barcode history", testVehicleEditAudit],
+  ["Removed vehicle cannot create a new movement", testRemovedVehicleScanBlock],
   ["Exact authorization duration calculations", testDurationCalculations],
   ["Revoked authorization blocks Vehicle OUT", testRevocation],
   ["Scanner Enter diagnostic", testScannerDiagnostics],
   ["Reset-demo recovery", testResetRecovery],
+  ["Reset-demo cancellation preserves data", testResetCancellation],
   ["Movement and historical-location search", testSearch],
+  ["Combined movement search filters", testCombinedSearch],
   ["V0.5 localStorage migration", testMigration]
 ];
 
+document.getElementById("testCount").textContent = String(tests.length);
 renderTests();
 frame.addEventListener("load", () => {
   targetStatus.textContent = "Loaded";
@@ -148,6 +162,17 @@ async function testLocationPersistence() {
   await reloadTarget();
   expect(q("#scannerLocation").value === "North Ave", "Working Location did not persist after reload.");
   expect(text("#stationIdentity") === "North Ave Scanner", "Persisted location did not restore station identity.");
+}
+
+async function testScannerCancel() {
+  click("#startScanButton");
+  input("#driverInput", "EMP-1001");
+  key("#driverInput", "Enter");
+  await waitForStep(1);
+  click("#flowCancel");
+  expect(!q("#startScanButton").classList.contains("hidden"), "Back to home did not return the Scanner to its ready state.");
+  expect(q("#scanWizard").classList.contains("hidden"), "Back to home left the Scanner wizard visible.");
+  expect(state().transactions.length === 4, "Cancelling an unfinished scan created a movement.");
 }
 
 async function testInvalidDriver() {
@@ -276,6 +301,28 @@ async function testSupervisor() {
   expect(/Owner \/ System Administrator may assign any role/.test(doc().body.textContent), "Confirmed role rule is not explained in Admin.");
 }
 
+async function testSupervisorSectionNavigation() {
+  click('[data-view="supervisorView"]');
+  click('[data-supervisor-section="vehiclesSection"]');
+  await waitForVisible("#vehiclesSection");
+  expect(q("#vehiclesTab").getAttribute("aria-selected") === "true", "Vehicles tab did not report itself as active.");
+  expect(q("#driversSection").hidden, "Drivers section remained visible when Vehicles was selected.");
+  click('[data-supervisor-section="driversSection"]');
+  await waitForVisible("#driversSection");
+  expect(q("#driversTab").getAttribute("aria-selected") === "true", "Drivers tab did not report itself as active.");
+}
+
+async function testDriverRequiredValidation() {
+  click('[data-view="supervisorView"]');
+  click("#addDriverButton");
+  click('#driverForm button[type="submit"]');
+  expect(/required/i.test(text("#driverEmployeeError")), "Blank Employee Number was accepted.");
+  expect(/required/i.test(text("#driverNameError")), "Blank Driver Name was accepted.");
+  expect(/valid license/i.test(text("#driverLicenseError")), "Blank license expiration was accepted.");
+  expect(q("#driverModal").classList.contains("hidden") === false, "Invalid driver form closed instead of showing errors.");
+  click("#cancelDriverButton");
+}
+
 async function testDriverManagement() {
   click('[data-view="supervisorView"]');
   click("#addDriverButton");
@@ -295,6 +342,61 @@ async function testDriverManagement() {
   expect(state().drivers.find((driver) => driver.employeeNumber === "EMP-2002").active === false, "Driver was not deactivated.");
   click('[data-driver-action="toggle"][data-driver-employee="EMP-2002"]');
   expect(state().drivers.find((driver) => driver.employeeNumber === "EMP-2002").active === true, "Driver was not reactivated.");
+}
+
+async function testDriverEditAudit() {
+  click('[data-view="supervisorView"]');
+  click('[data-driver-action="edit"][data-driver-employee="EMP-1001"]');
+  input("#driverName", "Nina Patel Updated");
+  select(q("#driverActive"), "false");
+  click('#driverForm button[type="submit"]');
+  const driver = state().drivers.find((item) => item.employeeNumber === "EMP-1001");
+  expect(driver.name === "Nina Patel Updated" && driver.active === false, "Driver edit was not saved.");
+  expect(events().some((event) => event.type === "driver_edited" && /EMP-1001/.test(event.description)), "Driver edit audit event is missing.");
+  expect(!state().authorizations.some((item) => item.driverEmployee === "EMP-1001" && item.status === "active"), "Deactivating a driver left an active authorization behind.");
+}
+
+async function testBulkAuthorize() {
+  click('[data-view="supervisorView"]');
+  const employeeNumbers = ["EMP-1003", "EMP-1004"];
+  employeeNumbers.forEach((employeeNumber) => {
+    const box = q(`#driversTableBody .row-check[value="${employeeNumber}"]`);
+    box.checked = true;
+    const win = targetWindow();
+    box.dispatchEvent(new win.Event("change", { bubbles: true }));
+  });
+  select(q("#authorizationDuration"), "12_hours");
+  click("#bulkAuthorizeButton");
+  employeeNumbers.forEach((employeeNumber) => {
+    const authorization = state().authorizations.find((item) => item.driverEmployee === employeeNumber && item.status === "active");
+    expect(authorization && authorization.type === "12_hours", `Bulk authorization did not save 12 hours for ${employeeNumber}.`);
+  });
+  expect(/2 successful/i.test(text("#bulkActionStatus")), "Bulk authorization status did not report both selected drivers.");
+}
+
+async function testBulkDeauthorize() {
+  click('[data-view="supervisorView"]');
+  select(q("#authorizationDuration"), "9_hours");
+  click('[data-driver-action="authorize"][data-driver-employee="EMP-1003"]');
+  targetConfirmResponse = false;
+  click("#deauthorizeAllButton");
+  expect(state().authorizations.some((item) => item.driverEmployee === "EMP-1003" && item.status === "active"), "Cancelled bulk deauthorization still revoked an authorization.");
+  targetConfirmResponse = true;
+  click("#deauthorizeAllButton");
+  expect(!state().authorizations.some((item) => item.status === "active"), "Confirmed bulk deauthorization left active authorizations.");
+  expect(events().filter((event) => event.type === "driver_deauthorized").length >= 1, "Bulk deauthorization audit history is missing.");
+}
+
+async function testVehicleRequiredValidation() {
+  click('[data-view="supervisorView"]');
+  click('[data-supervisor-section="vehiclesSection"]');
+  click("#addVehicleButton");
+  click('#vehicleForm button[type="submit"]');
+  expect(/required/i.test(text("#vehicleMakeError")), "Blank vehicle make was accepted.");
+  expect(/reasonable four-digit/i.test(text("#vehicleYearError")), "Blank vehicle year was accepted.");
+  expect(/required/i.test(text("#vehicleVinError")), "Blank VIN was accepted.");
+  expect(/required/i.test(text("#vehicleBarcodeError")), "Blank barcode was accepted.");
+  click("#cancelVehicleButton");
 }
 
 async function testVehicleInventory() {
@@ -317,6 +419,40 @@ async function testVehicleInventory() {
   expect(text("#vehiclesTableBody").includes("GFV-0999"), "Inactive vehicle is not searchable in inventory.");
   click(`[data-vehicle-action="restore"][data-vehicle-id="${vehicle.id}"]`);
   expect(state().vehicles.find((item) => item.id === vehicle.id).active === true, "Vehicle was not restored to inventory.");
+}
+
+async function testVehicleVinWarning() {
+  click('[data-view="supervisorView"]');
+  click('[data-supervisor-section="vehiclesSection"]');
+  click("#addVehicleButton");
+  input("#vehicleMake", "Ford"); input("#vehicleModel", "Ranger"); input("#vehicleYear", "2024"); input("#vehicleColor", "White"); input("#vehicleVin", "SHORTVIN123"); input("#vehicleBarcode", "GFV-0888");
+  click('#vehicleForm button[type="submit"]');
+  expect(state().vehicles.some((vehicle) => vehicle.assignedBarcode === "GFV-0888"), "Prototype VIN warning prevented a valid demo inventory save.");
+  expect(events().some((event) => event.type === "vehicle_created"), "Vehicle creation audit is missing.");
+}
+
+async function testVehicleEditAudit() {
+  click('[data-view="supervisorView"]');
+  click('[data-supervisor-section="vehiclesSection"]');
+  const vehicle = state().vehicles.find((item) => item.assignedBarcode === "GFV-0002");
+  click(`[data-vehicle-action="edit"][data-vehicle-id="${vehicle.id}"]`);
+  input("#vehicleBarcode", "GFV-0202");
+  click('#vehicleForm button[type="submit"]');
+  expect(state().vehicles.find((item) => item.id === vehicle.id).assignedBarcode === "GFV-0202", "Vehicle barcode edit was not saved.");
+  expect(events().some((event) => event.type === "barcode_changed" && /GFV-0202/.test(event.description)), "Barcode change audit event is missing.");
+}
+
+async function testRemovedVehicleScanBlock() {
+  click('[data-view="supervisorView"]');
+  click('[data-supervisor-section="vehiclesSection"]');
+  const vehicle = state().vehicles.find((item) => item.assignedBarcode === "GFV-0002");
+  click(`[data-vehicle-action="remove"][data-vehicle-id="${vehicle.id}"]`);
+  click('[data-view="scannerView"]');
+  click("#startScanButton");
+  input("#driverInput", "EMP-1001"); key("#driverInput", "Enter"); await waitForStep(1);
+  input("#barcodeInput", "GFV-0002"); key("#barcodeInput", "Enter");
+  expect(/inactive/i.test(text("#scannerNotice")), "Removed vehicle barcode advanced to movement selection.");
+  expect(q('.wizard-step[data-step="2"]').classList.contains("hidden"), "Removed vehicle reached movement direction step.");
 }
 
 async function testDurationCalculations() {
@@ -367,6 +503,15 @@ async function testResetRecovery() {
   expect(events().some((event) => event.type === "demo_reset"), "Reset-demo event is missing.");
 }
 
+async function testResetCancellation() {
+  select(q("#scannerLocation"), "North Ave");
+  const before = JSON.stringify(state());
+  targetConfirmResponse = false;
+  click("#resetDemoButton");
+  expect(JSON.stringify(state()) === before, "Cancelled reset still replaced the current demo data.");
+  targetConfirmResponse = true;
+}
+
 async function testSearch() {
   await beginScan("EMP-1001", "GFV-0001");
   click("#directionIn");
@@ -384,6 +529,21 @@ async function testSearch() {
   select(q("#filterLocation"), "Elizabeth Repair Facility");
   click('#searchForm button[type="submit"]');
   expect(text("#searchResultsBody").includes("Elizabeth Repair Facility"), "Historical Elizabeth location is not searchable.");
+}
+
+async function testCombinedSearch() {
+  click('[data-view="searchView"]');
+  await waitFor("#searchForm");
+  input("#filterVehicle", "GFV-0003");
+  input("#filterDriver", "EMP-1003");
+  select(q("#filterLocation"), "EWR");
+  select(q("#filterType"), "IN");
+  click('#searchForm button[type="submit"]');
+  expect(q("#searchResultCount").textContent.trim() === "1", "Combined movement filters did not narrow to one matching record.");
+  expect(text("#searchResultsBody").includes("GFV-0003") && text("#searchResultsBody").includes("Unauthorized"), "Combined search did not return the expected unauthorized IN record.");
+  select(q("#filterType"), "OUT");
+  click('#searchForm button[type="submit"]');
+  expect(q("#searchResultCount").textContent.trim() === "0", "Conflicting combined filters returned a movement.");
 }
 
 async function testMigration() {
@@ -415,19 +575,25 @@ async function beginScan(employeeNumber, barcode) {
 
 async function freshTarget() {
   const win = targetWindow();
+  targetConfirmResponse = true;
   win.localStorage.removeItem(STATE_KEY);
+  win.localStorage.removeItem(V05_STATE_KEY);
   win.localStorage.removeItem(LEGACY_STATE_KEY);
   await reloadTarget();
+  // Persist the seeded state before each scenario so read-only safeguards can also
+  // be checked against the same browser storage that production actions use.
+  const location = q("#scannerLocation");
+  select(location, location.value);
 }
 
 function captureStorage() {
   const win = targetWindow();
-  return { v5: win.localStorage.getItem(STATE_KEY), v4: win.localStorage.getItem(LEGACY_STATE_KEY) };
+  return { v6: win.localStorage.getItem(STATE_KEY), v5: win.localStorage.getItem(V05_STATE_KEY), v4: win.localStorage.getItem(LEGACY_STATE_KEY) };
 }
 
 function restoreStorage(snapshot) {
   const storage = targetWindow().localStorage;
-  [[STATE_KEY, snapshot.v5], [LEGACY_STATE_KEY, snapshot.v4]].forEach(([key, value]) => {
+  [[STATE_KEY, snapshot.v6], [V05_STATE_KEY, snapshot.v5], [LEGACY_STATE_KEY, snapshot.v4]].forEach(([key, value]) => {
     if (value === null) storage.removeItem(key);
     else storage.setItem(key, value);
   });
@@ -442,7 +608,7 @@ function reloadTarget() {
 
 function installTargetSafetyHooks() {
   try {
-    targetWindow().confirm = () => true;
+    targetWindow().confirm = () => targetConfirmResponse;
   } catch (error) {
     targetStatus.textContent = "Blocked: use HTTP server";
   }

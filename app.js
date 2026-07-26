@@ -1326,6 +1326,8 @@ function renderSearchResults() {
 }
 
 function resetDemo() {
+  const ok = typeof confirm === "function" ? confirm("Reset the GateFlow demo data? Current prototype changes will be replaced.") : true;
+  if (!ok) return;
   const fresh = createSeedState();
   Object.keys(state).forEach((key) => delete state[key]);
   Object.assign(state, fresh);
