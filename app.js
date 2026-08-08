@@ -584,7 +584,10 @@ function showWizardStep(step) {
   });
   updateWizardDots();
   if (step === 3) renderScanSummary();
-  if (step === 0) el.driverInput.focus();
+  if (step === 0) {
+    el.driverInput.focus({ preventScroll: true });
+    el.driverInput.scrollIntoView({ block: "center", inline: "nearest" });
+  }
   if (step === 1) el.barcodeInput.focus();
   if (step === 2) el.directionOut.focus();
   if (step === 3) el.reviewStepTitle.focus();

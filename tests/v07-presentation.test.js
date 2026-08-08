@@ -35,6 +35,7 @@ assert.match(app, /Elizabeth Repair Facility"\s*,\s*active:\s*false\s*,\s*histor
 assert.match(app, /function activeLocations\(\) \{\s*return state\.locations\.filter\(\(location\) => location\.active\);\s*\}/s, "scanner choices must include active locations only");
 assert.doesNotMatch(app, /if \(step === 3\) el\.submitTransactionButton\.focus\(\);/, "step 4 must not auto-focus Submit or jump to the end");
 assert.match(app, /if \(step === 3\) el\.reviewStepTitle\.focus\(\);/, "step 4 must open at its heading");
+assert.match(app, /el\.driverInput\.focus\(\{ preventScroll: true \}\);[\s\S]*?el\.driverInput\.scrollIntoView\(\{ block: "center", inline: "nearest" \}\);/, "step 1 must position the focused input clear of the action dock");
 assert.match(html, /id="reviewStepTitle" tabindex="-1"/, "step 4 heading must accept programmatic focus");
 assert.match(html, />Network available</, "initial connectivity wording must be precise");
 assert.match(app, /isOnline \? "Network available" : "Network unavailable"/, "connectivity updates must avoid ambiguous online wording");

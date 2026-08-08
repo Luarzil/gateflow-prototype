@@ -101,15 +101,21 @@ async function verifyViewport(cdp, url, width, height) {
     return {
       actionVisible: action.top >= 0 && action.bottom <= innerHeight,
       inputVisible: input.top >= 0 && input.bottom <= innerHeight,
+      inputDockOverlap: input.left < dock.getBoundingClientRect().right && input.right > dock.getBoundingClientRect().left && input.top < dock.getBoundingClientRect().bottom && input.bottom > dock.getBoundingClientRect().top,
+      inputCenterHitId: document.elementFromPoint(input.left + input.width / 2, input.top + input.height / 2)?.id,
       dockPosition: getComputedStyle(dock).position,
       dockBottomGap: innerHeight - dock.getBoundingClientRect().bottom,
       viewportHeight: innerHeight,
+      inputRect: { top: input.top, bottom: input.bottom },
+      actionRect: { top: action.top, bottom: action.bottom },
       dockRect: { top: dock.getBoundingClientRect().top, bottom: dock.getBoundingClientRect().bottom },
       transformedAncestors: (() => { const values=[]; for (let node=dock.parentElement; node; node=node.parentElement) { const transform=getComputedStyle(node).transform; if (transform !== 'none') values.push({ tag: node.tagName, id: node.id, classes: node.className, transform }); } return values; })()
     };
   })()`);
   assert.equal(step1.actionVisible, true, `${width}x${height}: Step 1 primary action must be immediately visible (${JSON.stringify(step1)})`);
   assert.equal(step1.inputVisible, true, `${width}x${height}: Step 1 input must remain visible`);
+  assert.equal(step1.inputDockOverlap, false, `${width}x${height}: Step 1 input must not overlap the action dock`);
+  assert.equal(step1.inputCenterHitId, "driverInput", `${width}x${height}: Step 1 input center must remain directly interactable`);
   assert.equal(step1.dockPosition, "fixed", `${width}x${height}: Step 1 action must be viewport-docked`);
   assert.ok(step1.dockBottomGap >= 0 && step1.dockBottomGap <= 20, `${width}x${height}: Step 1 dock must remain anchored near the viewport bottom`);
 
@@ -144,6 +150,7 @@ async function verifyViewport(cdp, url, width, height) {
   assert.equal(state.scannerLocations.includes("Elizabeth Repair Facility"), false);
   assert.equal(state.historyLocation, "Elizabeth Repair Facility (history only)");
   assert.equal(state.historyRow, true);
+  return { viewport: `${width}x${height}`, step1, step4 };
 }
 
 async function main() {
@@ -161,9 +168,8 @@ async function main() {
     await cdp.send("Page.enable");
     await cdp.send("Runtime.enable");
     const url = `http://127.0.0.1:${webPort}/`;
-    await verifyViewport(cdp, url, 360, 800);
-    await verifyViewport(cdp, url, 412, 915);
-    console.log("V0.7 browser regression checks passed at 360x800 and 412x915.");
+    const results = [await verifyViewport(cdp, url, 360, 800), await verifyViewport(cdp, url, 412, 915)];
+    console.log(`V0.7 browser regression checks passed: ${JSON.stringify(results)}`);
   } finally {
     if (cdp) cdp.close();
     if (process.platform === "win32") {
