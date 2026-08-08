@@ -23,6 +23,7 @@ const STORAGE_KEY = "lot-watch.gateflow.v0.7.state";
 const V06_STORAGE_KEY = "lot-watch.gateflow.v0.6.state";
 const V05_STORAGE_KEY = "lot-watch.gateflow.v0.5.state";
 const LEGACY_STORAGE_KEY = "lot-watch.gateflow.v0.4.state";
+const TEMP_AUTHORIZATION_DURATION = "9_hours";
 const VIEWS = ["scannerView", "supervisorView", "searchView"];
 const BUSINESS_TIMEZONE = "America/New_York";
 const LICENSE_VALID_THROUGH_PRINTED_DATE = true;
@@ -44,7 +45,8 @@ const ui = {
   modalTrigger: null,
   barcodeEntryMethod: "scanner",
   confirmationTimer: null,
-  profileEmployee: ""
+  profileEmployee: "",
+  validatedDriverEmployee: ""
 };
 
 const state = loadState();
@@ -216,8 +218,8 @@ function createSeedState() {
   const now = new Date();
   const isoMinutesAgo = (minutes) => new Date(now.getTime() - minutes * 60000).toISOString();
   const todayAuth = createAuthorization("auth-001", "EMP-1001", "9_hours", "System seed", "Division Street", now);
-  const twoDayAuth = createAuthorization("auth-002", "EMP-1002", "48_hours", "System seed", "North Ave", now);
-  const threeDayAuth = createAuthorization("auth-003", "EMP-1004", "3_days", "System seed", "Linden", now);
+  const secondNineHourAuth = createAuthorization("auth-002", "EMP-1002", TEMP_AUTHORIZATION_DURATION, "System seed", "North Ave", now);
+  const thirdNineHourAuth = createAuthorization("auth-003", "EMP-1004", TEMP_AUTHORIZATION_DURATION, "System seed", "Linden", now);
 
   return {
     version: "0.7",
@@ -259,7 +261,7 @@ function createSeedState() {
       seedDevice("DEV-LINDEN-01", "Linden Gate Scanner", "000000000000004", "Fixed", "Linden"),
       seedDevice("DEV-FLOAT-01", "Floater Gate Scanner", "000000000000005", "Floater", "")
     ],
-    authorizations: [todayAuth, twoDayAuth, threeDayAuth].filter(Boolean),
+    authorizations: [todayAuth, secondNineHourAuth, thirdNineHourAuth].filter(Boolean),
     transactions: [
       seedTransaction("tx-001", isoMinutesAgo(16), "OUT", "EMP-1001", "Nina Patel", "veh-001", "GFV-0001", "1HGCM82633A004352", "TRK-8877", "Division Street", "Authorized", "Customer delivery", "Division Street Scanner"),
       seedTransaction("tx-002", isoMinutesAgo(41), "IN", "EMP-1003", "Tyrone Brooks", "veh-003", "GFV-0003", "3FA6P0H75HR123456", "YARD-104", "EWR", "Unauthorized", "Unauthorized IN - operational review", "EWR Scanner"),
@@ -379,6 +381,11 @@ function normalizeV07State(saved) {
   normalized.locations = (normalized.locations || []).map((location) => location.name === "Elizabeth Repair Facility" ? { ...location, active: false, historicalOnly: true } : location);
   normalized.vehicles = (normalized.vehicles || []).map((vehicle, index) => normalizeVehicle(vehicle, index));
   normalized.transactions = (normalized.transactions || []).map((transaction) => mapTransactionVehicle(transaction, normalized.vehicles));
+  normalized.authorizations = (normalized.authorizations || []).map((authorization) => {
+    if (authorization.status !== "active") return authorization;
+    const authorizedAt = new Date(authorization.authorizedAt || authorization.validFrom || Date.now());
+    return { ...authorization, type: TEMP_AUTHORIZATION_DURATION, expiresAt: expirationForDuration(TEMP_AUTHORIZATION_DURATION, authorizedAt).toISOString() };
+  });
   normalized.devices = (normalized.devices || createSeedState().devices).map(normalizeDevice);
   normalized.currentDeviceId = normalized.currentDeviceId || "DEV-DIV-01";
   normalized.floaterLocationConfirmed = Boolean(normalized.floaterLocationConfirmed);
@@ -481,8 +488,12 @@ function currentDevice() {
 
 function isDeviceReady() {
   const device = currentDevice();
-  if (!device || !device.active || device.status === "Inactive") return { ok: false, reason: "Current device is inactive. Select an active device in Device setup." };
-  if (device.type === "Floater" && !state.floaterLocationConfirmed) return { ok: false, reason: "Floater device requires a confirmed working location before scanning." };
+  if (!device || !device.active || device.status !== "Active") return { ok: false, reason: "Current device is not ready. Select a device with Active status in Device setup." };
+  const activeLocationNames = activeLocations().map((location) => location.name);
+  if (device.type === "Fixed" && (!device.assignedLocation || !activeLocationNames.includes(device.assignedLocation))) return { ok: false, reason: "Fixed device does not have an active assigned location." };
+  if (device.type === "Fixed" && (state.workingLocation !== device.assignedLocation || (el.scannerLocation && el.scannerLocation.value !== device.assignedLocation))) return { ok: false, reason: "Fixed device location no longer matches the working location. Reconfirm Device setup." };
+  if (device.type === "Floater" && (!state.floaterLocationConfirmed || !activeLocationNames.includes(state.workingLocation))) return { ok: false, reason: "Floater device requires a confirmed active working location before scanning." };
+  if (el.scannerLocation && el.scannerLocation.value !== state.workingLocation) return { ok: false, reason: "Device and scanner locations do not match. Reconfirm Device setup." };
   return { ok: true, device };
 }
 
@@ -597,7 +608,24 @@ function resetFlow() {
   el.barcodeStatus.textContent = "Awaiting vehicle barcode scan.";
   el.supervisorStatus.textContent = "Awaiting a valid supervisor ID.";
   ui.barcodeEntryMethod = "scanner";
+  ui.validatedDriverEmployee = "";
   renderScanDetails();
+}
+
+function clearDriverDerivedStateIfChanged(rawValue) {
+  const employeeNumber = normalizeEmployee(rawValue);
+  if (!ui.validatedDriverEmployee || employeeNumber === ui.validatedDriverEmployee) return;
+  ui.validatedDriverEmployee = "";
+  ui.pendingOverride = null;
+  ui.direction = null;
+  ui.barcodeEntryMethod = "scanner";
+  el.barcodeInput.value = "";
+  el.transactionNote.value = "";
+  el.supervisorInput.value = "";
+  el.barcodeStatus.textContent = "Awaiting vehicle barcode scan.";
+  el.supervisorStatus.textContent = "Awaiting a valid supervisor ID.";
+  setNotice("Driver changed. Previous vehicle, authorization review, and pending approval were cleared.", "warning");
+  if (ui.activeFlow === "scan" && ui.step !== 0) showWizardStep(0);
 }
 
 function setScannerValue(fieldId, value) {
@@ -605,7 +633,7 @@ function setScannerValue(fieldId, value) {
   if (!input) return;
   input.value = fieldId === "barcodeInput" ? normalize(value) : value;
   recordScannerInput(fieldId, value, "Demo value");
-  if (fieldId === "driverInput") updateDriverStatus();
+  if (fieldId === "driverInput") { clearDriverDerivedStateIfChanged(value); updateDriverStatus(); }
   if (fieldId === "barcodeInput") updateBarcodeStatus();
   input.focus();
 }
@@ -615,7 +643,7 @@ function handleScanInput(fieldId) {
   const rawValue = input.value;
   recordScannerInput(fieldId, rawValue, "Input");
   if (fieldId === "barcodeInput") { input.value = normalize(rawValue); ui.barcodeEntryMethod = "scanner"; }
-  if (fieldId === "driverInput") updateDriverStatus();
+  if (fieldId === "driverInput") { clearDriverDerivedStateIfChanged(rawValue); updateDriverStatus(); }
   if (fieldId === "barcodeInput") updateBarcodeStatus();
 }
 
@@ -666,6 +694,8 @@ function submitManualEmployee() {
     return;
   }
   el.driverInput.value = employeeNumber;
+  clearDriverDerivedStateIfChanged(employeeNumber);
+  ui.validatedDriverEmployee = employeeNumber;
   addAudit("manual_employee_accepted", `Manual employee-number entry accepted for ${employeeNumber}.`, currentStationIdentity(), el.scannerLocation.value);
   saveState();
   closeManualEmployeeModal();
@@ -738,6 +768,8 @@ function validateDriverStep() {
     el.driverInput.focus();
     return;
   }
+  if (ui.validatedDriverEmployee && ui.validatedDriverEmployee !== driver.employeeNumber) clearDriverDerivedStateIfChanged(driver.employeeNumber);
+  ui.validatedDriverEmployee = driver.employeeNumber;
   updateDriverStatus();
   showWizardStep(1);
 }
@@ -774,6 +806,13 @@ function chooseDirection(direction) {
 }
 
 function startTransaction() {
+  const deviceCheck = isDeviceReady();
+  if (!deviceCheck.ok) {
+    addAudit("transaction_blocked_device_not_ready", deviceCheck.reason, currentStationIdentity(), el.scannerLocation.value);
+    saveState();
+    setNotice(`Movement blocked. ${deviceCheck.reason}`, "danger");
+    return;
+  }
   const draft = readTransactionDraft();
   if (!draft) return;
 
@@ -817,7 +856,7 @@ function approveSupervisorOverride() {
     return;
   }
   const driver = findDriver(ui.pendingOverride.driverEmployee);
-  const duration = el.supervisorDuration.value;
+  const duration = TEMP_AUTHORIZATION_DURATION;
   const result = authorizeDriver(driver, duration, `${supervisor.id} / ${supervisor.name}`, ui.pendingOverride.location, "supervisor");
   if (!result.ok) {
     el.supervisorStatus.textContent = result.reason;
@@ -1062,7 +1101,7 @@ function handleDriverTableAction(event) {
   const driver = findDriverAny(employeeNumber);
   if (!driver) return;
   if (button.dataset.driverAction === "authorize") {
-    const result = authorizeDriver(driver, el.authorizationDuration.value, "Supervisor Console", "", "user action");
+    const result = authorizeDriver(driver, TEMP_AUTHORIZATION_DURATION, "Supervisor Console", "", "user action");
     el.bulkActionStatus.textContent = result.ok ? `Authorized ${employeeNumber}.` : result.reason;
   }
   if (button.dataset.driverAction === "deauthorize") {
@@ -1103,13 +1142,13 @@ function bulkAuthorizeDrivers() {
     el.bulkActionStatus.textContent = "Select at least one eligible driver first.";
     return;
   }
-  const ok = typeof confirm === "function" ? confirm(`Authorize ${selected.length} selected drivers for ${humanDuration(el.authorizationDuration.value)}?`) : true;
+  const ok = typeof confirm === "function" ? confirm(`Authorize ${selected.length} selected drivers for ${humanDuration(TEMP_AUTHORIZATION_DURATION)}?`) : true;
   if (!ok) return;
   let successful = 0;
   const blocked = [];
   selected.forEach((checkbox) => {
     const driver = findDriverAny(checkbox.value);
-    const result = authorizeDriver(driver, el.authorizationDuration.value, "Supervisor Console", "", "bulk action");
+    const result = authorizeDriver(driver, TEMP_AUTHORIZATION_DURATION, "Supervisor Console", "", "bulk action");
     if (result.ok) successful += 1;
     else blocked.push(`${checkbox.value}: ${result.reason}`);
   });
@@ -1311,7 +1350,7 @@ function updateDeviceSetupFields() {
   el.floaterLocationSelect.innerHTML = deviceLocationOptions(floaterSelectedLocation, true);
   el.changeFloaterLocationButton.classList.toggle("hidden", !isFloater || !state.floaterLocationConfirmed || device.id !== state.currentDeviceId);
   el.confirmDeviceLocationButton.textContent = isFloater ? "Confirm Location" : "Use Fixed Device";
-  el.deviceSetupStatus.textContent = !device.active || device.status === "Inactive" ? "This device is inactive and cannot be used for scanning." : isFloater ? (state.floaterLocationConfirmed && device.id === state.currentDeviceId ? `Confirmed at ${state.workingLocation}. Use Change Location to move it.` : "Choose and confirm a working location before scanning.") : `Fixed at ${device.assignedLocation}. Scanner location is locked to this device.`;
+  el.deviceSetupStatus.textContent = !device.active || device.status !== "Active" ? `This device has ${device.status} status and cannot be used for scanning.` : isFloater ? (state.floaterLocationConfirmed && device.id === state.currentDeviceId ? `Confirmed at ${state.workingLocation}. Use Change Location to move it.` : "Choose and confirm a working location before scanning.") : `Fixed at ${device.assignedLocation}. Scanner location is locked to this device.`;
 }
 
 function prepareFloaterLocationChange() {
@@ -1328,11 +1367,14 @@ function prepareFloaterLocationChange() {
 function confirmDeviceLocation() {
   const device = state.devices.find((item) => item.id === el.currentDeviceSelect.value);
   if (!device) return;
-  if (!device.active || device.status === "Inactive") { el.deviceSetupStatus.textContent = "Inactive device cannot be selected for scanning."; return; }
+  if (!device.active || device.status !== "Active") { el.deviceSetupStatus.textContent = "Only a device with Active status can be selected for scanning."; return; }
   if (device.type === "Fixed") {
     const previous = currentDevice();
-    const changingFixed = previous && previous.id === device.id && state.workingLocation !== device.assignedLocation;
-    if (changingFixed && typeof confirm === "function" && !confirm(`Reassign scanner location to ${device.assignedLocation}?`)) return;
+    if (!activeLocations().some((location) => location.name === device.assignedLocation)) { el.deviceSetupStatus.textContent = "Fixed device requires an active assigned location."; return; }
+    const switchingDevice = !previous || previous.id !== device.id;
+    const changingLocation = state.workingLocation !== device.assignedLocation;
+    const unfinishedScan = ui.activeFlow === "scan" && Boolean(ui.validatedDriverEmployee || el.driverInput.value || el.barcodeInput.value || ui.direction || ui.pendingOverride);
+    if ((switchingDevice || changingLocation) && typeof confirm === "function" && !confirm(`Use fixed device ${device.id} at ${device.assignedLocation}?${unfinishedScan ? " The unfinished scan will be reset." : ""}`)) return;
     state.currentDeviceId = device.id; state.workingLocation = device.assignedLocation; state.floaterLocationConfirmed = false;
     addAudit("fixed_device_selected", `Fixed device ${device.id} selected at ${device.assignedLocation}.`, "Supervisor Console", device.assignedLocation);
   } else {

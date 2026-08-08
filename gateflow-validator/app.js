@@ -25,10 +25,94 @@ let savedStorage = null;
 let targetConfirmResponse = true;
 
 const tests = [
-  ["V0.7 surface and Scanner safeguards", testSurface], ["Numeric employee entry works", () => testEmployeeVariant("1001")], ["EMP-prefixed entry works", () => testEmployeeVariant("EMP-1001")], ["Lowercase employee prefix works", () => testEmployeeVariant("emp-1001")], ["Employee spaces trim correctly", () => testEmployeeVariant("  1001  ")], ["Unknown employee is rejected", testInvalidDriver], ["Historical employee values resolve", () => testEmployeeVariant("EMP-1002")], ["Manual barcode control is visible", testManualBarcodeSurface], ["Valid manual barcode works", testManualBarcode], ["Unknown manual barcode is rejected", testManualBarcodeReject], ["Inactive vehicle is blocked", testRemovedVehicleScanBlock], ["Manual and scanned barcode paths match", testBarcodePathMatch], ["Entry method is stored", testBarcodeEntryMethod], ["Success flow is shortened", testShortFlow], ["Compact confirmation appears", testCompactConfirmation], ["Start Next Scan works", testStartNextScan], ["Automatic reset works", testAutomaticReset], ["Transaction saves before reset", testTransactionSavedBeforeReset], ["Authorized Vehicle OUT works", testAuthorizedOut], ["Unauthorized Vehicle OUT blocks", testUnauthorizedOutBlock], ["Supervisor override works", testSupervisorOverride], ["Vehicle IN rule is preserved", testUnauthorizedIn], ["Expired license cannot be overridden", testExpiredLicenseBlock], ["Driver profile opens", testDriverProfile], ["Driver profile is keyboard accessible", testDriverProfileKeyboard], ["Driver edit works", testDriverEditAudit], ["Driver deactivation works", testDriverDeactivation], ["Deactivation revokes authorization", testDriverDeactivation], ["Inactive driver remains searchable", testInactiveDriverSearch], ["Drivers are never hard deleted", testNoDriverDelete], ["Elizabeth absent from active selectors", testElizabethActiveAbsent], ["Elizabeth history remains searchable", testElizabethHistory], ["Fixed device location is locked", testFixedLocationLocked], ["Fixed reassignment requires confirmation", testFixedReassignment], ["Floater requires location", testFloaterRequiresLocation], ["Floater requires confirmation", testFloaterRequiresConfirmation], ["Floater location remains locked", testFloaterLocationLock], ["Floater change resets incomplete scan", testFloaterChangeReset], ["Floater cannot choose Elizabeth", testFloaterNoElizabeth], ["Add fixed device", testAddFixedDevice], ["Add floater device", testAddFloaterDevice], ["Duplicate IMEI is rejected", testDuplicateImei], ["Fixed device without location is rejected", testFixedNeedsLocation], ["Device edit works", testDeviceEdit], ["Inactive device blocks scanning", testInactiveDeviceBlocks], ["Device reactivation works", testDeviceReactivate], ["Device history records changes", testDeviceHistory], ["Device ID is stored in transaction", testDeviceTransactionMetadata], ["IMEI reference is stored", testDeviceTransactionMetadata], ["Last-used timestamp updates", testDeviceTransactionMetadata], ["V0.6 migrates to V0.7", testV06Migration], ["V0.6 key is preserved", testV06Migration], ["Deterministic devices are seeded", testDeviceSeeds], ["Existing history is preserved", testV06Migration], ["Barcode search works", testSearch], ["VIN search works", testVinSearch], ["Plate search works", testPlateSearch], ["Authorization durations remain exact", testDurationCalculations], ["License thresholds remain available", testSupervisor], ["Normal refresh loads V0.7", testV07Refresh], ["Offline fallback surface exists", testConnectivity], ["Mobile scanner surface is responsive", testMobileSurface], ["Drivers, Vehicles, and Devices sections work", testSupervisorSections]
-];
+  // Every retained V0.6 regression is registered once.
+  ["V0.7 navigation and Scanner safeguards", testSurface],
+  ["Connectivity and scanner-test surfaces", testConnectivity],
+  ["Location-derived station identity", testStations],
+  ["Working Location persists after reload", testLocationPersistence],
+  ["Scanner cancel abandons an unfinished transaction", testScannerCancel],
+  ["Invalid and inactive driver blocks", testInvalidDriver],
+  ["Vehicle barcode lookup and inactive block", testBarcodeRules],
+  ["Authorized Vehicle OUT", testAuthorizedOut],
+  ["Unauthorized Vehicle IN review", testUnauthorizedIn],
+  ["Unauthorized Vehicle OUT is blocked", testUnauthorizedOutBlock],
+  ["Invalid supervisor cannot approve", testInvalidSupervisor],
+  ["Supervisor temporary OUT override", testSupervisorOverride],
+  ["Expired license blocks Vehicle OUT", testExpiredLicenseBlock],
+  ["Manual employee rejection", testManualEntry],
+  ["Supervisor drivers layout and license warnings", testSupervisor],
+  ["Supervisor section navigation", testSupervisorSectionNavigation],
+  ["Driver required-field validation", testDriverRequiredValidation],
+  ["Driver creation, duplicate protection, and reactivation", testDriverManagement],
+  ["Driver edit records an audit event", testDriverEditAudit],
+  ["Bulk driver authorization applies to selected drivers", testBulkAuthorize],
+  ["Bulk deauthorization respects confirmation", testBulkDeauthorize],
+  ["Vehicle required-field validation", testVehicleRequiredValidation],
+  ["Vehicle inventory, barcode protection, and restore", testVehicleInventory],
+  ["Vehicle VIN warning remains reviewable", testVehicleVinWarning],
+  ["Vehicle edit records barcode history", testVehicleEditAudit],
+  ["Removed vehicle cannot create a new movement", testRemovedVehicleScanBlock],
+  ["Exact authorization duration calculation", testDurationCalculations],
+  ["Revoked authorization blocks Vehicle OUT", testRevocation],
+  ["Scanner Enter diagnostic", testScannerDiagnostics],
+  ["Reset-demo recovery", testResetRecovery],
+  ["Reset-demo cancellation preserves data", testResetCancellation],
+  ["Movement and historical-location search", testSearch],
+  ["Combined movement search filters", testCombinedSearch],
+  ["V0.5 localStorage migration", testMigration],
 
-tests.splice(59, 0, ["Scanner Enter diagnostic works", testScannerDiagnostics]);
+  // V0.7-specific coverage, with one row per actual scenario.
+  ["Numeric employee entry works", () => testEmployeeVariant("1001")],
+  ["EMP-prefixed employee entry works", () => testEmployeeVariant("EMP-1001")],
+  ["Lowercase employee prefix works", () => testEmployeeVariant("emp-1001")],
+  ["Employee spaces trim correctly", () => testEmployeeVariant("  1001  ")],
+  ["Historical employee values resolve", () => testEmployeeVariant("EMP-1002")],
+  ["Manual barcode control is visible", testManualBarcodeSurface],
+  ["Valid manual barcode works", testManualBarcode],
+  ["Unknown manual barcode is rejected", testManualBarcodeReject],
+  ["Manual and scanned barcode paths match", testBarcodePathMatch],
+  ["Barcode entry method is stored", testBarcodeEntryMethod],
+  ["Success flow is shortened", testShortFlow],
+  ["Compact confirmation appears", testCompactConfirmation],
+  ["Start Next Scan works", testStartNextScan],
+  ["Automatic reset works", testAutomaticReset],
+  ["Transaction saves before reset", testTransactionSavedBeforeReset],
+  ["Changing driver clears derived scan state", testDriverChangeClearsState],
+  ["Changing driver clears pending override", testDriverChangeClearsOverride],
+  ["Driver profile opens", testDriverProfile],
+  ["Driver profile is keyboard accessible", testDriverProfileKeyboard],
+  ["Driver deactivation revokes authorization", testDriverDeactivation],
+  ["Inactive driver remains searchable", testInactiveDriverSearch],
+  ["Drivers are never hard deleted", testNoDriverDelete],
+  ["Elizabeth absent from active selectors", testElizabethActiveAbsent],
+  ["Elizabeth history remains searchable", testElizabethHistory],
+  ["Fixed device location is locked", testFixedLocationLocked],
+  ["Fixed reassignment requires confirmation", testFixedReassignment],
+  ["Fixed device switch requires confirmation", testFixedSwitchConfirmation],
+  ["Floater requires location", testFloaterRequiresLocation],
+  ["Floater requires confirmation", testFloaterRequiresConfirmation],
+  ["Floater location remains locked", testFloaterLocationLock],
+  ["Floater change resets incomplete scan", testFloaterChangeReset],
+  ["Floater cannot choose Elizabeth", testFloaterNoElizabeth],
+  ["Add fixed device", testAddFixedDevice],
+  ["Add floater device", testAddFloaterDevice],
+  ["Duplicate IMEI is rejected", testDuplicateImei],
+  ["Fixed device without location is rejected", testFixedNeedsLocation],
+  ["Device edit works", testDeviceEdit],
+  ["Inactive device blocks scanning", testInactiveDeviceBlocks],
+  ["Device reactivation works", testDeviceReactivate],
+  ["Device history records changes", testDeviceHistory],
+  ["Transaction stores complete device metadata", testDeviceTransactionMetadata],
+  ["Submission rejects newly non-ready device", testSubmissionRevalidatesDevice],
+  ["Submission rejects device/location mismatch", testSubmissionRevalidatesLocation],
+  ["V0.6 migrates to V0.7 without losing history", testV06Migration],
+  ["Deterministic devices are seeded", testDeviceSeeds],
+  ["VIN search works", testVinSearch],
+  ["Plate search works", testPlateSearch],
+  ["Normal refresh loads V0.7", testV07Refresh],
+  ["Mobile scanner surface is responsive", testMobileSurface],
+  ["Drivers, Vehicles, and Devices sections work", testSupervisorSections]
+];
 
 document.getElementById("testCount").textContent = String(tests.length);
 renderTests();
@@ -136,6 +220,24 @@ async function testAutomaticReset() { await beginScan("1001", "GFV-0001"); click
 
 async function testTransactionSavedBeforeReset() { await beginScan("1001", "GFV-0001"); click("#directionIn"); click("#submitTransactionButton"); await waitForText("#confirmationTitle", /Vehicle IN recorded/); expect(state().transactions[0].vehicleBarcode === "GFV-0001", "Transaction was not saved before confirmation/reset."); }
 
+async function testDriverChangeClearsState() {
+  await beginScan("1001", "GFV-0001");
+  click("#directionIn");
+  input("#driverInput", "1002");
+  expect(q("#barcodeInput").value === "", "Changing driver retained the previous vehicle barcode.");
+  expect(q("#transactionNote").value === "", "Changing driver retained the previous transaction note.");
+  expect(!q('.wizard-step[data-step="0"]').classList.contains("hidden"), "Changing driver did not return to driver validation.");
+  expect(/previous vehicle.*cleared/i.test(text("#scannerNotice")), "Changing driver did not explain that derived scan state was cleared.");
+}
+
+async function testDriverChangeClearsOverride() {
+  await beginScan("1003", "GFV-0003");
+  click("#directionOut"); click("#submitTransactionButton"); await waitForVisible("#supervisorPanel");
+  input("#driverInput", "1001");
+  click("#approveSupervisorButton");
+  expect(!state().authorizations.some((authorization) => authorization.driverEmployee === "EMP-1003" && authorization.status === "active"), "Changing driver retained a pending override for the previous driver.");
+}
+
 async function testConnectivity() {
   expect(text("#onlineStatus").length > 0, "Online/offline status is missing.");
   expect(text("#lastSavedLocal").length > 0, "Local-save status is missing.");
@@ -145,18 +247,19 @@ async function testConnectivity() {
 }
 
 async function testStations() {
-  const selector = q("#scannerLocation");
-  const expected = ["Division Street", "North Ave", "EWR", "Linden"];
-  expect([...selector.options].map((option) => option.value).join("|") === expected.join("|"), "Active scanner locations do not match the approved four.");
-  for (const location of expected) {
-    select(selector, location);
-    expect(text("#stationIdentity") === `${location} Scanner`, `${location} station identity did not update.`);
+  const expected = [["DEV-DIV-01", "Division Street"], ["DEV-NORTH-01", "North Ave"], ["DEV-EWR-01", "EWR"], ["DEV-LINDEN-01", "Linden"]];
+  expect([...q("#scannerLocation").options].map((option) => option.value).join("|") === expected.map(([, location]) => location).join("|"), "Active scanner locations do not match the approved four.");
+  for (const [deviceId, location] of expected) {
+    click("#deviceSetupButton");
+    select(q("#currentDeviceSelect"), deviceId);
+    click("#confirmDeviceLocationButton");
+    expect(text("#stationIdentity") === `${location} Scanner`, `${location} station identity did not update from its fixed device.`);
   }
-  expect(![...selector.options].some((option) => option.value === "Elizabeth Repair Facility"), "Historical Elizabeth location can be selected for new scans.");
+  expect(![...q("#scannerLocation").options].some((option) => option.value === "Elizabeth Repair Facility"), "Historical Elizabeth location can be selected for new scans.");
 }
 
 async function testLocationPersistence() {
-  select(q("#scannerLocation"), "North Ave");
+  click("#deviceSetupButton"); select(q("#currentDeviceSelect"), "DEV-NORTH-01"); click("#confirmDeviceLocationButton");
   await reloadTarget();
   expect(q("#scannerLocation").value === "North Ave", "Working Location did not persist after reload.");
   expect(text("#stationIdentity") === "North Ave Scanner", "Persisted location did not restore station identity.");
@@ -250,7 +353,6 @@ async function testSupervisorOverride() {
   click("#submitTransactionButton");
   await waitFor("#supervisorInput");
   input("#supervisorInput", "SUP-1001");
-  select(q("#supervisorDuration"), "9_hours");
   click("#approveSupervisorButton");
   await waitFor("#submitTransactionButton");
   click("#submitTransactionButton");
@@ -260,7 +362,7 @@ async function testSupervisorOverride() {
   expect(authorization.scopeType === "all_current_locations" && authorization.scopeIds.length === 0, "Supervisor authorization is not global.");
   expect(events().some((event) => event.type === "supervisor_approval" && /9 Hours/.test(event.description)), "Supervisor approval event does not record duration.");
   click("#confirmationDoneButton");
-  select(q("#scannerLocation"), "EWR");
+  click("#deviceSetupButton"); select(q("#currentDeviceSelect"), "DEV-EWR-01"); click("#confirmDeviceLocationButton");
   await beginScan("EMP-1003", "GFV-0003");
   click("#directionOut");
   click("#submitTransactionButton");
@@ -292,8 +394,9 @@ async function testManualEntry() {
 async function testSupervisor() {
   click('[data-view="supervisorView"]');
   await waitFor("#authorizationDuration");
-  const durations = [...q("#authorizationDuration").options].map((option) => option.value);
-  expect(durations.join("|") === "9_hours|12_hours|today|48_hours|3_days", "Admin duration choices are incomplete.");
+  expect(q("#authorizationDuration").type === "hidden" && q("#authorizationDuration").value === "9_hours", "Fleet Lead duration is not fixed to 9 hours.");
+  expect(q("#supervisorDuration").type === "hidden" && q("#supervisorDuration").value === "9_hours", "Supervisor override duration is not fixed to 9 hours.");
+  expect(!doc().querySelector("#authorizationDuration option") && !doc().querySelector("#supervisorDuration option"), "A duration chooser is still visible.");
   expect(doc().body.textContent.includes("All current locations"), "Global authorization scope is not visible in Admin.");
   expect(q("#license30Count") && q("#license15Count") && q("#license5Count") && q("#licenseExpiredCount"), "License warning controls are incomplete.");
   expect(/Owner \/ System Administrator may assign any role/.test(doc().body.textContent), "Confirmed role rule is not explained in Admin.");
@@ -363,18 +466,16 @@ async function testBulkAuthorize() {
     const win = targetWindow();
     box.dispatchEvent(new win.Event("change", { bubbles: true }));
   });
-  select(q("#authorizationDuration"), "12_hours");
   click("#bulkAuthorizeButton");
   employeeNumbers.forEach((employeeNumber) => {
     const authorization = state().authorizations.find((item) => item.driverEmployee === employeeNumber && item.status === "active");
-    expect(authorization && authorization.type === "12_hours", `Bulk authorization did not save 12 hours for ${employeeNumber}.`);
+    expect(authorization && authorization.type === "9_hours", `Bulk authorization did not save fixed 9 hours for ${employeeNumber}.`);
   });
   expect(/2 successful/i.test(text("#bulkActionStatus")), "Bulk authorization status did not report both selected drivers.");
 }
 
 async function testBulkDeauthorize() {
   click('[data-view="supervisorView"]');
-  select(q("#authorizationDuration"), "9_hours");
   click('[data-driver-action="authorize"][data-driver-employee="EMP-1003"]');
   targetConfirmResponse = false;
   click("#deauthorizeAllButton");
@@ -456,21 +557,16 @@ async function testRemovedVehicleScanBlock() {
 async function testDurationCalculations() {
   click('[data-view="supervisorView"]');
   await waitForVisible("#supervisorView");
-  for (const [type, expectedMilliseconds] of [["9_hours", 9 * 60 * 60 * 1000], ["12_hours", 12 * 60 * 60 * 1000], ["48_hours", 48 * 60 * 60 * 1000]]) {
-    select(q("#authorizationDuration"), type);
-    click('[data-driver-action="authorize"][data-driver-employee="EMP-1003"]');
-    const authorization = state().authorizations.find((item) => item.driverEmployee === "EMP-1003" && item.status === "active");
-    expect(authorization && authorization.type === type, `${type} authorization was not saved.`);
-    const elapsed = new Date(authorization.expiresAt).getTime() - new Date(authorization.authorizedAt).getTime();
-    expect(elapsed === expectedMilliseconds, `${type} expiration is not exact.`);
-    click('[data-driver-action="deauthorize"][data-driver-employee="EMP-1003"]');
-  }
-  expect(![...q("#authorizationDuration").options].some((option) => /permanent/i.test(option.textContent)), "Permanent authorization is available.");
+  click('[data-driver-action="authorize"][data-driver-employee="EMP-1003"]');
+  const authorization = state().authorizations.find((item) => item.driverEmployee === "EMP-1003" && item.status === "active");
+  expect(authorization && authorization.type === "9_hours", "Authorization did not use the fixed 9-hour duration.");
+  const elapsed = new Date(authorization.expiresAt).getTime() - new Date(authorization.authorizedAt).getTime();
+  expect(elapsed === 9 * 60 * 60 * 1000, "9-hour expiration is not exact.");
+  expect(!doc().querySelector("#authorizationDuration option"), "A selectable or permanent authorization duration is available.");
 }
 
 async function testRevocation() {
   click('[data-view="supervisorView"]');
-  select(q("#authorizationDuration"), "9_hours");
   click('[data-driver-action="authorize"][data-driver-employee="EMP-1003"]');
   expect(state().authorizations.some((item) => item.driverEmployee === "EMP-1003" && item.status === "active"), "Setup authorization was not created.");
   click('[data-driver-action="deauthorize"][data-driver-employee="EMP-1003"]');
@@ -494,15 +590,15 @@ async function testScannerDiagnostics() {
 }
 
 async function testResetRecovery() {
-  select(q("#scannerLocation"), "North Ave");
+  click("#deviceSetupButton"); select(q("#currentDeviceSelect"), "DEV-NORTH-01"); click("#confirmDeviceLocationButton");
   click("#resetDemoButton");
   expect(q("#scannerLocation").value === "Division Street", "Reset demo did not restore the default working location.");
-  expect(state().version === "0.6" && state().transactions.length === 4, "Reset demo did not restore V0.6 seed data.");
+  expect(state().version === "0.7" && state().transactions.length === 4, "Reset demo did not restore V0.7 seed data.");
   expect(events().some((event) => event.type === "demo_reset"), "Reset-demo event is missing.");
 }
 
 async function testResetCancellation() {
-  select(q("#scannerLocation"), "North Ave");
+  click("#deviceSetupButton"); select(q("#currentDeviceSelect"), "DEV-NORTH-01"); click("#confirmDeviceLocationButton");
   const before = JSON.stringify(state());
   targetConfirmResponse = false;
   click("#resetDemoButton");
@@ -553,6 +649,7 @@ async function testElizabethActiveAbsent() { expect(![...q("#scannerLocation").o
 async function testElizabethHistory() { click('[data-view="searchView"]'); select(q("#filterLocation"), "Elizabeth Repair Facility"); click('#searchForm button[type="submit"]'); expect(text("#searchResultsBody").includes("Elizabeth Repair Facility"), "Elizabeth historical movements are not searchable."); }
 async function testFixedLocationLocked() { expect(q("#scannerLocation").disabled, "Fixed device did not lock the scanner location."); expect(q("#scannerLocation").value === "Division Street", "Fixed device location did not supply Division Street."); }
 async function testFixedReassignment() { click('[data-view="supervisorView"]'); click('[data-supervisor-section="devicesSection"]'); click('[data-device-action="edit"][data-device-id="DEV-DIV-01"]'); select(q("#deviceLocationInput"), "North Ave"); targetConfirmResponse = false; click('#deviceForm button[type="submit"]'); expect(state().devices.find((device) => device.id === "DEV-DIV-01").assignedLocation === "Division Street", "Cancelled fixed reassignment changed location."); targetConfirmResponse = true; click('#deviceForm button[type="submit"]'); expect(state().devices.find((device) => device.id === "DEV-DIV-01").assignedLocation === "North Ave", "Confirmed fixed reassignment did not save."); expect(state().workingLocation === "North Ave" && q("#scannerLocation").value === "North Ave", "Current fixed-device reassignment did not immediately update working location."); }
+async function testFixedSwitchConfirmation() { click("#startScanButton"); input("#driverInput", "1001"); key("#driverInput", "Enter"); await waitForStep(1); click("#deviceSetupButton"); select(q("#currentDeviceSelect"), "DEV-NORTH-01"); targetConfirmResponse = false; click("#confirmDeviceLocationButton"); expect(state().currentDeviceId === "DEV-DIV-01" && q("#driverInput").value === "1001", "Cancelled fixed-device switch changed device or scan state."); targetConfirmResponse = true; click("#confirmDeviceLocationButton"); expect(state().currentDeviceId === "DEV-NORTH-01" && q("#driverInput").value === "", "Confirmed fixed-device switch did not reset the unfinished scan."); }
 async function selectFloater() { click("#deviceSetupButton"); await waitForVisible("#deviceSetupModal"); select(q("#currentDeviceSelect"), "DEV-FLOAT-01"); }
 async function testFloaterRequiresLocation() { await selectFloater(); click("#confirmDeviceLocationButton"); expect(/Choose an active location/i.test(text("#deviceSetupStatus")), "Floater was accepted without a location."); }
 async function testFloaterRequiresConfirmation() { await selectFloater(); select(q("#floaterLocationSelect"), "EWR"); targetConfirmResponse = false; click("#confirmDeviceLocationButton"); expect(state().currentDeviceId !== "DEV-FLOAT-01" || state().floaterLocationConfirmed === false, "Floater location was committed without confirmation."); }
@@ -565,10 +662,12 @@ async function testAddFloaterDevice() { await openDevices(); click("#addDeviceBu
 async function testDuplicateImei() { await openDevices(); click("#addDeviceButton"); input("#deviceIdInput", "DEV-DUP-01"); input("#deviceNameInput", "Duplicate IMEI"); input("#deviceImeiInput", "000000000000001"); select(q("#deviceLocationInput"), "EWR"); click('#deviceForm button[type="submit"]'); expect(/unique/i.test(text("#deviceImeiError")), "Duplicate IMEI was accepted."); }
 async function testFixedNeedsLocation() { await openDevices(); click("#addDeviceButton"); input("#deviceIdInput", "DEV-NOLOC-01"); input("#deviceNameInput", "No Location"); input("#deviceImeiInput", "123456789012345"); select(q("#deviceTypeInput"), "Fixed"); click('#deviceForm button[type="submit"]'); expect(/requires one active location/i.test(text("#deviceLocationError")), "Fixed device saved without a location."); }
 async function testDeviceEdit() { await openDevices(); click('[data-device-action="edit"][data-device-id="DEV-EWR-01"]'); input("#deviceNameInput", "EWR Updated Scanner"); click('#deviceForm button[type="submit"]'); expect(state().devices.find((item) => item.id === "DEV-EWR-01").name === "EWR Updated Scanner", "Device edit did not save."); }
-async function testInactiveDeviceBlocks() { await openDevices(); click('[data-device-action="inactive"][data-device-id="DEV-DIV-01"]'); click('[data-view="scannerView"]'); click("#startScanButton"); expect(/inactive/i.test(text("#scannerNotice")), "Inactive current device was allowed to start scanning."); }
+async function testInactiveDeviceBlocks() { await openDevices(); click('[data-device-action="inactive"][data-device-id="DEV-DIV-01"]'); click('[data-view="scannerView"]'); click("#startScanButton"); expect(/inactive|not ready/i.test(text("#scannerNotice")), "Inactive current device was allowed to start scanning."); }
 async function testDeviceReactivate() { await openDevices(); click('[data-device-action="inactive"][data-device-id="DEV-DIV-01"]'); click('[data-device-action="reactivate"][data-device-id="DEV-DIV-01"]'); expect(state().devices.find((device) => device.id === "DEV-DIV-01").active, "Device did not reactivate."); }
 async function testDeviceHistory() { await testDeviceReactivate(); expect(events().some((event) => event.type === "device_inactivated") && events().some((event) => event.type === "device_reactivated"), "Device changes were not recorded in history."); }
 async function testDeviceTransactionMetadata() { await beginScan("1001", "GFV-0001"); click("#directionIn"); click("#submitTransactionButton"); await waitForText("#confirmationTitle", /Vehicle IN recorded/); const transaction = latestTransaction(); expect(transaction.deviceId === "DEV-DIV-01" && transaction.deviceImei === "000000000000001" && transaction.locationConfirmed === true, "New transaction is missing device metadata."); expect(state().devices.find((device) => device.id === "DEV-DIV-01").lastUsedAt, "Device last-used timestamp did not update."); }
+async function testSubmissionRevalidatesDevice() { await beginScan("1001", "GFV-0001"); click("#directionIn"); const before = state().transactions.length; click('[data-view="supervisorView"]'); click('[data-supervisor-section="devicesSection"]'); click('[data-device-action="edit"][data-device-id="DEV-DIV-01"]'); select(q("#deviceStatusInput"), "Repair"); click('#deviceForm button[type="submit"]'); click('[data-view="scannerView"]'); click("#submitTransactionButton"); expect(state().transactions.length === before, "Submission accepted a device that became non-ready mid-scan."); expect(/not ready/i.test(text("#scannerNotice")), "Non-ready device rejection was not shown."); }
+async function testSubmissionRevalidatesLocation() { await beginScan("1001", "GFV-0001"); click("#directionIn"); const before = state().transactions.length; q("#scannerLocation").value = "North Ave"; click("#submitTransactionButton"); expect(state().transactions.length === before, "Submission accepted a device/location mismatch."); expect(/location.*match|reconfirm/i.test(text("#scannerNotice")), "Device/location mismatch rejection was not shown."); }
 async function testDeviceSeeds() { expect(state().devices.length === 5 && ["DEV-DIV-01", "DEV-NORTH-01", "DEV-EWR-01", "DEV-LINDEN-01", "DEV-FLOAT-01"].every((id) => state().devices.some((device) => device.id === id)), "Deterministic V0.7 devices are not seeded."); }
 async function testVinSearch() { click('[data-view="searchView"]'); input("#filterVehicle", "1HGCM82633A004352"); click('#searchForm button[type="submit"]'); expect(text("#searchResultsBody").includes("GFV-0001"), "VIN search failed."); }
 async function testPlateSearch() { click('[data-view="searchView"]'); input("#filterVehicle", "TRK-8877"); click('#searchForm button[type="submit"]'); expect(text("#searchResultsBody").includes("TRK-8877"), "Plate search failed."); }
@@ -577,7 +676,6 @@ async function testMobileSurface() { const css = await (await targetWindow().fet
 async function testSupervisorSections() { click('[data-view="supervisorView"]'); for (const id of ["driversSection", "vehiclesSection", "devicesSection"]) { click(`[data-supervisor-section="${id}"]`); await waitForVisible(`#${id}`); } }
 
 async function testMigration() {
-  select(q("#scannerLocation"), "Division Street");
   const saved = state();
   saved.version = "0.5";
   saved.authorizations.forEach((authorization) => { delete authorization.scopeType; delete authorization.scopeIds; delete authorization.actionLocation; });
@@ -585,7 +683,7 @@ async function testMigration() {
   targetWindow().localStorage.setItem(V05_STATE_KEY, JSON.stringify(saved));
   await reloadTarget();
   const migrated = state();
-  expect(migrated.version === "0.6" && migrated.migrationVersion === 6, "V0.5 state did not migrate to V0.6.");
+  expect(migrated.version === "0.7" && migrated.migrationVersion === 7, "V0.5 state did not migrate through V0.6 to V0.7.");
   expect(migrated.transactions.length === saved.transactions.length, "Migration lost historical transactions.");
   expect(migrated.authorizations.every((authorization) => authorization.scopeType === "all_current_locations"), "Migration did not add global authorization scope.");
   expect(targetWindow().localStorage.getItem(V05_STATE_KEY), "V0.5 storage key was removed during migration.");
@@ -602,6 +700,7 @@ async function testV06Migration() {
   expect(migrated.version === "0.7" && migrated.migrationVersion === 7, "V0.6 state did not migrate to V0.7.");
   expect(targetWindow().localStorage.getItem(V06_STATE_KEY), "V0.6 storage key was removed during migration.");
   expect(migrated.transactions.length === saved.transactions.length && migrated.devices.length === 5, "V0.6 migration lost history or failed to seed devices.");
+  expect(migrated.authorizations.filter((authorization) => authorization.status === "active").every((authorization) => authorization.type === "9_hours"), "Migrated active authorizations did not adopt the fixed 9-hour rule.");
 }
 
 async function beginScan(employeeNumber, barcode) {

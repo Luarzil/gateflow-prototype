@@ -140,7 +140,7 @@
                   <div class="demo-row"><button class="demo-chip" type="button" data-demo-field="supervisorInput" data-demo-value="SUP-1001">SUP-1001</button><button class="demo-chip" type="button" data-demo-field="supervisorInput" data-demo-value="SUP-BAD">Invalid</button></div>
                   <p class="field-status" id="supervisorStatus">Awaiting a valid supervisor ID.</p>
                   <label for="supervisorDuration">Temporary authorization</label>
-                  <select id="supervisorDuration"><option value="9_hours">9 Hours</option><option value="12_hours">12 Hours</option><option value="today">Today</option></select>
+                  <input id="supervisorDuration" type="hidden" value="9_hours"><p class="field-status">Fleet Lead authorization is fixed at 9 hours.</p>
                   <div class="button-row"><button class="button secondary" id="cancelSupervisorButton" type="button">Cancel OUT</button><button class="button warning" id="approveSupervisorButton" type="button">Approve temporary authorization</button></div>
                 </div>
               </section>
@@ -202,7 +202,7 @@
               </div>
               <div class="bulk-toolbar" aria-label="Bulk driver authorization controls">
                 <div><label for="driverRosterSearch">Search drivers</label><input id="driverRosterSearch" type="search" placeholder="Name or employee #"></div>
-                <div><label for="authorizationDuration">Authorization duration</label><select id="authorizationDuration"><option value="9_hours">9 Hours</option><option value="12_hours">12 Hours</option><option value="today">Today</option><option value="48_hours">48 Hours</option><option value="3_days">3 Days</option></select></div>
+                <div><label for="authorizationDuration">Authorization duration</label><input id="authorizationDuration" type="hidden" value="9_hours"><p class="field-status">Fleet Lead authorization is fixed at 9 hours.</p></div>
                 <button class="button primary" id="bulkAuthorizeButton" type="button">Authorize selected</button>
               </div>
               <p class="field-status" id="bulkActionStatus">No bulk action yet.</p>

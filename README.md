@@ -43,9 +43,7 @@ Supervisor > Devices manages simulated Fixed and Floater devices. A Fixed device
 
 ## Validation
 
-Open `gateflow-validator/` through the same local HTTP server and select **Run full validation**. The V0.7 suite drives real UI paths and performs 64 checks, restoring the pre-run browser data when complete.
-
-## Validation
+Open `gateflow-validator/` through the same local HTTP server and select **Run full validation**. The V0.7 stabilization suite drives 84 distinct UI scenarios, including every retained V0.6 regression, and restores the pre-run browser data when complete.
 
 The in-house `gateflow-validator/` runs UI regression checks. Serve the repository, then open `http://127.0.0.1:8800/gateflow-validator/`. It restores the browser's prior local state after each full run.
 

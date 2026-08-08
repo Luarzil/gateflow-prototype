@@ -20,7 +20,7 @@ Do not run this against a production customer deployment. It is an in-house loca
 
 ## What it proves
 
-The current 64-check suite tests normal and negative workflow paths: numeric and prefixed employee numbers, unknown/inactive drivers, manual and scanned barcode lookup, inactive vehicle blocking, authorized and blocked OUT movement, unauthorized IN review, invalid and valid supervisor overrides, license rules, compact confirmation and reset behavior, driver profile editing and soft deactivation, Device Control Center rules for Fixed and Floater devices, IMEI uniqueness, transaction device metadata, Search, persistence, and V0.6-to-V0.7 state migration.
+The current 84-scenario suite registers every retained V0.6 regression once and adds distinct V0.7 checks for numeric employee numbers, manual barcode entry, stale driver-state clearing, the fixed nine-hour authorization rule, Fixed/Floater device controls, submission-time device revalidation, transaction metadata, Search, persistence, and V0.6-to-V0.7 migration.
 
 It deliberately tests prohibited actions too, including an invalid supervisor approval, manual barcode entry for a missing or inactive vehicle, a Floater scan before a location is confirmed, and a duplicate device IMEI.
 
