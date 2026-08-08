@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#123b35">
-  <meta name="description" content="Lot Watch / GateFlow V0.6 Supervisor and vehicle inventory review prototype for Zebra TC-series gate tracking.">
-  <title>Lot Watch / GateFlow V0.6 Review</title>
+  <meta name="description" content="Lot Watch / GateFlow V0.7 scanner and device control review prototype for Zebra TC-series gate tracking.">
+  <title>Lot Watch / GateFlow V0.7 Review</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
@@ -22,7 +22,7 @@
         </span>
         <span>
           <strong>Lot Watch / GateFlow</strong>
-          <span>V0.6 Supervisor and vehicle inventory review</span>
+          <span>V0.7 Scanner and device control review</span>
         </span>
       </a>
 
@@ -58,6 +58,7 @@
             <section class="working-location-bar" aria-label="Working location and device state">
               <div class="working-location-select"><label for="scannerLocation">Working Location</label><select id="scannerLocation" name="scannerLocation"></select></div>
               <div class="station-account"><span>Station account</span><strong id="stationIdentity">Division Street Scanner</strong></div>
+              <div class="station-account"><span>Current device</span><strong id="currentDeviceLabel">DEV-DIV-01</strong><button class="table-action" id="deviceSetupButton" type="button">Device setup</button></div>
               <div class="connectivity-strip" aria-label="Prototype connectivity status">
                 <span id="onlineStatus">Online</span><span id="lastSavedLocal">Saved locally</span><span id="syncQueueCount">Sync queue: 0</span><span>5G / Wi-Fi: future</span>
               </div>
@@ -89,10 +90,10 @@
 
                 <div class="wizard-step" data-step="0">
                   <p class="screen-title">Driver Employee #</p>
-                  <p class="screen-subtitle">Step 1 of 4. Scan or enter the driver employee number.</p>
+                  <p class="screen-subtitle">Step 1 of 3. Scan or enter the driver employee number. The EMP- prefix is optional.</p>
                   <div class="scan-group">
                     <label for="driverInput">Driver Employee #</label>
-                    <div class="scan-input single"><input id="driverInput" name="driverInput" autocomplete="off" inputmode="text" placeholder="Scan or enter employee #"></div>
+                    <div class="scan-input single"><input id="driverInput" name="driverInput" autocomplete="off" inputmode="text" placeholder="Scan or enter employee #, e.g. 1001"></div>
                     <button class="button secondary full manual-entry-trigger" id="openManualEmployeeButton" type="button">Enter Employee Number Manually</button>
                     <div class="demo-row"><button class="demo-chip" type="button" data-demo-field="driverInput" data-demo-value="EMP-1001">EMP-1001 OK</button><button class="demo-chip" type="button" data-demo-field="driverInput" data-demo-value="EMP-1003">EMP-1003 review</button></div>
                     <p class="field-status" id="driverStatus">Awaiting employee number scan.</p>
@@ -102,10 +103,11 @@
 
                 <div class="wizard-step hidden" data-step="1">
                   <p class="screen-title">Vehicle Barcode</p>
-                  <p class="screen-subtitle">Step 2 of 4. Scan the assigned vehicle barcode.</p>
+                  <p class="screen-subtitle">Step 2 of 3. Scan the assigned vehicle barcode or enter it manually.</p>
                   <div class="scan-group">
                     <label for="barcodeInput">Vehicle Barcode</label>
                     <div class="scan-input single"><input id="barcodeInput" name="barcodeInput" autocomplete="off" inputmode="text" placeholder="Scan assigned vehicle barcode"></div>
+                    <button class="button secondary full manual-entry-trigger" id="openManualBarcodeButton" type="button">Enter Barcode Manually</button>
                     <div class="demo-row"><button class="demo-chip" type="button" data-demo-field="barcodeInput" data-demo-value="GFV-0001">GFV-0001</button><button class="demo-chip" type="button" data-demo-field="barcodeInput" data-demo-value="GFV-0003">GFV-0003</button></div>
                     <p class="field-status" id="barcodeStatus">Awaiting vehicle barcode scan.</p>
                   </div>
@@ -114,14 +116,14 @@
 
                 <div class="wizard-step hidden" data-step="2">
                   <p class="screen-title">Choose movement</p>
-                  <p class="screen-subtitle">Step 3 of 4. Select the vehicle direction after the barcode lookup.</p>
+                  <p class="screen-subtitle">Step 3 of 3. Select the vehicle direction after the barcode lookup.</p>
                   <div class="home-actions"><button class="big-action-btn out" id="directionOut" type="button"><span aria-hidden="true">OUT</span>Vehicle OUT</button><button class="big-action-btn in" id="directionIn" type="button"><span aria-hidden="true">IN</span>Vehicle IN</button></div>
                   <button class="button secondary full" id="movementBack" type="button">Back to barcode</button>
                 </div>
 
                 <div class="wizard-step hidden" data-step="3">
                   <p class="screen-title" id="reviewStepTitle">Review movement</p>
-                  <p class="screen-subtitle">Step 4 of 4. Add a note only when needed, then submit.</p>
+                  <p class="screen-subtitle">Add a note only when needed, then submit.</p>
                   <div class="form-row"><label for="transactionNote">Optional note</label><textarea id="transactionNote" name="transactionNote" rows="2" placeholder="Optional guard note"></textarea></div>
                   <ul class="summary-list" id="scanSummary"></ul>
                   <div class="button-row"><button class="button secondary" id="reviewBack" type="button">Back</button><button class="button primary" id="submitTransactionButton" type="button">Submit movement</button></div>
@@ -146,7 +148,7 @@
               <section class="scanner-screen hidden" id="transactionConfirmation" aria-live="polite">
                 <div class="scanner-confirm">
                   <p class="eyebrow">Complete</p><h2 id="confirmationTitle">Transaction submitted</h2><ul class="summary-list" id="confirmationSummary"></ul>
-                  <button class="button primary full" id="confirmationDoneButton" type="button">Done</button>
+                  <button class="button primary full" id="confirmationDoneButton" type="button">Start Next Scan</button>
                 </div>
               </section>
 
@@ -181,13 +183,14 @@
         <div class="view-heading">
           <div>
             <p class="eyebrow">Supervisor control</p>
-            <h1 id="supervisorViewHeading">Drivers, authorizations, licenses, and vehicles</h1>
+            <h1 id="supervisorViewHeading">Drivers, authorizations, vehicles, and devices</h1>
             <p>Manage the shared gate roster and vehicle inventory. This remains a local browser review prototype, not secure production access control.</p>
           </div>
         </div>
         <div class="supervisor-tabs" role="tablist" aria-label="Supervisor sections">
           <button class="supervisor-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="driversSection" id="driversTab" data-supervisor-section="driversSection">Drivers</button>
           <button class="supervisor-tab" type="button" role="tab" aria-selected="false" aria-controls="vehiclesSection" id="vehiclesTab" data-supervisor-section="vehiclesSection">Vehicles</button>
+          <button class="supervisor-tab" type="button" role="tab" aria-selected="false" aria-controls="devicesSection" id="devicesTab" data-supervisor-section="devicesSection">Devices</button>
         </div>
 
         <section id="driversSection" class="supervisor-section is-active" role="tabpanel" aria-labelledby="driversTab">
@@ -225,6 +228,15 @@
             <div class="panel-heading"><div><p class="eyebrow">Vehicle inventory</p><h2>Active fleet vehicles</h2></div><button class="button secondary" id="addVehicleButton" type="button">Add Vehicle</button></div>
             <div class="bulk-toolbar vehicle-toolbar"><div><label for="vehicleSearch">Search vehicles</label><input id="vehicleSearch" type="search" placeholder="Barcode, VIN, plate, make, model, year, or color"></div><div><label for="vehicleStatusFilter">Inventory status</label><select id="vehicleStatusFilter"><option value="active">Active</option><option value="inactive">Inactive</option><option value="all">All</option></select></div></div>
             <div class="table-wrap"><table><thead><tr><th>Assigned Barcode</th><th>Year</th><th>Make</th><th>Model</th><th>Color</th><th>VIN</th><th>Plate</th><th>Status</th><th>Actions</th></tr></thead><tbody id="vehiclesTableBody"></tbody></table></div>
+          </section>
+        </section>
+
+        <section id="devicesSection" class="supervisor-section" role="tabpanel" aria-labelledby="devicesTab" hidden>
+          <section class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">Device control center</p><h2>Gate scanner devices</h2></div><button class="button secondary" id="addDeviceButton" type="button">Add Device</button></div>
+            <p class="field-status" id="deviceActionStatus">Choose the simulated current device in Scanner device setup.</p>
+            <div class="table-wrap"><table><thead><tr><th>Device ID</th><th>Friendly name</th><th>IMEI</th><th>Type</th><th>Assigned location</th><th>Status</th><th>Last used</th><th>Last transaction location</th><th>Actions</th></tr></thead><tbody id="devicesTableBody"></tbody></table></div>
+            <section class="panel compact-panel device-history-panel"><div class="panel-heading"><div><p class="eyebrow">History</p><h2>Recent device changes</h2></div></div><div id="deviceHistoryList" class="audit-list"></div></section>
           </section>
         </section>
 
@@ -293,6 +305,14 @@
       <div class="button-row"><button class="button secondary" id="cancelManualEmployeeButton" type="button">Cancel</button><button class="button primary" id="submitManualEmployeeButton" type="button">Use employee #</button></div>
     </section>
   </div>
+  <div class="modal-backdrop hidden" id="manualBarcodeModal" role="dialog" aria-modal="true" aria-labelledby="manualBarcodeHeading">
+    <section class="modal-panel">
+      <div class="panel-heading tight"><div><p class="eyebrow">Manual entry</p><h2 id="manualBarcodeHeading">Enter Vehicle Barcode</h2></div><button class="button ghost compact" id="closeManualBarcodeButton" type="button" aria-label="Close manual barcode entry">Close</button></div>
+      <label for="manualBarcodeInput">Assigned Vehicle Barcode</label><input id="manualBarcodeInput" autocomplete="off" placeholder="GFV-0001">
+      <p class="field-status" id="manualBarcodeStatus">Manual barcode entries use the same exact-match checks as scans.</p>
+      <div class="button-row"><button class="button secondary" id="cancelManualBarcodeButton" type="button">Cancel</button><button class="button primary" id="submitManualBarcodeButton" type="button">Use Barcode</button></div>
+    </section>
+  </div>
   <div class="modal-backdrop hidden" id="driverModal" role="dialog" aria-modal="true" aria-labelledby="driverModalHeading">
     <section class="modal-panel" role="document">
       <div class="panel-heading tight"><div><p class="eyebrow">Supervisor</p><h2 id="driverModalHeading">Add Driver</h2></div><button class="button ghost compact" id="closeDriverModalButton" type="button" aria-label="Close driver form">Close</button></div>
@@ -326,6 +346,9 @@
       </form>
     </section>
   </div>
+  <div class="modal-backdrop hidden" id="driverProfileModal" role="dialog" aria-modal="true" aria-labelledby="driverProfileHeading"><section class="modal-panel"><div class="panel-heading tight"><div><p class="eyebrow">Driver profile</p><h2 id="driverProfileHeading">Driver</h2></div><button class="button ghost compact" id="closeDriverProfileButton" type="button">Close</button></div><div id="driverProfileBody" class="detail-list"></div><div class="button-row"><button class="button secondary" id="profileEditDriverButton" type="button">Edit Driver</button><button class="button danger" id="profileToggleDriverButton" type="button">Mark inactive</button></div></section></div>
+  <div class="modal-backdrop hidden" id="deviceSetupModal" role="dialog" aria-modal="true" aria-labelledby="deviceSetupHeading"><section class="modal-panel"><div class="panel-heading tight"><div><p class="eyebrow">Scanner setup</p><h2 id="deviceSetupHeading">Select Current Device</h2></div><button class="button ghost compact" id="closeDeviceSetupButton" type="button">Close</button></div><label for="currentDeviceSelect">Current device</label><select id="currentDeviceSelect"></select><div id="floaterLocationFields" class="form-row hidden"><label for="floaterLocationSelect">Floater working location</label><select id="floaterLocationSelect"></select><p class="field-status">Confirming a location locks it for this session.</p></div><p id="deviceSetupStatus" class="field-status"></p><div class="button-row"><button class="button secondary" id="changeFloaterLocationButton" type="button">Change Location</button><button class="button primary" id="confirmDeviceLocationButton" type="button">Confirm Location</button></div></section></div>
+  <div class="modal-backdrop hidden" id="deviceModal" role="dialog" aria-modal="true" aria-labelledby="deviceModalHeading"><section class="modal-panel modal-wide"><div class="panel-heading tight"><div><p class="eyebrow">Device control center</p><h2 id="deviceModalHeading">Add Device</h2></div><button class="button ghost compact" id="closeDeviceModalButton" type="button">Close</button></div><form id="deviceForm" novalidate><input id="deviceEditId" type="hidden"><div class="modal-form-grid"><div class="form-row"><label for="deviceIdInput">Device ID</label><input id="deviceIdInput" required placeholder="DEV-REGION-01"><p id="deviceIdError" class="field-status"></p></div><div class="form-row"><label for="deviceNameInput">Friendly Device Name</label><input id="deviceNameInput" required placeholder="Division Gate Scanner"><p id="deviceNameError" class="field-status"></p></div><div class="form-row"><label for="deviceImeiInput">IMEI</label><input id="deviceImeiInput" required inputmode="numeric" placeholder="000000000000001"><p id="deviceImeiError" class="field-status"></p></div><div class="form-row"><label for="deviceTypeInput">Device Type</label><select id="deviceTypeInput"><option value="Fixed">Fixed</option><option value="Floater">Floater</option></select></div><div class="form-row"><label for="deviceLocationInput">Assigned Location</label><select id="deviceLocationInput"></select><p id="deviceLocationError" class="field-status"></p></div><div class="form-row"><label for="deviceStatusInput">Status</label><select id="deviceStatusInput"><option value="Active">Active</option><option value="Spare">Spare</option><option value="Charging">Charging</option><option value="Repair">Repair</option><option value="Inactive">Inactive</option></select></div><div class="form-row"><label for="devicePhoneInput">Phone Number (optional)</label><input id="devicePhoneInput"></div><div class="form-row"><label for="deviceNotesInput">Notes (optional)</label><input id="deviceNotesInput"></div></div><div class="button-row"><button class="button secondary" id="cancelDeviceButton" type="button">Cancel</button><button class="button primary" type="submit">Save Device</button></div></form></section></div>
   <script src="app.js"></script>
 </body>
 </html>

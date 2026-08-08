@@ -1,6 +1,6 @@
-# Lot Watch / GateFlow V0.6 Supervisor and Vehicle Inventory Review
+# Lot Watch / GateFlow V0.7 Scanner and Device Control Review
 
-Static HTML, CSS, and JavaScript PWA prototype for Zebra TC-series style gate operations. V0.6 keeps the V0.5 transaction rules and adds Supervisor-based driver management, vehicle inventory, and assigned-barcode scanning.
+Static HTML, CSS, and JavaScript PWA prototype for Zebra TC-series style gate operations. V0.7 preserves the V0.6 gate rules while adding numeric employee-number input, manual barcode entry, compact next-scan confirmation, driver profiles, and a Device Control Center.
 
 ## Run locally
 
@@ -12,7 +12,7 @@ python -m http.server 8800 --bind 127.0.0.1
 
 Open `http://127.0.0.1:8800/`.
 
-## V0.6 workflow
+## V0.7 workflow
 
 1. Choose one Working Location: Division Street, North Ave, EWR, or Linden.
 2. Scan or enter Driver Employee #.
@@ -33,9 +33,17 @@ Vehicle removal is a soft deactivation. Historical records and assigned barcode 
 
 ## Data and migration
 
-V0.6 stores data in `lot-watch.gateflow.v0.6.state`. It migrates a valid V0.5 state from `lot-watch.gateflow.v0.5.state` without deleting or overwriting that key. Migration adds deterministic vehicle IDs and `GFV-0001` through `GFV-0005` demo barcodes, then maps historical transactions to vehicle snapshots.
+V0.7 stores data in `lot-watch.gateflow.v0.7.state`. It preserves V0.6, V0.5, and V0.4 keys and migrates a valid V0.6 state without deleting or overwriting that source key. Migration adds the five deterministic prototype devices and preserves historical movement records.
 
 `Elizabeth Repair Facility` remains historical-only: it is searchable but cannot be selected for a new scan.
+
+## Device control
+
+Supervisor > Devices manages simulated Fixed and Floater devices. A Fixed device supplies and locks its assigned location. A Floater must select and confirm an active location before scanning; changing that location requires confirmation and resets an unfinished scan. New movements store device metadata and whether their barcode was scanned or entered manually.
+
+## Validation
+
+Open `gateflow-validator/` through the same local HTTP server and select **Run full validation**. The V0.7 suite drives real UI paths and performs 64 checks, restoring the pre-run browser data when complete.
 
 ## Validation
 
