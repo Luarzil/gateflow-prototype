@@ -322,6 +322,43 @@ tbody tr:last-child td { border-bottom: 0; }
   .wizard-step { padding: 14px; }
 }
 
+/* V0.6 Supervisor and inventory review layout. */
+.supervisor-tabs { display: flex; gap: 4px; margin: 0 0 18px; border-bottom: 1px solid var(--line); }
+.supervisor-tab { min-height: 42px; padding: 0 20px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--muted); font-weight: 850; }
+.supervisor-tab.is-active { border-bottom-color: var(--green); color: var(--green-deep); }
+.supervisor-tab:focus-visible { outline: 3px solid #6fae9c; outline-offset: -3px; }
+.supervisor-section { display: none; }
+.supervisor-section.is-active { display: block; }
+.supervisor-driver-grid { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(320px, .95fr); gap: 18px; align-items: start; }
+.supervisor-side-stack { display: grid; gap: 18px; }
+.driver-roster-panel { min-width: 0; }
+.compact-panel { min-width: 0; }
+.compact-panel > .button { margin: -2px 0 12px; }
+.action-stack { display: grid; gap: 4px; min-width: 110px; }
+.vehicle-toolbar { grid-template-columns: minmax(260px, 1fr) minmax(160px, 220px); }
+.modal-wide { width: min(760px, calc(100vw - 28px)); }
+.modal-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.modal-panel form { display: grid; gap: 12px; }
+.modal-panel .form-row { display: grid; gap: 5px; }
+.modal-panel .field-status:not(:empty) { color: #a22b2b; min-height: 1em; }
+
+@media (max-width: 1050px) {
+  .supervisor-driver-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 760px) {
+  .supervisor-tabs { margin-inline: -2px; }
+  .supervisor-tab { flex: 1; padding-inline: 8px; }
+  .modal-form-grid, .vehicle-toolbar { grid-template-columns: 1fr; }
+  .bulk-toolbar { grid-template-columns: 1fr; }
+  .brand > span:last-child { min-width: 0; }
+  .brand > span:last-child > span { display: block; max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .top-actions .compact { padding-inline: 9px; }
+  .driver-roster-panel .panel-heading { flex-wrap: wrap; gap: 9px; }
+  .driver-roster-panel .panel-heading .button { margin-left: 0; }
+  .driver-roster-panel { overflow: hidden; }
+}
+
 /* ===================================================================
    Visual polish + usability pass (v0.2.1)
    Smoother transitions, hover/press feedback, table/row clarity, and
