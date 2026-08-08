@@ -27,7 +27,7 @@ const TEMP_AUTHORIZATION_DURATION = "9_hours";
 const VIEWS = ["scannerView", "supervisorView", "searchView"];
 const BUSINESS_TIMEZONE = "America/New_York";
 const LICENSE_VALID_THROUGH_PRINTED_DATE = true;
-const ENTRY_METHODS = ["scan", "manual"];
+const ENTRY_METHODS = ["scanner_field", "manual"];
 const LEGACY_ENTRY_METHOD = "legacy_unknown";
 
 let storageAvailable = true;
@@ -452,7 +452,7 @@ function mapTransactionVehicle(transaction, vehicles) {
 
 function normalizeStoredEntryMethod(value) {
   const method = String(value || "").trim().toLowerCase();
-  if (method === "scanner" || method === "scan") return "scan";
+  if (method === "scanner_field" || method === "standard_input") return "scanner_field";
   if (method === "manual") return "manual";
   return LEGACY_ENTRY_METHOD;
 }
@@ -462,7 +462,7 @@ function isNewEntryMethod(value) {
 }
 
 function entryMethodLabel(value) {
-  if (value === "scan") return "Scan";
+  if (value === "scanner_field") return "Scanner field";
   if (value === "manual") return "Manual";
   return "Legacy / unknown";
 }
@@ -803,7 +803,7 @@ function validateDriverStep() {
   }
   if (ui.validatedDriverEmployee && ui.validatedDriverEmployee !== driver.employeeNumber) clearDriverDerivedStateIfChanged(driver.employeeNumber);
   ui.validatedDriverEmployee = driver.employeeNumber;
-  if (ui.driverEntryMethod !== "manual") ui.driverEntryMethod = "scan";
+  if (ui.driverEntryMethod !== "manual") ui.driverEntryMethod = "scanner_field";
   updateDriverStatus();
   showWizardStep(1);
 }
@@ -828,7 +828,7 @@ function validateBarcodeStep() {
     shake(el.barcodeInput);
     return;
   }
-  if (ui.vehicleEntryMethod !== "manual") ui.vehicleEntryMethod = "scan";
+  if (ui.vehicleEntryMethod !== "manual") ui.vehicleEntryMethod = "scanner_field";
   updateBarcodeStatus();
   showWizardStep(2);
 }
@@ -966,7 +966,7 @@ function completeTransaction(draft) {
   state.transactions.unshift(transaction);
   addAudit(
     draft.direction === "OUT" ? "out_transaction" : "in_transaction",
-    `Vehicle ${draft.direction} recorded for ${draft.driver.employeeNumber} / ${draft.vehicle.assignedBarcode}. Driver entry: ${entryMethodLabel(draft.driverEntryMethod)}; vehicle entry: ${entryMethodLabel(draft.vehicleEntryMethod)}.`,
+    `Vehicle ${draft.direction} recorded for ${draft.driver.employeeNumber} / ${draft.vehicle.assignedBarcode}. Driver entry path: ${entryMethodLabel(draft.driverEntryMethod)}; vehicle entry path: ${entryMethodLabel(draft.vehicleEntryMethod)}.`,
     currentStationIdentity(),
     draft.location
   );
@@ -989,8 +989,8 @@ function showTransactionConfirmation(transaction) {
     ["Driver", `${transaction.driverEmployee} - ${transaction.driverName}`],
     ["Vehicle", `${transaction.vehicleBarcode || "No barcode"} - ${transaction.vin}${transaction.plate ? ` / ${transaction.plate}` : ""}`],
     ["Authorization", transaction.authorizationStatus],
-    ["Driver entry", entryMethodLabel(transaction.driverEntryMethod)],
-    ["Vehicle entry", entryMethodLabel(transaction.vehicleEntryMethod)],
+    ["Driver entry path", entryMethodLabel(transaction.driverEntryMethod)],
+    ["Vehicle entry path", entryMethodLabel(transaction.vehicleEntryMethod)],
     ["Note", transaction.note || "-"]
   ]);
   if (ui.confirmationTimer) window.clearTimeout(ui.confirmationTimer);
@@ -1544,8 +1544,8 @@ function renderScanSummary() {
     ["Vehicle", vehicle ? `${vehicle.assignedBarcode} - ${vehicle.year} ${vehicle.make} ${vehicle.model} / ${vehicle.vin}${vehicle.plate ? ` / ${vehicle.plate}` : ""}` : "Awaiting barcode"],
     ["Barcode", vehicle ? vehicle.assignedBarcode : "Awaiting assigned barcode"],
     ["VIN", vehicle ? `${vehicle.vin}${vehicle.vin.length === 17 ? " (17 characters)" : ` (${vehicle.vin.length} characters - warning)`}` : "-"],
-    ["Driver entry", entryMethodLabel(ui.driverEntryMethod)],
-    ["Vehicle entry", entryMethodLabel(ui.vehicleEntryMethod)],
+    ["Driver entry path", entryMethodLabel(ui.driverEntryMethod)],
+    ["Vehicle entry path", entryMethodLabel(ui.vehicleEntryMethod)],
     ["Authorization", authorization]
   ]);
 }
