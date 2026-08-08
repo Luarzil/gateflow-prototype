@@ -5,6 +5,7 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const app = fs.readFileSync(path.join(root, "app.js"), "utf8");
 const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
 
 assert.match(app, /const ENTRY_METHODS = \["scanner_field", "manual"\];/, "new entry paths need an explicit allowlist");
 assert.match(app, /const LEGACY_ENTRY_METHOD = "legacy_unknown";/, "legacy provenance must remain unknown");
@@ -22,7 +23,9 @@ assert.match(app, /\["Driver entry path", entryMethodLabel\(ui\.driverEntryMetho
 assert.match(app, /\["Driver entry path", entryMethodLabel\(transaction\.driverEntryMethod\)\][\s\S]*\["Vehicle entry path", entryMethodLabel\(transaction\.vehicleEntryMethod\)\]/, "confirmation must show separate entry paths");
 assert.match(html, /<th>Driver entry path<\/th>[\s\S]*<th>Vehicle entry path<\/th>/, "Search needs separate entry-path columns");
 assert.match(html, /Entry path identifies the application field used; it does not verify scanner hardware\./, "UI must disclose the entry-path limitation");
+assert.match(readme, /whether each value came through the scanner field or the explicit manual-entry workflow\. This entry-path metadata does not verify scanner hardware\./, "README must describe conservative entry-path metadata");
 assert.doesNotMatch(`${app}\n${html}`, /return "Scan"|entry path:\s*Scan(?:[.;<]|$)/i, "entry-path UI must not label ordinary typing as a verified scan");
+assert.doesNotMatch(readme, /barcode was scanned|verified (?:scanner|scan)|scanner hardware (?:was|is) verified/i, "README must not claim verified scanner hardware use");
 assert.doesNotMatch(`${app}\n${html}`, /immutable provenance|trusted provenance/i, "client UI must not claim provenance is immutable or trusted");
 
 console.log("V0.7 provenance structural regression checks passed.");

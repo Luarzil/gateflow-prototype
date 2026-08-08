@@ -39,7 +39,7 @@ V0.7 stores data in `lot-watch.gateflow.v0.7.state`. It preserves V0.6, V0.5, an
 
 ## Device control
 
-Supervisor > Devices manages simulated Fixed and Floater devices. A Fixed device supplies and locks its assigned location. A Floater must select and confirm an active location before scanning; changing that location requires confirmation and resets an unfinished scan. New movements store device metadata and whether their barcode was scanned or entered manually.
+Supervisor > Devices manages simulated Fixed and Floater devices. A Fixed device supplies and locks its assigned location. A Floater must select and confirm an active location before scanning; changing that location requires confirmation and resets an unfinished scan. New movements store device metadata and whether each value came through the scanner field or the explicit manual-entry workflow. This entry-path metadata does not verify scanner hardware.
 
 ## Validation
 
