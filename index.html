@@ -59,7 +59,7 @@
               <div class="station-account"><span>Station account</span><strong id="stationIdentity">Division Street Scanner</strong></div>
               <div class="station-account"><span>Current device</span><strong id="currentDeviceLabel">DEV-DIV-01</strong><button class="table-action" id="deviceSetupButton" type="button">Device setup</button></div>
               <div class="connectivity-strip" aria-label="Connection and save status">
-                <span id="onlineStatus">Online</span><span id="lastSavedLocal">Saved locally</span>
+                <span id="onlineStatus">Network available</span><span id="lastSavedLocal">Saved locally</span>
               </div>
             </section>
 
@@ -119,7 +119,7 @@
                 </div>
 
                 <div class="wizard-step hidden" data-step="3">
-                  <p class="screen-title" id="reviewStepTitle">Review movement</p>
+                  <p class="screen-title" id="reviewStepTitle" tabindex="-1">Review movement</p>
                   <p class="screen-subtitle">Step 4 of 4. Review the movement, add a note only when needed, then submit.</p>
                   <div class="form-row"><label for="transactionNote">Optional note</label><textarea id="transactionNote" name="transactionNote" rows="2" placeholder="Optional guard note"></textarea></div>
                   <ul class="summary-list" id="scanSummary"></ul>

@@ -587,7 +587,7 @@ function showWizardStep(step) {
   if (step === 0) el.driverInput.focus();
   if (step === 1) el.barcodeInput.focus();
   if (step === 2) el.directionOut.focus();
-  if (step === 3) el.submitTransactionButton.focus();
+  if (step === 3) el.reviewStepTitle.focus();
   renderScanDetails();
 }
 
@@ -1527,7 +1527,7 @@ function renderScannerTestPanel() {
 function renderConnectivityStatus() {
   if (!el.onlineStatus) return;
   const isOnline = typeof navigator === "undefined" || navigator.onLine;
-  el.onlineStatus.textContent = isOnline ? "Online" : "Offline";
+  el.onlineStatus.textContent = isOnline ? "Network available" : "Network unavailable";
   el.onlineStatus.classList.toggle("offline", !isOnline);
   if (!storageAvailable) el.lastSavedLocal.textContent = "Local save unavailable";
   else if (ui.lastSavedAt) el.lastSavedLocal.textContent = `Saved locally ${formatTime(ui.lastSavedAt)}`;
