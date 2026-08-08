@@ -27,6 +27,8 @@ const TEMP_AUTHORIZATION_DURATION = "9_hours";
 const VIEWS = ["scannerView", "supervisorView", "searchView"];
 const BUSINESS_TIMEZONE = "America/New_York";
 const LICENSE_VALID_THROUGH_PRINTED_DATE = true;
+const ENTRY_METHODS = ["scan", "manual"];
+const LEGACY_ENTRY_METHOD = "legacy_unknown";
 
 let storageAvailable = true;
 
@@ -43,7 +45,8 @@ const ui = {
   lastSavedAt: null,
   activeSupervisorSection: "driversSection",
   modalTrigger: null,
-  barcodeEntryMethod: "scanner",
+  driverEntryMethod: null,
+  vehicleEntryMethod: null,
   confirmationTimer: null,
   profileEmployee: "",
   validatedDriverEmployee: ""
@@ -304,7 +307,7 @@ function seedDevice(id, name, imei, type, assignedLocation) {
 }
 
 function seedTransaction(id, timestamp, direction, driverEmployee, driverName, vehicleId, vehicleBarcode, vin, plate, location, authorizationStatus, note, submittedBy) {
-  return { id, timestamp, direction, driverEmployee, driverName, vehicleId, vehicleBarcode, vin, plate, location, authorizationStatus, note, submittedBy };
+  return { id, timestamp, direction, driverEmployee, driverName, vehicleId, vehicleBarcode, vin, plate, location, authorizationStatus, note, submittedBy, driverEntryMethod: LEGACY_ENTRY_METHOD, vehicleEntryMethod: LEGACY_ENTRY_METHOD };
 }
 
 function seedAudit(id, timestamp, type, description, actor, location) {
@@ -327,7 +330,11 @@ function loadState() {
   if (!storageAvailable) return createSeedState();
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (saved && saved.version === "0.7" && Array.isArray(saved.transactions)) return normalizeV07State(saved);
+    if (saved && saved.version === "0.7" && Array.isArray(saved.transactions)) {
+      const normalized = normalizeV07State(saved);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+      return normalized;
+    }
     const v06 = JSON.parse(localStorage.getItem(V06_STORAGE_KEY));
     if (v06 && v06.version === "0.6" && Array.isArray(v06.transactions)) {
       const migrated = migrateV06State(v06);
@@ -438,7 +445,26 @@ function normalizeVehicle(vehicle, index) {
 
 function mapTransactionVehicle(transaction, vehicles) {
   const vehicle = vehicles.find((item) => item.id === transaction.vehicleId || item.vin === normalize(transaction.vin) || (transaction.plate && item.plate === normalize(transaction.plate)));
-  return { ...transaction, vehicleId: transaction.vehicleId || (vehicle ? vehicle.id : ""), vehicleBarcode: transaction.vehicleBarcode || (vehicle ? vehicle.assignedBarcode : "") };
+  const driverEntryMethod = normalizeStoredEntryMethod(transaction.driverEntryMethod);
+  const vehicleEntryMethod = normalizeStoredEntryMethod(transaction.vehicleEntryMethod === undefined ? transaction.barcodeEntryMethod : transaction.vehicleEntryMethod);
+  return { ...transaction, vehicleId: transaction.vehicleId || (vehicle ? vehicle.id : ""), vehicleBarcode: transaction.vehicleBarcode || (vehicle ? vehicle.assignedBarcode : ""), driverEntryMethod, vehicleEntryMethod };
+}
+
+function normalizeStoredEntryMethod(value) {
+  const method = String(value || "").trim().toLowerCase();
+  if (method === "scanner" || method === "scan") return "scan";
+  if (method === "manual") return "manual";
+  return LEGACY_ENTRY_METHOD;
+}
+
+function isNewEntryMethod(value) {
+  return ENTRY_METHODS.includes(value);
+}
+
+function entryMethodLabel(value) {
+  if (value === "scan") return "Scan";
+  if (value === "manual") return "Manual";
+  return "Legacy / unknown";
 }
 
 function migrateV04State(legacy) {
@@ -611,7 +637,8 @@ function resetFlow() {
   el.driverStatus.textContent = "Awaiting employee number scan.";
   el.barcodeStatus.textContent = "Awaiting vehicle barcode scan.";
   el.supervisorStatus.textContent = "Awaiting a valid supervisor ID.";
-  ui.barcodeEntryMethod = "scanner";
+  ui.driverEntryMethod = null;
+  ui.vehicleEntryMethod = null;
   ui.validatedDriverEmployee = "";
   renderScanDetails();
 }
@@ -622,7 +649,8 @@ function clearDriverDerivedStateIfChanged(rawValue) {
   ui.validatedDriverEmployee = "";
   ui.pendingOverride = null;
   ui.direction = null;
-  ui.barcodeEntryMethod = "scanner";
+  ui.driverEntryMethod = null;
+  ui.vehicleEntryMethod = null;
   el.barcodeInput.value = "";
   el.transactionNote.value = "";
   el.supervisorInput.value = "";
@@ -646,8 +674,8 @@ function handleScanInput(fieldId) {
   const input = el[fieldId];
   const rawValue = input.value;
   recordScannerInput(fieldId, rawValue, "Input");
-  if (fieldId === "barcodeInput") { input.value = normalize(rawValue); ui.barcodeEntryMethod = "scanner"; }
-  if (fieldId === "driverInput") { clearDriverDerivedStateIfChanged(rawValue); updateDriverStatus(); }
+  if (fieldId === "barcodeInput") { input.value = normalize(rawValue); ui.vehicleEntryMethod = null; }
+  if (fieldId === "driverInput") { ui.driverEntryMethod = null; clearDriverDerivedStateIfChanged(rawValue); updateDriverStatus(); }
   if (fieldId === "barcodeInput") updateBarcodeStatus();
 }
 
@@ -700,6 +728,7 @@ function submitManualEmployee() {
   el.driverInput.value = employeeNumber;
   clearDriverDerivedStateIfChanged(employeeNumber);
   ui.validatedDriverEmployee = employeeNumber;
+  ui.driverEntryMethod = "manual";
   addAudit("manual_employee_accepted", `Manual employee-number entry accepted for ${employeeNumber}.`, currentStationIdentity(), el.scannerLocation.value);
   saveState();
   closeManualEmployeeModal();
@@ -726,7 +755,7 @@ function submitManualBarcode() {
   if (!vehicle) { el.manualBarcodeStatus.textContent = "Vehicle barcode was not found. Enter the exact assigned barcode."; shake(el.manualBarcodeInput); return; }
   if (!vehicle.active) { el.manualBarcodeStatus.textContent = "Vehicle is inactive and cannot be used for a new movement."; shake(el.manualBarcodeInput); return; }
   el.barcodeInput.value = barcode;
-  ui.barcodeEntryMethod = "manual";
+  ui.vehicleEntryMethod = "manual";
   addAudit("manual_barcode_accepted", `Manual vehicle barcode entry accepted for ${barcode}.`, currentStationIdentity(), state.workingLocation);
   saveState();
   closeManualBarcodeModal();
@@ -774,6 +803,7 @@ function validateDriverStep() {
   }
   if (ui.validatedDriverEmployee && ui.validatedDriverEmployee !== driver.employeeNumber) clearDriverDerivedStateIfChanged(driver.employeeNumber);
   ui.validatedDriverEmployee = driver.employeeNumber;
+  if (ui.driverEntryMethod !== "manual") ui.driverEntryMethod = "scan";
   updateDriverStatus();
   showWizardStep(1);
 }
@@ -798,6 +828,7 @@ function validateBarcodeStep() {
     shake(el.barcodeInput);
     return;
   }
+  if (ui.vehicleEntryMethod !== "manual") ui.vehicleEntryMethod = "scan";
   updateBarcodeStatus();
   showWizardStep(2);
 }
@@ -892,7 +923,11 @@ function readTransactionDraft() {
     return null;
   }
   if (!el.scannerLocation.value || !ui.direction) return null;
-  return { driver, vehicle, location: el.scannerLocation.value, direction: ui.direction, note: el.transactionNote.value.trim() };
+  if (!isNewEntryMethod(ui.driverEntryMethod) || !isNewEntryMethod(ui.vehicleEntryMethod)) {
+    setNotice("Driver and vehicle entry methods must be recorded before submitting.", "warning");
+    return null;
+  }
+  return { driver, vehicle, location: el.scannerLocation.value, direction: ui.direction, note: el.transactionNote.value.trim(), driverEntryMethod: ui.driverEntryMethod, vehicleEntryMethod: ui.vehicleEntryMethod };
 }
 
 function completeTransaction(draft) {
@@ -923,13 +958,15 @@ function completeTransaction(draft) {
     deviceAssignedLocation: device ? device.assignedLocation : "",
     workingLocation: draft.location,
     locationConfirmed: device ? (device.type === "Fixed" || state.floaterLocationConfirmed) : false,
-    barcodeEntryMethod: ui.barcodeEntryMethod
+    driverEntryMethod: draft.driverEntryMethod,
+    vehicleEntryMethod: draft.vehicleEntryMethod,
+    barcodeEntryMethod: draft.vehicleEntryMethod
   };
   if (device) { device.lastUsedAt = transaction.timestamp; device.lastTransactionLocation = draft.location; device.updatedAt = transaction.timestamp; }
   state.transactions.unshift(transaction);
   addAudit(
     draft.direction === "OUT" ? "out_transaction" : "in_transaction",
-    `Vehicle ${draft.direction} recorded for ${draft.driver.employeeNumber} / ${draft.vehicle.assignedBarcode}.`,
+    `Vehicle ${draft.direction} recorded for ${draft.driver.employeeNumber} / ${draft.vehicle.assignedBarcode}. Driver entry: ${entryMethodLabel(draft.driverEntryMethod)}; vehicle entry: ${entryMethodLabel(draft.vehicleEntryMethod)}.`,
     currentStationIdentity(),
     draft.location
   );
@@ -952,7 +989,8 @@ function showTransactionConfirmation(transaction) {
     ["Driver", `${transaction.driverEmployee} - ${transaction.driverName}`],
     ["Vehicle", `${transaction.vehicleBarcode || "No barcode"} - ${transaction.vin}${transaction.plate ? ` / ${transaction.plate}` : ""}`],
     ["Authorization", transaction.authorizationStatus],
-    ["Barcode entry", transaction.barcodeEntryMethod || "scanner"],
+    ["Driver entry", entryMethodLabel(transaction.driverEntryMethod)],
+    ["Vehicle entry", entryMethodLabel(transaction.vehicleEntryMethod)],
     ["Note", transaction.note || "-"]
   ]);
   if (ui.confirmationTimer) window.clearTimeout(ui.confirmationTimer);
@@ -1506,6 +1544,8 @@ function renderScanSummary() {
     ["Vehicle", vehicle ? `${vehicle.assignedBarcode} - ${vehicle.year} ${vehicle.make} ${vehicle.model} / ${vehicle.vin}${vehicle.plate ? ` / ${vehicle.plate}` : ""}` : "Awaiting barcode"],
     ["Barcode", vehicle ? vehicle.assignedBarcode : "Awaiting assigned barcode"],
     ["VIN", vehicle ? `${vehicle.vin}${vehicle.vin.length === 17 ? " (17 characters)" : ` (${vehicle.vin.length} characters - warning)`}` : "-"],
+    ["Driver entry", entryMethodLabel(ui.driverEntryMethod)],
+    ["Vehicle entry", entryMethodLabel(ui.vehicleEntryMethod)],
     ["Authorization", authorization]
   ]);
 }
@@ -1640,8 +1680,8 @@ function renderSearchResults() {
   const results = ui.searchResults || [];
   el.searchResultCount.textContent = results.length;
   el.searchResultsBody.innerHTML = results.length ? results.map((item) => `<tr>
-    <td>${formatTimestamp(item.timestamp)}</td><td><span class="movement-chip ${item.direction.toLowerCase()}">${item.direction}</span></td><td>${escapeHtml(item.driverEmployee)}</td><td>${escapeHtml(item.driverName)}</td><td class="mono">${escapeHtml(item.vehicleBarcode || "-")}</td><td class="mono">${escapeHtml(item.vin)}</td><td>${escapeHtml(item.plate || "-")}</td><td>${escapeHtml(item.location)}${isHistoricalOnlyLocation(item.location) ? ` <span class="status-badge inactive">History only</span>` : ""}</td><td><span class="status-badge ${item.authorizationStatus === "Authorized" ? "authorized" : "unauthorized"}">${escapeHtml(item.authorizationStatus)}</span></td><td>${escapeHtml(item.note || "-")}</td><td>${escapeHtml(item.submittedBy)}</td>
-  </tr>`).join("") : `<tr><td colspan="11" class="empty-cell">No transactions match these filters.</td></tr>`;
+    <td>${formatTimestamp(item.timestamp)}</td><td><span class="movement-chip ${item.direction.toLowerCase()}">${item.direction}</span></td><td>${escapeHtml(item.driverEmployee)}</td><td>${escapeHtml(item.driverName)}</td><td>${escapeHtml(entryMethodLabel(item.driverEntryMethod))}</td><td class="mono">${escapeHtml(item.vehicleBarcode || "-")}</td><td>${escapeHtml(entryMethodLabel(item.vehicleEntryMethod))}</td><td class="mono">${escapeHtml(item.vin)}</td><td>${escapeHtml(item.plate || "-")}</td><td>${escapeHtml(item.location)}${isHistoricalOnlyLocation(item.location) ? ` <span class="status-badge inactive">History only</span>` : ""}</td><td><span class="status-badge ${item.authorizationStatus === "Authorized" ? "authorized" : "unauthorized"}">${escapeHtml(item.authorizationStatus)}</span></td><td>${escapeHtml(item.note || "-")}</td><td>${escapeHtml(item.submittedBy)}</td>
+  </tr>`).join("") : `<tr><td colspan="13" class="empty-cell">No transactions match these filters.</td></tr>`;
 }
 
 function isHistoricalOnlyLocation(locationName) {
