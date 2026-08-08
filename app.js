@@ -63,7 +63,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (!storageAvailable) {
     setSaveStatus("Not saved (storage unavailable)");
     el.saveStatus.classList.add("warn");
-    setNotice("This browser blocks local storage. The prototype still works for this session, but data will not persist after reload.", "warning");
+    setNotice("This browser blocks local storage. The application still works for this session, but data will not persist after reload.", "warning");
   }
 
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
@@ -209,7 +209,7 @@ function bindEvents() {
     renderSearchResults();
   });
   el.clearSearchButton.addEventListener("click", clearSearch);
-  el.resetDemoButton.addEventListener("click", resetDemo);
+  if (el.resetDemoButton) el.resetDemoButton.addEventListener("click", resetDemo);
   window.addEventListener("online", renderConnectivityStatus);
   window.addEventListener("offline", renderConnectivityStatus);
 }
@@ -516,14 +516,14 @@ function populateLocationControls() {
   const selectedSearchLocation = el.filterLocation.value;
   el.scannerLocation.innerHTML = scannerChoices.map((location) => optionHtml(location.name, location.name === selectedScannerLocation)).join("");
   el.scannerLocation.disabled = Boolean(device);
-  el.filterLocation.innerHTML = `<option value="">All locations</option>${state.locations.map((location) => optionHtml(location.name, location.name === selectedSearchLocation)).join("")}`;
+  el.filterLocation.innerHTML = `<option value="">All locations</option>${state.locations.map((location) => optionHtml(location.name, location.name === selectedSearchLocation, location.historicalOnly ? `${location.name} (history only)` : location.name)).join("")}`;
   state.workingLocation = el.scannerLocation.value || scannerChoices[0].name;
   if (el.stationIdentity) el.stationIdentity.textContent = currentStationIdentity();
   if (el.currentDeviceLabel) el.currentDeviceLabel.textContent = device ? `${device.id} - ${device.type}` : "No device";
 }
 
-function optionHtml(value, selected) {
-  return `<option value="${escapeHtml(value)}"${selected ? " selected" : ""}>${escapeHtml(value)}</option>`;
+function optionHtml(value, selected, label = value) {
+  return `<option value="${escapeHtml(value)}"${selected ? " selected" : ""}>${escapeHtml(label)}</option>`;
 }
 
 function startFlow() {
@@ -587,6 +587,7 @@ function showWizardStep(step) {
   if (step === 0) el.driverInput.focus();
   if (step === 1) el.barcodeInput.focus();
   if (step === 2) el.directionOut.focus();
+  if (step === 3) el.submitTransactionButton.focus();
   renderScanDetails();
 }
 
@@ -687,7 +688,7 @@ function submitManualEmployee() {
   }
   const driver = findDriver(employeeNumber);
   if (!driver) {
-    el.manualEmployeeStatus.textContent = "Employee number was not found in the active demo roster.";
+    el.manualEmployeeStatus.textContent = "Employee number was not found in the active driver roster.";
     addAudit("manual_employee_rejected", `Manual employee-number entry rejected for ${employeeNumber}.`, currentStationIdentity(), el.scannerLocation.value);
     saveState();
     shake(el.manualEmployeeInput);
@@ -734,7 +735,7 @@ function submitManualBarcode() {
 function updateDriverStatus() {
   const driver = findDriver(el.driverInput.value);
   if (!driver) {
-    el.driverStatus.textContent = "Employee number not found in the active demo roster.";
+    el.driverStatus.textContent = "Employee number not found in the active driver roster.";
   } else {
     const auth = findActiveAuthorization(driver.employeeNumber);
     const license = licenseStatus(driver);
@@ -1269,7 +1270,7 @@ function saveVehicleForm(event) {
     addAudit("vehicle_created", `Vehicle ${vehicle.id} created.`, "Supervisor Console", "");
     addAudit("barcode_assigned", `Barcode ${vehicle.assignedBarcode} assigned to ${vehicle.id}.`, "Supervisor Console", "");
   }
-  if (fields.vin.length !== 17) el.vehicleFormStatus.textContent = "VIN saved with a non-17-character warning for prototype flexibility.";
+  if (fields.vin.length !== 17) el.vehicleFormStatus.textContent = "VIN saved with a non-17-character warning.";
   saveState(); closeVehicleModal(); renderAll();
 }
 
@@ -1531,7 +1532,7 @@ function renderConnectivityStatus() {
   if (!storageAvailable) el.lastSavedLocal.textContent = "Local save unavailable";
   else if (ui.lastSavedAt) el.lastSavedLocal.textContent = `Saved locally ${formatTime(ui.lastSavedAt)}`;
   else el.lastSavedLocal.textContent = "Saved locally";
-  el.syncQueueCount.textContent = "Sync queue: 0";
+  if (el.syncQueueCount) el.syncQueueCount.textContent = "Sync queue: 0";
 }
 
 function summaryRows(rows) {
@@ -1636,8 +1637,13 @@ function renderSearchResults() {
   const results = ui.searchResults || [];
   el.searchResultCount.textContent = results.length;
   el.searchResultsBody.innerHTML = results.length ? results.map((item) => `<tr>
-    <td>${formatTimestamp(item.timestamp)}</td><td><span class="movement-chip ${item.direction.toLowerCase()}">${item.direction}</span></td><td>${escapeHtml(item.driverEmployee)}</td><td>${escapeHtml(item.driverName)}</td><td class="mono">${escapeHtml(item.vehicleBarcode || "-")}</td><td class="mono">${escapeHtml(item.vin)}</td><td>${escapeHtml(item.plate || "-")}</td><td>${escapeHtml(item.location)}</td><td><span class="status-badge ${item.authorizationStatus === "Authorized" ? "authorized" : "unauthorized"}">${escapeHtml(item.authorizationStatus)}</span></td><td>${escapeHtml(item.note || "-")}</td><td>${escapeHtml(item.submittedBy)}</td>
+    <td>${formatTimestamp(item.timestamp)}</td><td><span class="movement-chip ${item.direction.toLowerCase()}">${item.direction}</span></td><td>${escapeHtml(item.driverEmployee)}</td><td>${escapeHtml(item.driverName)}</td><td class="mono">${escapeHtml(item.vehicleBarcode || "-")}</td><td class="mono">${escapeHtml(item.vin)}</td><td>${escapeHtml(item.plate || "-")}</td><td>${escapeHtml(item.location)}${isHistoricalOnlyLocation(item.location) ? ` <span class="status-badge inactive">History only</span>` : ""}</td><td><span class="status-badge ${item.authorizationStatus === "Authorized" ? "authorized" : "unauthorized"}">${escapeHtml(item.authorizationStatus)}</span></td><td>${escapeHtml(item.note || "-")}</td><td>${escapeHtml(item.submittedBy)}</td>
   </tr>`).join("") : `<tr><td colspan="11" class="empty-cell">No transactions match these filters.</td></tr>`;
+}
+
+function isHistoricalOnlyLocation(locationName) {
+  const location = state.locations.find((item) => item.name === locationName);
+  return Boolean(location && location.historicalOnly);
 }
 
 function resetDemo() {

@@ -299,6 +299,8 @@ tbody tr:last-child td { border-bottom: 0; }
 .dot.active { background: var(--green); }
 .wizard-step { display: grid; gap: 14px; padding: 16px; border: 1px solid var(--line); border-radius: 7px; background: #fff; box-shadow: 0 8px 18px rgb(20 35 31 / 7%); }
 .wizard-step .screen-subtitle { margin: -8px 0 0; }
+.wizard-actions { position: sticky; bottom: calc(8px + env(safe-area-inset-bottom)); z-index: 2; margin: 0 -8px -8px; padding: 10px 8px calc(8px + env(safe-area-inset-bottom)); background: linear-gradient(to bottom, rgb(255 255 255 / 88%), #fff 28%); }
+.button-row.wizard-actions { margin-top: 0; }
 .scan-group { display: grid; gap: 8px; }
 .demo-chip { border-radius: 999px; color: #164e77; background: #e7f0fb; border-color: #bfd3ec; }
 .summary-list { display: grid; gap: 7px; padding: 0; margin: 0; list-style: none; }
@@ -319,7 +321,10 @@ tbody tr:last-child td { border-bottom: 0; }
 
 @media (max-width: 760px) {
   .big-action-btn { min-height: 82px; }
-  .wizard-step { padding: 14px; }
+  .wizard-step { padding: 12px; gap: 11px; }
+  .wizard-step .screen-subtitle { margin-top: -6px; }
+  .wizard-actions { margin-inline: -6px; }
+  .wizard-step[data-step="3"] .summary-list li { grid-template-columns: 88px minmax(0, 1fr); align-items: start; gap: 8px; padding-block: 7px; }
 }
 
 /* V0.6 Supervisor and inventory review layout. */

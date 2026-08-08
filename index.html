@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#123b35">
-  <meta name="description" content="Lot Watch / GateFlow V0.7 scanner and device control review prototype for Zebra TC-series gate tracking.">
-  <title>Lot Watch / GateFlow V0.7 Review</title>
+  <meta name="description" content="Lot Watch / GateFlow V0.7 gate scanning and device controls.">
+  <title>Lot Watch / GateFlow V0.7</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
@@ -22,7 +22,7 @@
         </span>
         <span>
           <strong>Lot Watch / GateFlow</strong>
-          <span>V0.7 Scanner and device control review</span>
+          <span>V0.7 Gate operations</span>
         </span>
       </a>
 
@@ -34,7 +34,6 @@
 
       <div class="top-actions">
         <span class="save-pill" id="saveStatus"><span class="status-dot" aria-hidden="true"></span>Saved locally</span>
-        <button class="button secondary compact" id="resetDemoButton" type="button">Reset demo</button>
       </div>
     </header>
 
@@ -47,9 +46,9 @@
                 <p id="deviceClock">--:--</p>
                 <h1 id="scannerHeading">Lot Watch / GateFlow</h1>
               </div>
-              <div class="device-badges" aria-label="Scanner status">
-                <span>Zebra TC-series input</span>
-                <span>Scanner ready</span>
+              <div class="device-badges" aria-label="Scanner input mode">
+                <span>Keyboard-wedge input</span>
+                <span>Device assigned below</span>
               </div>
             </header>
 
@@ -59,15 +58,15 @@
               <div class="working-location-select"><label for="scannerLocation">Working Location</label><select id="scannerLocation" name="scannerLocation"></select></div>
               <div class="station-account"><span>Station account</span><strong id="stationIdentity">Division Street Scanner</strong></div>
               <div class="station-account"><span>Current device</span><strong id="currentDeviceLabel">DEV-DIV-01</strong><button class="table-action" id="deviceSetupButton" type="button">Device setup</button></div>
-              <div class="connectivity-strip" aria-label="Prototype connectivity status">
-                <span id="onlineStatus">Online</span><span id="lastSavedLocal">Saved locally</span><span id="syncQueueCount">Sync queue: 0</span><span>5G / Wi-Fi: future</span>
+              <div class="connectivity-strip" aria-label="Connection and save status">
+                <span id="onlineStatus">Online</span><span id="lastSavedLocal">Saved locally</span>
               </div>
             </section>
 
             <div class="scanner-stage">
               <section class="scanner-screen" id="scannerHome">
                 <p class="screen-title">Gate Scanner</p>
-                <p class="screen-subtitle">Scan the driver, scan the vehicle barcode, then choose the vehicle movement.</p>
+                <p class="screen-subtitle">Complete four guided steps to record a vehicle movement.</p>
                 <div class="home-actions">
                   <button class="big-action-btn start" id="startScanButton" type="button"><span aria-hidden="true">SCAN</span>Start vehicle scan</button>
                 </div>
@@ -85,30 +84,28 @@
               <section class="scanner-screen hidden" id="scanWizard">
                 <button class="button ghost compact" id="flowCancel" type="button">Back to home</button>
                 <div class="progress-dots" id="wizardDots" aria-label="Transaction progress">
-                  <span class="dot active"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                  <span class="dot active" aria-label="Step 1 of 4"></span><span class="dot" aria-label="Step 2 of 4"></span><span class="dot" aria-label="Step 3 of 4"></span><span class="dot" aria-label="Step 4 of 4"></span>
                 </div>
 
                 <div class="wizard-step" data-step="0">
                   <p class="screen-title">Driver Employee #</p>
-                  <p class="screen-subtitle">Step 1 of 3. Scan or enter the driver employee number. The EMP- prefix is optional.</p>
+                  <p class="screen-subtitle">Step 1 of 4. Scan or enter the driver employee number. The EMP- prefix is optional.</p>
                   <div class="scan-group">
                     <label for="driverInput">Driver Employee #</label>
                     <div class="scan-input single"><input id="driverInput" name="driverInput" autocomplete="off" inputmode="text" placeholder="Scan or enter employee #, e.g. 1001"></div>
                     <button class="button secondary full manual-entry-trigger" id="openManualEmployeeButton" type="button">Enter Employee Number Manually</button>
-                    <div class="demo-row"><button class="demo-chip" type="button" data-demo-field="driverInput" data-demo-value="EMP-1001">EMP-1001 OK</button><button class="demo-chip" type="button" data-demo-field="driverInput" data-demo-value="EMP-1003">EMP-1003 review</button></div>
                     <p class="field-status" id="driverStatus">Awaiting employee number scan.</p>
                   </div>
-                  <button class="button primary full" id="driverNext" type="button">Continue to vehicle barcode</button>
+                  <div class="wizard-actions"><button class="button primary full" id="driverNext" type="button">Continue to vehicle barcode</button></div>
                 </div>
 
                 <div class="wizard-step hidden" data-step="1">
                   <p class="screen-title">Vehicle Barcode</p>
-                  <p class="screen-subtitle">Step 2 of 3. Scan the assigned vehicle barcode or enter it manually.</p>
+                  <p class="screen-subtitle">Step 2 of 4. Scan the assigned vehicle barcode or enter it manually.</p>
                   <div class="scan-group">
                     <label for="barcodeInput">Vehicle Barcode</label>
                     <div class="scan-input single"><input id="barcodeInput" name="barcodeInput" autocomplete="off" inputmode="text" placeholder="Scan assigned vehicle barcode"></div>
                     <button class="button secondary full manual-entry-trigger" id="openManualBarcodeButton" type="button">Enter Barcode Manually</button>
-                    <div class="demo-row"><button class="demo-chip" type="button" data-demo-field="barcodeInput" data-demo-value="GFV-0001">GFV-0001</button><button class="demo-chip" type="button" data-demo-field="barcodeInput" data-demo-value="GFV-0003">GFV-0003</button></div>
                     <p class="field-status" id="barcodeStatus">Awaiting vehicle barcode scan.</p>
                   </div>
                   <div class="button-row"><button class="button secondary" id="barcodeBack" type="button">Back</button><button class="button primary" id="barcodeNext" type="button">Choose movement</button></div>
@@ -116,17 +113,17 @@
 
                 <div class="wizard-step hidden" data-step="2">
                   <p class="screen-title">Choose movement</p>
-                  <p class="screen-subtitle">Step 3 of 3. Select the vehicle direction after the barcode lookup.</p>
+                  <p class="screen-subtitle">Step 3 of 4. Select the vehicle direction after the barcode lookup.</p>
                   <div class="home-actions"><button class="big-action-btn out" id="directionOut" type="button"><span aria-hidden="true">OUT</span>Vehicle OUT</button><button class="big-action-btn in" id="directionIn" type="button"><span aria-hidden="true">IN</span>Vehicle IN</button></div>
                   <button class="button secondary full" id="movementBack" type="button">Back to barcode</button>
                 </div>
 
                 <div class="wizard-step hidden" data-step="3">
                   <p class="screen-title" id="reviewStepTitle">Review movement</p>
-                  <p class="screen-subtitle">Add a note only when needed, then submit.</p>
+                  <p class="screen-subtitle">Step 4 of 4. Review the movement, add a note only when needed, then submit.</p>
                   <div class="form-row"><label for="transactionNote">Optional note</label><textarea id="transactionNote" name="transactionNote" rows="2" placeholder="Optional guard note"></textarea></div>
                   <ul class="summary-list" id="scanSummary"></ul>
-                  <div class="button-row"><button class="button secondary" id="reviewBack" type="button">Back</button><button class="button primary" id="submitTransactionButton" type="button">Submit movement</button></div>
+                  <div class="button-row wizard-actions"><button class="button secondary" id="reviewBack" type="button">Back</button><button class="button primary" id="submitTransactionButton" type="button">Submit movement</button></div>
                 </div>
               </section>
 
@@ -137,7 +134,6 @@
                   <p id="supervisorReason">This driver is not authorized for this movement.</p>
                   <label for="supervisorInput">Supervisor ID</label>
                   <div class="scan-input single"><input id="supervisorInput" name="supervisorInput" autocomplete="off" inputmode="text" placeholder="Scan or enter supervisor ID"></div>
-                  <div class="demo-row"><button class="demo-chip" type="button" data-demo-field="supervisorInput" data-demo-value="SUP-1001">SUP-1001</button><button class="demo-chip" type="button" data-demo-field="supervisorInput" data-demo-value="SUP-BAD">Invalid</button></div>
                   <p class="field-status" id="supervisorStatus">Awaiting a valid supervisor ID.</p>
                   <label for="supervisorDuration">Temporary authorization</label>
                   <input id="supervisorDuration" type="hidden" value="9_hours"><p class="field-status">Fleet Lead authorization is fixed at 9 hours.</p>
@@ -152,10 +148,6 @@
                 </div>
               </section>
 
-              <details class="scanner-test-panel" id="scannerInputTest">
-                <summary>Scanner input test</summary>
-                <dl><div><dt>Last raw scan value</dt><dd id="lastRawScan">No scan received</dd></div><div><dt>Receiving field</dt><dd id="lastScanField">-</dd></div><div><dt>Enter / Tab detected</dt><dd id="scanTerminator">No</dd></div></dl>
-              </details>
             </div>
           </section>
 
@@ -173,7 +165,7 @@
             </section>
             <section class="context-section scanner-note">
               <p class="eyebrow">Scanner input</p>
-              <p>Normal text inputs simulate Zebra keyboard-wedge scans. No Zebra hardware is required for this prototype.</p>
+              <p>Input fields accept typing and compatible keyboard-wedge scans. Hardware connection status is not reported on this screen.</p>
             </section>
           </aside>
         </div>
@@ -184,7 +176,7 @@
           <div>
             <p class="eyebrow">Supervisor control</p>
             <h1 id="supervisorViewHeading">Drivers, authorizations, vehicles, and devices</h1>
-            <p>Manage the shared gate roster and vehicle inventory. This remains a local browser review prototype, not secure production access control.</p>
+            <p>Manage the gate roster, temporary authorizations, vehicle inventory, and assigned devices.</p>
           </div>
         </div>
         <div class="supervisor-tabs" role="tablist" aria-label="Supervisor sections">
@@ -249,7 +241,7 @@
           <section class="panel">
             <p class="eyebrow">Users</p>
             <h2>Future role-based permissions</h2>
-            <p>Owner / System Administrator may assign any role, including Manager. A Manager may manage Supervisor and Scanner User accounts but cannot create or promote a Manager. This static prototype is a role simulation only; real enforcement requires backend authentication and server/API/database authorization.</p>
+            <p>Owner / System Administrator may assign any role, including Manager. A Manager may manage Supervisor and Scanner User accounts but cannot create or promote a Manager. These interface permissions are not production access control; production enforcement requires authenticated server, API, and database authorization.</p>
           </section>
           <section class="panel">
             <p class="eyebrow">Label printer</p>
