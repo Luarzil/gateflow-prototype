@@ -48,6 +48,11 @@ The media package is stored under `docs/media/`:
 - `gateflow-v07-demo-audio.wav` - narration audio file.
 - `gateflow-v07-demo.html` - fallback walkthrough page with the demo frames, captions, and audio.
 
+## Vercel Review Links
+
+- App: https://gateflow-prototype-git-c-0e719a-raul-hernandez-watchdesk-github.vercel.app/?_vercel_share=R7SZutlcUR531fPc8nbh0K4ApNCQu2s2
+- Walkthrough: https://gateflow-prototype-git-c-0e719a-raul-hernandez-watchdesk-github.vercel.app/docs/media/gateflow-v07-demo.html?_vercel_share=R7SZutlcUR531fPc8nbh0K4ApNCQu2s2
+
 ## Release Boundary
 
 This prototype uses browser local storage. It is not production security, not a shared AWS-backed system, and not a final scanner-device integration.

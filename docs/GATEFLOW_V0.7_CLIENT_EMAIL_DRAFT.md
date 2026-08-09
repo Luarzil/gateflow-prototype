@@ -36,7 +36,11 @@ For review, try this path:
 
 Review link:
 
-[ADD VERCEL LINK HERE]
+[GateFlow V0.7 review prototype](https://gateflow-prototype-git-c-0e719a-raul-hernandez-watchdesk-github.vercel.app/?_vercel_share=R7SZutlcUR531fPc8nbh0K4ApNCQu2s2)
+
+Walkthrough:
+
+[GateFlow V0.7 scanner walkthrough](https://gateflow-prototype-git-c-0e719a-raul-hernandez-watchdesk-github.vercel.app/docs/media/gateflow-v07-demo.html?_vercel_share=R7SZutlcUR531fPc8nbh0K4ApNCQu2s2)
 
 I also attached the short walkthrough video and the V0.7 operator manual so the scanner flow can be reviewed without reading through all implementation notes.
 
