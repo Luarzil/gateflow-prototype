@@ -50,10 +50,10 @@ The media package is stored under `docs/media/`:
 
 ## Vercel Review Links
 
-- App: https://gateflow-prototype-p5q4t7hni-raul-hernandez-watchdesk-github.vercel.app/?_vercel_share=72SBJ5zlr5eU8SO3Xj8ADiSssWDdtDd6
-- Walkthrough: https://gateflow-prototype-p5q4t7hni-raul-hernandez-watchdesk-github.vercel.app/docs/media/gateflow-v07-demo.html?_vercel_share=72SBJ5zlr5eU8SO3Xj8ADiSssWDdtDd6
+- App: https://gateflow-prototype-mjtk24k6h-raul-hernandez-watchdesk-github.vercel.app/?_vercel_share=d6SgMlrg4f8O0bPLkK2TVhZyoiCWFgvO
+- Walkthrough: https://gateflow-prototype-mjtk24k6h-raul-hernandez-watchdesk-github.vercel.app/docs/media/gateflow-v07-demo.html?_vercel_share=d6SgMlrg4f8O0bPLkK2TVhZyoiCWFgvO
 
-The Vercel share token expires on August 10, 2026 at 7:57 PM America/New_York. Production promotion is the path to a permanent public URL.
+The Vercel share token expires on August 10, 2026 at 8:13 PM America/New_York. Production promotion is the path to a permanent public URL.
 
 ## Release Boundary
 

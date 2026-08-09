@@ -36,11 +36,11 @@ For review, try this path:
 
 Review link:
 
-[GateFlow V0.7 review prototype](https://gateflow-prototype-p5q4t7hni-raul-hernandez-watchdesk-github.vercel.app/?_vercel_share=72SBJ5zlr5eU8SO3Xj8ADiSssWDdtDd6)
+[GateFlow V0.7 review prototype](https://gateflow-prototype-mjtk24k6h-raul-hernandez-watchdesk-github.vercel.app/?_vercel_share=d6SgMlrg4f8O0bPLkK2TVhZyoiCWFgvO)
 
 Walkthrough:
 
-[GateFlow V0.7 full walkthrough](https://gateflow-prototype-p5q4t7hni-raul-hernandez-watchdesk-github.vercel.app/docs/media/gateflow-v07-demo.html?_vercel_share=72SBJ5zlr5eU8SO3Xj8ADiSssWDdtDd6)
+[GateFlow V0.7 full walkthrough](https://gateflow-prototype-mjtk24k6h-raul-hernandez-watchdesk-github.vercel.app/docs/media/gateflow-v07-demo.html?_vercel_share=d6SgMlrg4f8O0bPLkK2TVhZyoiCWFgvO)
 
 I also attached the full walkthrough video and the V0.7 operator manual so the scanner, Supervisor pages, Search, Feedback, and known prototype limits can be reviewed without reading through all implementation notes.
 
