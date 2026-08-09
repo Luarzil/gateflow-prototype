@@ -319,7 +319,7 @@
       for (let i = 0; i < bytes.length; i += chunkSize) {
         binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
       }
-      return { mimeType, size: bytes.length, base64: btoa(binary) };
+      return { mimeType, size: bytes.length, durationMs: slides.reduce((sum, slide) => sum + slide.duration, 0), base64: btoa(binary) };
     }
   </script>
 </body>

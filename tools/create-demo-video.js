@@ -169,6 +169,33 @@ const slides = [
   }
 ];
 
+function wavDurationMs(filename) {
+  const buffer = fs.readFileSync(filename);
+  const sampleRate = buffer.readUInt32LE(24);
+  const channels = buffer.readUInt16LE(22);
+  const bitsPerSample = buffer.readUInt16LE(34);
+  let offset = 12;
+  while (offset + 8 <= buffer.length) {
+    const chunkId = buffer.subarray(offset, offset + 4).toString("ascii");
+    const chunkSize = buffer.readUInt32LE(offset + 4);
+    if (chunkId === "data") {
+      return Math.ceil((chunkSize / (sampleRate * channels * (bitsPerSample / 8))) * 1000);
+    }
+    offset += 8 + chunkSize;
+  }
+  throw new Error(`Could not find WAV data chunk in ${filename}`);
+}
+
+function fitSlidesToAudio(sourceSlides, audioMs) {
+  const baseMs = sourceSlides.reduce((sum, slide) => sum + slide.duration, 0);
+  const targetMs = Math.max(baseMs, audioMs + 3000);
+  const scale = targetMs / baseMs;
+  return sourceSlides.map((slide) => ({
+    ...slide,
+    duration: Math.ceil(slide.duration * scale)
+  }));
+}
+
 function freePort() {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -377,15 +404,15 @@ $synth.Dispose()
   if (result.status !== 0) throw new Error(result.stderr || "Speech synthesis failed");
 }
 
-async function createWebm(cdp, appUrl) {
+async function createWebm(cdp, appUrl, timelineSlides) {
   await cdp.send("Page.navigate", { url: `${appUrl}docs/media/gateflow-v07-demo.html?record=1` });
   await waitForReady(cdp);
-  const result = await evaluate(cdp, `recordGateFlowDemo(${JSON.stringify(slides)})`);
+  const result = await evaluate(cdp, `recordGateFlowDemo(${JSON.stringify(timelineSlides)})`);
   fs.writeFileSync(videoPath, Buffer.from(result.base64, "base64"));
   return result;
 }
 
-function writeFallbackHtml() {
+function writeFallbackHtml(timelineSlides) {
   const slidesMarkup = slides.map((slide, index) => `
       <section class="slide">
         <img src="gateflow-v07-demo-frames/${slide.file}" alt="${slide.title}">
@@ -517,7 +544,7 @@ function writeFallbackHtml() {
       for (let i = 0; i < bytes.length; i += chunkSize) {
         binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
       }
-      return { mimeType, size: bytes.length, base64: btoa(binary) };
+      return { mimeType, size: bytes.length, durationMs: slides.reduce((sum, slide) => sum + slide.duration, 0), base64: btoa(binary) };
     }
   `;
   const html = `<!doctype html>
@@ -561,7 +588,9 @@ async function main() {
   fs.mkdirSync(frameDir, { recursive: true });
   for (const file of fs.readdirSync(frameDir)) fs.rmSync(path.join(frameDir, file), { force: true });
   createNarration();
-  writeFallbackHtml();
+  const audioMs = wavDurationMs(audioPath);
+  const timelineSlides = fitSlidesToAudio(slides, audioMs);
+  writeFallbackHtml(timelineSlides);
 
   const webPort = await freePort();
   const debugPort = await freePort();
@@ -587,8 +616,18 @@ async function main() {
     await cdp.send("Runtime.enable");
     const appUrl = `http://127.0.0.1:${webPort}/`;
     await captureFrames(cdp, appUrl);
-    const video = await createWebm(cdp, appUrl);
-    console.log(JSON.stringify({ audio: audioPath, video: videoPath, html: htmlPath, slides: slides.length, voice: voiceName, videoMimeType: video.mimeType, videoBytes: video.size }, null, 2));
+    const video = await createWebm(cdp, appUrl, timelineSlides);
+    console.log(JSON.stringify({
+      audio: audioPath,
+      video: videoPath,
+      html: htmlPath,
+      slides: slides.length,
+      voice: voiceName,
+      audioSeconds: Math.round(audioMs / 10) / 100,
+      plannedVideoSeconds: Math.round(video.durationMs / 10) / 100,
+      videoMimeType: video.mimeType,
+      videoBytes: video.size
+    }, null, 2));
   } finally {
     if (cdp) cdp.close();
     if (process.platform === "win32") {
