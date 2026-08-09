@@ -18,6 +18,7 @@ Main changes:
 - Scanner feedback and Supervisor feedback were added. For this prototype, feedback stays local in the browser.
 - Vehicle OUT is still blocked for unauthorized drivers until a supervisor grants the fixed 9-hour temporary authorization.
 - The scan review page now shows only the operational items: movement, location, driver, vehicle, and authorization.
+- The visual palette has been updated to an Enterprise-style green treatment for the Lot Watch / GateFlow review build.
 
 I also fixed two problems found during testing:
 
@@ -36,12 +37,14 @@ For review, try this path:
 
 Review link:
 
-[GateFlow V0.7 review prototype](https://gateflow-prototype-mjtk24k6h-raul-hernandez-watchdesk-github.vercel.app/?_vercel_share=d6SgMlrg4f8O0bPLkK2TVhZyoiCWFgvO)
+[GateFlow V0.7 review prototype - paste latest verified Vercel review link here]
 
 Walkthrough:
 
-[GateFlow V0.7 full walkthrough](https://gateflow-prototype-mjtk24k6h-raul-hernandez-watchdesk-github.vercel.app/docs/media/gateflow-v07-demo.html?_vercel_share=d6SgMlrg4f8O0bPLkK2TVhZyoiCWFgvO)
+[GateFlow V0.7 full walkthrough - paste latest verified Vercel walkthrough link here]
 
-I also attached the full walkthrough video and the V0.7 operator manual so the scanner, Supervisor pages, Search, Feedback, and known prototype limits can be reviewed without reading through all implementation notes.
+I also attached the full walkthrough video, the V0.7 operator manual, and the packaged review bundle so the scanner, Supervisor pages, Search, Feedback, and known prototype limits can be reviewed without reading through all implementation notes.
+
+Note: the protected Vercel review links are temporary. If you need a non-expiring link, we can promote the verified build to the public production URL after approval.
 
 This is still a browser-local review prototype. It does not yet include the shared AWS backend, real authentication, shared multi-device data, barcode printing, or final Android scanner integration.

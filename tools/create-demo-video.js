@@ -477,7 +477,7 @@ function writeFallbackHtml(timelineSlides) {
       const drawSlide = (slide, image, index, progress) => {
         ctx.fillStyle = '#f4f7f4';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#0f3f36';
+        ctx.fillStyle = '#169A5A';
         ctx.fillRect(0, 0, canvas.width, 78);
         ctx.fillStyle = '#ffffff';
         ctx.font = '700 30px Arial';
@@ -490,11 +490,11 @@ function writeFallbackHtml(timelineSlides) {
           const phoneW = Math.round(image.width * (phoneH / image.height));
           const phoneX = 82;
           const phoneY = 112;
-          ctx.fillStyle = '#10241f';
+          ctx.fillStyle = '#004B2E';
           roundRect(phoneX - 14, phoneY - 14, phoneW + 28, phoneH + 28, 26);
           ctx.fill();
           ctx.drawImage(image, phoneX, phoneY, phoneW, phoneH);
-          ctx.fillStyle = '#10241f';
+          ctx.fillStyle = '#004B2E';
           ctx.font = '700 42px Arial';
           ctx.fillText(slide.title, 565, 194);
           ctx.fillStyle = '#30423c';
@@ -505,11 +505,11 @@ function writeFallbackHtml(timelineSlides) {
           const shotH = Math.round(image.height * (shotW / image.width));
           const shotX = 42;
           const shotY = 122;
-          ctx.fillStyle = '#10241f';
+          ctx.fillStyle = '#004B2E';
           roundRect(shotX - 10, shotY - 10, shotW + 20, shotH + 20, 16);
           ctx.fill();
           ctx.drawImage(image, shotX, shotY, shotW, shotH);
-          ctx.fillStyle = '#10241f';
+          ctx.fillStyle = '#004B2E';
           ctx.font = '700 38px Arial';
           ctx.fillText(slide.title, 850, 186);
           ctx.fillStyle = '#30423c';
@@ -520,7 +520,7 @@ function writeFallbackHtml(timelineSlides) {
         ctx.fillStyle = '#647b75';
         ctx.font = '18px Arial';
         ctx.fillText('Step ' + (index + 1) + ' of ' + slides.length, 40, 694);
-        ctx.fillStyle = '#0a7d68';
+        ctx.fillStyle = '#169A5A';
         ctx.fillRect(160, 681, Math.round(960 * progress), 10);
         ctx.fillStyle = '#cbd9d5';
         ctx.fillRect(160 + Math.round(960 * progress), 681, Math.round(960 * (1 - progress)), 10);
@@ -555,14 +555,14 @@ function writeFallbackHtml(timelineSlides) {
   <title>GateFlow V0.7 Full Walkthrough</title>
   <style>
     body { margin: 0; font-family: Arial, sans-serif; color: #10241f; background: #f4f7f4; }
-    header { background: #0f3f36; color: white; padding: 22px; }
+    header { background: #169A5A; color: white; padding: 22px; }
     main { max-width: 1120px; margin: 0 auto; padding: 24px; }
     video, audio { width: 100%; margin: 16px 0; }
     .slide { display: grid; grid-template-columns: minmax(280px, 560px) 1fr; gap: 24px; padding: 20px 0; border-top: 1px solid #cbd9d5; align-items: center; }
     .slide img { width: 100%; border: 1px solid #aebfba; border-radius: 8px; background: white; }
     .slide h2 { margin: 0 0 8px; font-size: 24px; }
     .slide p { margin: 0; font-size: 17px; line-height: 1.5; }
-    .slide .step { color: #0a7d68; font-weight: 700; text-transform: uppercase; font-size: 12px; letter-spacing: .04em; margin-bottom: 8px; }
+    .slide .step { color: #169A5A; font-weight: 700; text-transform: uppercase; font-size: 12px; letter-spacing: .04em; margin-bottom: 8px; }
     @media (max-width: 760px) { .slide { grid-template-columns: 1fr; } }
   </style>
 </head>

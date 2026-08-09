@@ -94,7 +94,7 @@ const cases = [
   ["76 users can be added", includes(app, "function saveDesktopUser")],
   ["77 Device setup is Supervisor-only", includes(html, 'id="openDeviceSetupButton"')],
   ["78 current scanner setup remains outside scanning", includes(html, "outside the scan workflow")],
-  ["79 service worker cache version changes", includes(worker, "v0.7-call-updates-static")],
+  ["79 service worker cache version changes", includes(worker, "v0.7-enterprise-green-static")],
   ["80 mobile safe-area action styling remains", includes(css, "safe-area-inset-bottom")],
   ["81 mobile action dock remains fixed", matches(css, /\.wizard-actions \{ position: fixed/)],
   ["82 README records the AWS read-only boundary", includes(readme, "read-only account and resource inventory")],

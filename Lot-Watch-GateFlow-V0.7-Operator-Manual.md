@@ -258,6 +258,7 @@ Both are local-only in V0.7. Shared feedback delivery is part of the future back
 - Review movement was reduced to five operational lines.
 - Invalid-to-valid barcode recovery now clears stale red warnings.
 - Temporary supervisor approval now accepts normalized supervisor IDs and advances back to review.
+- The app shell, scanner controls, install metadata, icon, and walkthrough media now use the requested Enterprise-style green treatment.
 
 ## Known Prototype Boundaries
 
@@ -286,6 +287,7 @@ The V0.7 branch includes:
 - an 84-case V0.7 contract/release-gate suite;
 - a Chrome browser regression test for the high-risk scanner paths;
 - generated walkthrough media;
+- packaged review ZIP;
 - this operator manual;
 - a release packet;
 - a client email draft.

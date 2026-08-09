@@ -2,6 +2,8 @@
 
 Static HTML, CSS, and JavaScript PWA prototype for gate operations. This update keeps the scanner focused on recording an IN or OUT movement and moves device selection to Supervisor controls.
 
+The current review build uses an Enterprise-style green palette for Lot Watch / GateFlow controls, headers, app theme metadata, icon artwork, and walkthrough media.
+
 ## Run locally
 
 Open `index.html` for a quick review, or serve the repository for service-worker and offline behavior:
@@ -63,11 +65,13 @@ The first command contains exactly 84 named V0.7 checks. The browser check drive
 ## Patrick review packet
 
 - `Lot-Watch-GateFlow-V0.7-Operator-Manual.md`: Patrick-facing operator manual.
+- `Lot-Watch-GateFlow-V0.7-Call-Update-Guide.md`: change-focused V0.7 call update guide.
 - `docs/GATEFLOW_V0.7_RELEASE_PACKET.md`: scope, changes, validation evidence, and rollback.
 - `docs/GATEFLOW_V0.7_CLIENT_EMAIL_DRAFT.md`: draft client email for approval before sending.
 - `docs/media/gateflow-v07-demo.html`: full walkthrough page with video, narration audio, and captured scanner/Supervisor/Search frames.
 - `docs/media/gateflow-v07-demo.webm`: browser-recorded 19-step walkthrough video.
 - `docs/media/gateflow-v07-demo-audio.wav`: female narration audio generated with Microsoft Zira.
+- `dist/GateFlow-V0.7-Patrick-Review-Package.zip`: packaged review bundle containing the app files, manual, release packet, email draft, and walkthrough media.
 
 ## Prototype boundaries
 
