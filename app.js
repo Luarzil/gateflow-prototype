@@ -1,25 +1,21 @@
 "use strict";
 
 /*
-  Lot Watch / GateFlow V0.7 Scanner and device control review prototype notes:
-  - This is still a static HTML/CSS/JS prototype. It uses normal focused text inputs
-    so typed values and future Zebra DataWedge keyboard-wedge scans exercise the same
-    validation flow.
-  - A production Zebra TC-series build may use DataWedge profile output, Android
-    Intents, Zebra Enterprise Browser, or a native Android/EMDK wrapper to call the
-    same driver/vehicle-barcode/supervisor transaction rules.
+  Lot Watch / GateFlow V0.7 review prototype notes:
+  - This is still a static HTML/CSS/JS prototype. Typed and scanned values use the
+    same validation path without presenting a hardware-specific input mode.
   - Production needs customer-owned or customer-approved hosted data storage
     (Postgres, Supabase/Postgres, or enterprise-hosted database), server-side role
     enforcement, reversible migrations, audit immutability, and offline sync queues.
   - Scanner users, Supervisors, Managers, and Owner/System Administrators are shown
     here as UI/business-rule placeholders only. No real authentication is included.
-  - TODO: Individual operator identification is a future requirement. A station identity
-    identifies the device/location only; it is not individual accountability.
+  - Individual operator identification and authentication remain future backend work.
   - Photo capture is intentionally not included because the client said photos are
     not needed for this workflow.
 */
 
 const STORAGE_KEY = "lot-watch.gateflow.v0.7.state";
+const PRE_CALL_MIGRATION_BACKUP_KEY = "lot-watch.gateflow.v0.7.pre-call-migration";
 const V06_STORAGE_KEY = "lot-watch.gateflow.v0.6.state";
 const V05_STORAGE_KEY = "lot-watch.gateflow.v0.5.state";
 const LEGACY_STORAGE_KEY = "lot-watch.gateflow.v0.4.state";
@@ -49,7 +45,8 @@ const ui = {
   vehicleEntryMethod: null,
   confirmationTimer: null,
   profileEmployee: "",
-  validatedDriverEmployee: ""
+  validatedDriverEmployee: "",
+  feedbackSurface: "scanner"
 };
 
 const state = loadState();
@@ -64,48 +61,39 @@ document.addEventListener("DOMContentLoaded", () => {
   setInterval(updateClock, 30000);
 
   if (!storageAvailable) {
-    setSaveStatus("Not saved (storage unavailable)");
-    el.saveStatus.classList.add("warn");
     setNotice("This browser blocks local storage. The application still works for this session, but data will not persist after reload.", "warning");
   }
 
-  if ("serviceWorker" in navigator && location.protocol !== "file:") {
-    navigator.serviceWorker.register("service-worker.js").catch(() => setSaveStatus("Offline cache unavailable"));
-  }
+  if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("service-worker.js").catch(() => {});
 });
 
 function cacheElements() {
   [
-    "saveStatus", "resetDemoButton", "deviceClock", "scannerHeading", "scannerNotice",
+    "resetDemoButton", "deviceClock", "scannerHeading", "scannerNotice",
     "scannerHome", "scanWizard", "supervisorPanel", "transactionConfirmation", "startScanButton",
     "flowCancel", "wizardDots", "scannerLocation", "driverInput", "driverStatus", "driverNext", "barcodeInput",
     "barcodeStatus", "barcodeBack", "barcodeNext", "transactionNote", "reviewStepTitle", "reviewBack",
     "scanSummary", "submitTransactionButton", "supervisorReason", "supervisorInput",
     "supervisorStatus", "cancelSupervisorButton", "approveSupervisorButton", "confirmationTitle",
-    "confirmationSummary", "confirmationDoneButton", "gateMiniFeed", "currentScanTitle",
-    "scanDetailList", "todayOutCount", "todayInCount", "todayBlockCount", "contextOutCount",
-    "contextInCount", "contextBlockCount", "contextAuthorizedCount",
+    "confirmationSummary", "confirmationDoneButton", "gateMiniFeed", "todayOutCount", "todayInCount", "todayBlockCount",
     "adminAuthorizedCount", "authorizedDriversBody", "driversTableBody", "licenseWarningBody",
     "deauthorizeAllButton", "locationList", "searchForm", "filterVehicle",
     "filterDriver", "filterLocation", "filterDate", "filterType", "clearSearchButton",
     "searchResultCount", "searchResultsBody",
-    "directionOut", "directionIn", "movementBack", "onlineStatus", "lastSavedLocal",
-    "syncQueueCount", "lastRawScan", "lastScanField", "scanTerminator",
-    "openManualEmployeeButton", "manualEmployeeModal", "manualEmployeeInput", "manualEmployeeStatus",
-    "submitManualEmployeeButton", "closeManualEmployeeButton", "cancelManualEmployeeButton",
+    "directionOut", "directionIn", "movementBack",
     "driverRosterSearch", "authorizationDuration", "bulkAuthorizeButton",
     "license30Count", "license15Count", "license5Count", "licenseExpiredCount", "bulkActionStatus",
-    "stationIdentity", "supervisorDuration", "addDriverButton", "driverModal", "driverForm",
+    "supervisorDuration", "addDriverButton", "driverModal", "driverForm",
     "driverEditEmployee", "driverEmployeeNumber", "driverName", "driverLicenseExpires", "driverActive",
     "driverEmployeeError", "driverNameError", "driverLicenseError", "closeDriverModalButton", "cancelDriverButton",
     "addVehicleButton", "vehicleSearch", "vehicleStatusFilter", "vehiclesTableBody", "vehicleModal", "vehicleForm",
     "vehicleEditId", "vehicleMake", "vehicleModel", "vehicleYear", "vehicleColor", "vehicleVin", "vehicleBarcode",
     "vehiclePlate", "vehicleActive", "vehicleMakeError", "vehicleModelError", "vehicleYearError", "vehicleColorError",
     "vehicleVinError", "vehicleBarcodeError", "vehicleFormStatus", "closeVehicleModalButton", "cancelVehicleButton",
-    "openManualBarcodeButton", "manualBarcodeModal", "manualBarcodeInput", "manualBarcodeStatus", "submitManualBarcodeButton", "closeManualBarcodeButton", "cancelManualBarcodeButton",
-    "currentDeviceLabel", "deviceSetupButton", "deviceSetupModal", "closeDeviceSetupButton", "currentDeviceSelect", "floaterLocationFields", "floaterLocationSelect", "deviceSetupStatus", "confirmDeviceLocationButton", "changeFloaterLocationButton",
+    "openDeviceSetupButton", "deviceSetupModal", "closeDeviceSetupButton", "currentDeviceSelect", "floaterLocationFields", "floaterLocationSelect", "deviceSetupStatus", "confirmDeviceLocationButton", "changeFloaterLocationButton",
     "devicesTableBody", "deviceHistoryList", "addDeviceButton", "deviceModal", "deviceForm", "closeDeviceModalButton", "cancelDeviceButton", "deviceEditId", "deviceIdInput", "deviceNameInput", "deviceImeiInput", "deviceTypeInput", "deviceLocationInput", "deviceStatusInput", "devicePhoneInput", "deviceNotesInput", "deviceIdError", "deviceNameError", "deviceImeiError", "deviceLocationError", "deviceActionStatus",
-    "driverProfileModal", "closeDriverProfileButton", "driverProfileHeading", "driverProfileBody", "profileEditDriverButton", "profileToggleDriverButton"
+    "driverProfileModal", "closeDriverProfileButton", "driverProfileHeading", "driverProfileBody", "profileEditDriverButton", "profileToggleDriverButton",
+    "openScannerFeedbackButton", "openSupervisorFeedbackButton", "feedbackModal", "feedbackForm", "feedbackEyebrow", "feedbackName", "feedbackNote", "feedbackDetailsRow", "feedbackDetails", "feedbackContext", "closeFeedbackButton", "cancelFeedbackButton", "desktopUsersTableBody", "addDesktopUserButton", "desktopUserModal", "desktopUserForm", "desktopUserName", "desktopUserRole", "desktopUserScope", "desktopUserNameError", "closeDesktopUserButton", "cancelDesktopUserButton"
   ].forEach((id) => {
     el[id] = document.getElementById(id);
   });
@@ -132,20 +120,19 @@ function bindEvents() {
 
   el.scannerLocation.addEventListener("change", () => {
     state.workingLocation = el.scannerLocation.value;
-    el.stationIdentity.textContent = currentStationIdentity();
     saveState();
     renderAll();
   });
 
   el.driverInput.addEventListener("input", () => handleScanInput("driverInput"));
   el.barcodeInput.addEventListener("input", () => handleScanInput("barcodeInput"));
-  el.supervisorInput.addEventListener("input", () => recordScannerInput("supervisorInput", el.supervisorInput.value, "Input"));
+  el.supervisorInput.addEventListener("input", updateSupervisorStatus);
 
   document.querySelectorAll("[data-demo-field]").forEach((button) => {
     button.addEventListener("click", () => setScannerValue(button.dataset.demoField, button.dataset.demoValue));
   });
 
-  ["driverInput", "barcodeInput", "supervisorInput", "manualEmployeeInput", "manualBarcodeInput"].forEach((id) => {
+  ["driverInput", "barcodeInput", "supervisorInput"].forEach((id) => {
     el[id].addEventListener("keydown", (event) => {
       if (event.key !== "Enter" && event.key !== "Tab") return;
       recordScannerInput(id, el[id].value, event.key);
@@ -153,24 +140,9 @@ function bindEvents() {
       event.preventDefault();
       if (id === "supervisorInput") approveSupervisorOverride();
       else if (id === "barcodeInput") validateBarcodeStep();
-      else if (id === "manualEmployeeInput") submitManualEmployee();
-      else if (id === "manualBarcodeInput") submitManualBarcode();
       else validateDriverStep();
     });
   });
-
-  el.openManualEmployeeButton.addEventListener("click", openManualEmployeeModal);
-  el.closeManualEmployeeButton.addEventListener("click", closeManualEmployeeModal);
-  el.cancelManualEmployeeButton.addEventListener("click", closeManualEmployeeModal);
-  el.submitManualEmployeeButton.addEventListener("click", submitManualEmployee);
-  el.manualEmployeeModal.addEventListener("click", (event) => {
-    if (event.target === el.manualEmployeeModal) closeManualEmployeeModal();
-  });
-  el.openManualBarcodeButton.addEventListener("click", openManualBarcodeModal);
-  el.closeManualBarcodeButton.addEventListener("click", closeManualBarcodeModal);
-  el.cancelManualBarcodeButton.addEventListener("click", closeManualBarcodeModal);
-  el.submitManualBarcodeButton.addEventListener("click", submitManualBarcode);
-  el.manualBarcodeModal.addEventListener("click", (event) => { if (event.target === el.manualBarcodeModal) closeManualBarcodeModal(); });
 
   el.driversTableBody.addEventListener("click", handleDriverTableAction);
   el.authorizedDriversBody.addEventListener("click", handleDriverTableAction);
@@ -195,7 +167,7 @@ function bindEvents() {
   el.cancelDeviceButton.addEventListener("click", closeDeviceModal);
   el.deviceForm.addEventListener("submit", saveDeviceForm);
   el.devicesTableBody.addEventListener("click", handleDeviceTableAction);
-  el.deviceSetupButton.addEventListener("click", openDeviceSetup);
+  el.openDeviceSetupButton.addEventListener("click", openDeviceSetup);
   el.closeDeviceSetupButton.addEventListener("click", closeDeviceSetup);
   el.currentDeviceSelect.addEventListener("change", updateDeviceSetupFields);
   el.confirmDeviceLocationButton.addEventListener("click", confirmDeviceLocation);
@@ -203,8 +175,17 @@ function bindEvents() {
   el.closeDriverProfileButton.addEventListener("click", closeDriverProfile);
   el.profileEditDriverButton.addEventListener("click", () => { const driver = findDriverAny(ui.profileEmployee); closeDriverProfile(); if (driver) openDriverModal(driver); });
   el.profileToggleDriverButton.addEventListener("click", () => toggleDriverFromProfile());
-  [el.driverModal, el.vehicleModal, el.deviceModal, el.deviceSetupModal, el.driverProfileModal].forEach((modal) => modal.addEventListener("click", (event) => { if (event.target === modal) closeManagedModal(modal); }));
-  document.addEventListener("keydown", (event) => { if (event.key === "Escape") { [el.driverModal, el.vehicleModal, el.deviceModal, el.deviceSetupModal, el.driverProfileModal].forEach(closeManagedModal); } });
+  el.openScannerFeedbackButton.addEventListener("click", () => openFeedbackModal("scanner"));
+  el.openSupervisorFeedbackButton.addEventListener("click", () => openFeedbackModal("supervisor"));
+  el.closeFeedbackButton.addEventListener("click", closeFeedbackModal);
+  el.cancelFeedbackButton.addEventListener("click", closeFeedbackModal);
+  el.feedbackForm.addEventListener("submit", submitFeedback);
+  el.addDesktopUserButton.addEventListener("click", openDesktopUserModal);
+  el.closeDesktopUserButton.addEventListener("click", closeDesktopUserModal);
+  el.cancelDesktopUserButton.addEventListener("click", closeDesktopUserModal);
+  el.desktopUserForm.addEventListener("submit", saveDesktopUser);
+  [el.driverModal, el.vehicleModal, el.deviceModal, el.deviceSetupModal, el.driverProfileModal, el.feedbackModal, el.desktopUserModal].forEach((modal) => modal.addEventListener("click", (event) => { if (event.target === modal) closeManagedModal(modal); }));
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") { [el.driverModal, el.vehicleModal, el.deviceModal, el.deviceSetupModal, el.driverProfileModal, el.feedbackModal, el.desktopUserModal].forEach(closeManagedModal); } });
 
   el.searchForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -213,71 +194,71 @@ function bindEvents() {
   });
   el.clearSearchButton.addEventListener("click", clearSearch);
   if (el.resetDemoButton) el.resetDemoButton.addEventListener("click", resetDemo);
-  window.addEventListener("online", renderConnectivityStatus);
-  window.addEventListener("offline", renderConnectivityStatus);
 }
 
 function createSeedState() {
   const now = new Date();
   const isoMinutesAgo = (minutes) => new Date(now.getTime() - minutes * 60000).toISOString();
-  const todayAuth = createAuthorization("auth-001", "EMP-1001", "9_hours", "System seed", "Division Street", now);
-  const secondNineHourAuth = createAuthorization("auth-002", "EMP-1002", TEMP_AUTHORIZATION_DURATION, "System seed", "North Ave", now);
-  const thirdNineHourAuth = createAuthorization("auth-003", "EMP-1004", TEMP_AUTHORIZATION_DURATION, "System seed", "Linden", now);
+  const todayAuth = createAuthorization("auth-001", "E1001", "9_hours", "System seed", "Division Street", now);
+  const secondNineHourAuth = createAuthorization("auth-002", "E1002", TEMP_AUTHORIZATION_DURATION, "System seed", "North Ave", now);
+  const thirdNineHourAuth = createAuthorization("auth-003", "E1004", TEMP_AUTHORIZATION_DURATION, "System seed", "Linden", now);
 
   return {
     version: "0.7",
-    migrationVersion: 7,
+    migrationVersion: 8,
     businessTimezone: BUSINESS_TIMEZONE,
     workingLocation: "Division Street",
-    currentDeviceId: "DEV-DIV-01",
+    currentDeviceId: "D0001",
     floaterLocationConfirmed: false,
     drivers: [
-      seedDriver("EMP-1001", "Nina Patel", 84, true),
-      seedDriver("EMP-1002", "Marcus Reed", 30, true),
-      seedDriver("EMP-1003", "Tyrone Brooks", 4, true),
-      seedDriver("EMP-1004", "Maria Torres", 14, true),
-      seedDriver("EMP-1005", "Phil Grant", -3, true),
-      seedDriver("EMP-1006", "Angela Cruz", 180, false)
+      seedDriver("E1001", "Nina Patel", 84, true),
+      seedDriver("E1002", "Marcus Reed", 30, true),
+      seedDriver("E1003", "Tyrone Brooks", 4, true),
+      seedDriver("E1004", "Maria Torres", 14, true),
+      seedDriver("E1005", "Phil Grant", -3, true),
+      seedDriver("E1006", "Angela Cruz", 180, false)
     ],
     vehicles: [
-      seedVehicle("veh-001", "GFV-0001", "1HGCM82633A004352", "TRK-8877", "Ford", "Transit", 2022, "White"),
-      seedVehicle("veh-002", "GFV-0002", "2T1BURHE5JC034789", "NJK-2214", "Toyota", "Camry", 2021, "Silver"),
-      seedVehicle("veh-003", "GFV-0003", "3FA6P0H75HR123456", "YARD-104", "Ford", "Fusion", 2019, "Blue"),
-      seedVehicle("veh-004", "GFV-0004", "5NPE24AF8FH001234", "EWR-5521", "Hyundai", "Sonata", 2020, "Gray"),
-      seedVehicle("veh-005", "GFV-0005", "1FTFW1EF1EFA00001", "LIND-7710", "Ford", "F-150", 2023, "Black")
+      seedVehicle("veh-001", "G0001", "1HGCM82633A004352", "TRK-8877", "Ford", "Transit", 2022, "White"),
+      seedVehicle("veh-002", "G0002", "2T1BURHE5JC034789", "NJK-2214", "Toyota", "Camry", 2021, "Silver"),
+      seedVehicle("veh-003", "G0003", "3FA6P0H75HR123456", "YARD-104", "Ford", "Fusion", 2019, "Blue"),
+      seedVehicle("veh-004", "G0004", "5NPE24AF8FH001234", "EWR-5521", "Hyundai", "Sonata", 2020, "Gray"),
+      seedVehicle("veh-005", "G0005", "1FTFW1EF1EFA00001", "LIND-7710", "Ford", "F-150", 2023, "Black")
     ],
     locations: [
       { name: "Division Street", active: true },
       { name: "North Ave", active: true },
-      { name: "EWR", active: true },
-      { name: "Linden", active: true },
-      { name: "Elizabeth Repair Facility", active: false, historicalOnly: true }
+      { name: "EWR North", active: true },
+      { name: "Linden", active: true }
     ],
     supervisors: [
-      { id: "SUP-1001", name: "Morgan Lee" },
-      { id: "SUP-2040", name: "Jordan Wells" }
+      { id: "S1001", name: "Morgan Lee" },
+      { id: "S2040", name: "Jordan Wells" }
     ],
     devices: [
-      seedDevice("DEV-DIV-01", "Division Gate Scanner", "000000000000001", "Fixed", "Division Street"),
-      seedDevice("DEV-NORTH-01", "North Ave Gate Scanner", "000000000000002", "Fixed", "North Ave"),
-      seedDevice("DEV-EWR-01", "EWR Gate Scanner", "000000000000003", "Fixed", "EWR"),
-      seedDevice("DEV-LINDEN-01", "Linden Gate Scanner", "000000000000004", "Fixed", "Linden"),
-      seedDevice("DEV-FLOAT-01", "Floater Gate Scanner", "000000000000005", "Floater", "")
+      seedDevice("D0001", "Division Gate Scanner", "000000000000001", "Fixed", "Division Street"),
+      seedDevice("D0002", "North Ave Gate Scanner", "000000000000002", "Fixed", "North Ave"),
+      seedDevice("D0003", "EWR North Gate Scanner", "000000000000003", "Fixed", "EWR North"),
+      seedDevice("D0004", "Linden Gate Scanner", "000000000000004", "Fixed", "Linden"),
+      seedDevice("D0005", "Floater Gate Scanner", "000000000000005", "Floater", "")
     ],
     authorizations: [todayAuth, secondNineHourAuth, thirdNineHourAuth].filter(Boolean),
     transactions: [
-      seedTransaction("tx-001", isoMinutesAgo(16), "OUT", "EMP-1001", "Nina Patel", "veh-001", "GFV-0001", "1HGCM82633A004352", "TRK-8877", "Division Street", "Authorized", "Customer delivery", "Division Street Scanner"),
-      seedTransaction("tx-002", isoMinutesAgo(41), "IN", "EMP-1003", "Tyrone Brooks", "veh-003", "GFV-0003", "3FA6P0H75HR123456", "YARD-104", "EWR", "Unauthorized", "Unauthorized IN - operational review", "EWR Scanner"),
-      seedTransaction("tx-003", isoMinutesAgo(68), "OUT", "EMP-1004", "Maria Torres", "veh-004", "GFV-0004", "5NPE24AF8FH001234", "EWR-5521", "Linden", "Authorized", "", "Linden Scanner"),
-      seedTransaction("tx-004", isoMinutesAgo(210), "IN", "EMP-1002", "Marcus Reed", "veh-002", "GFV-0002", "2T1BURHE5JC034789", "NJK-2214", "Elizabeth Repair Facility", "Authorized", "Historical location still visible", "Division Street Scanner")
+      seedTransaction("tx-001", isoMinutesAgo(16), "OUT", "E1001", "Nina Patel", "veh-001", "G0001", "1HGCM82633A004352", "TRK-8877", "Division Street", "Authorized", "Customer delivery", "Division Street Scanner"),
+      seedTransaction("tx-002", isoMinutesAgo(41), "IN", "E1003", "Tyrone Brooks", "veh-003", "G0003", "3FA6P0H75HR123456", "YARD-104", "EWR North", "Unauthorized", "Unauthorized IN - operational review", "EWR North Scanner"),
+      seedTransaction("tx-003", isoMinutesAgo(68), "OUT", "E1004", "Maria Torres", "veh-004", "G0004", "5NPE24AF8FH001234", "EWR-5521", "Linden", "Authorized", "", "Linden Scanner")
     ],
     auditEvents: [
-      seedAudit("audit-001", isoMinutesAgo(16), "out_transaction", "Vehicle OUT recorded for EMP-1001 / TRK-8877.", "Division Street Scanner", "Division Street"),
-      seedAudit("audit-002", isoMinutesAgo(41), "in_transaction", "Vehicle IN recorded for EMP-1003 / YARD-104.", "EWR Scanner", "EWR"),
-      seedAudit("audit-003", isoMinutesAgo(41), "unauthorized_in_review", "Unauthorized IN - operational review.", "EWR Scanner", "EWR"),
-      seedAudit("audit-004", isoMinutesAgo(68), "out_transaction", "Vehicle OUT recorded for EMP-1004 / EWR-5521.", "Linden Scanner", "Linden"),
-      seedAudit("audit-005", isoMinutesAgo(130), "driver_authorized", "Driver EMP-1001 authorized for Today.", "System seed", "Division Street"),
-      seedAudit("audit-006", isoMinutesAgo(240), "location_deactivated", "Elizabeth Repair Facility removed from active scanner choices; historical records remain visible.", "System seed", "Elizabeth Repair Facility")
+      seedAudit("audit-001", isoMinutesAgo(16), "out_transaction", "Vehicle OUT recorded for E1001 / TRK-8877.", "Division Street Scanner", "Division Street"),
+      seedAudit("audit-002", isoMinutesAgo(41), "in_transaction", "Vehicle IN recorded for E1003 / YARD-104.", "EWR North Scanner", "EWR North"),
+      seedAudit("audit-003", isoMinutesAgo(41), "unauthorized_in_review", "Unauthorized IN - operational review.", "EWR North Scanner", "EWR North"),
+      seedAudit("audit-004", isoMinutesAgo(68), "out_transaction", "Vehicle OUT recorded for E1004 / EWR-5521.", "Linden Scanner", "Linden"),
+      seedAudit("audit-005", isoMinutesAgo(130), "driver_authorized", "Driver E1001 authorized for Today.", "System seed", "Division Street")
+    ],
+    feedback: [],
+    desktopUsers: [
+      { id: "U0001", name: "Avery Morgan", role: "Owner / System Administrator", active: true, scope: "All locations" },
+      { id: "U0002", name: "Jordan Wells", role: "Manager", active: true, scope: "All locations" }
     ]
   };
 }
@@ -331,6 +312,7 @@ function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (saved && saved.version === "0.7" && Array.isArray(saved.transactions)) {
+      if (saved.migrationVersion !== 8 && !localStorage.getItem(PRE_CALL_MIGRATION_BACKUP_KEY)) localStorage.setItem(PRE_CALL_MIGRATION_BACKUP_KEY, JSON.stringify(saved));
       const normalized = normalizeV07State(saved);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
       return normalized;
@@ -383,18 +365,28 @@ function normalizeV06State(saved) {
 function normalizeV07State(saved) {
   const normalized = JSON.parse(JSON.stringify(saved));
   normalized.version = "0.7";
-  normalized.migrationVersion = 7;
+  normalized.migrationVersion = 8;
   normalized.businessTimezone = BUSINESS_TIMEZONE;
-  normalized.locations = (normalized.locations || []).map((location) => location.name === "Elizabeth Repair Facility" ? { ...location, active: false, historicalOnly: true } : location);
+  normalized.workingLocation = normalizeLocationName(normalized.workingLocation) || "Division Street";
+  const originalDevices = normalized.devices || [];
+  const originalCurrentDeviceId = normalize(normalized.currentDeviceId);
+  normalized.locations = (normalized.locations || []).map((location) => ({ ...location, name: normalizeLocationName(location.name) })).filter((location) => location.name && location.name !== "Enterprise Repair Facility");
+  if (!normalized.locations.length) normalized.locations = createSeedState().locations;
+  normalized.drivers = (normalized.drivers || []).map((driver) => ({ ...driver, employeeNumber: canonicalEmployeeId(driver.employeeNumber) }));
+  normalized.supervisors = (normalized.supervisors || createSeedState().supervisors).map((supervisor) => ({ ...supervisor, id: canonicalSupervisorId(supervisor.id) }));
   normalized.vehicles = (normalized.vehicles || []).map((vehicle, index) => normalizeVehicle(vehicle, index));
-  normalized.transactions = (normalized.transactions || []).map((transaction) => mapTransactionVehicle(transaction, normalized.vehicles));
+  normalized.transactions = (normalized.transactions || []).map((transaction) => mapTransactionVehicle({ ...transaction, driverEmployee: canonicalEmployeeId(transaction.driverEmployee), location: normalizeLocationName(transaction.location), workingLocation: normalizeLocationName(transaction.workingLocation), deviceId: transaction.deviceId ? canonicalDeviceId(transaction.deviceId) : "" }, normalized.vehicles)).filter((transaction) => transaction.location && transaction.location !== "Enterprise Repair Facility");
   normalized.authorizations = (normalized.authorizations || []).map((authorization) => {
-    if (authorization.status !== "active") return authorization;
     const authorizedAt = new Date(authorization.authorizedAt || authorization.validFrom || Date.now());
-    return { ...authorization, type: TEMP_AUTHORIZATION_DURATION, expiresAt: expirationForDuration(TEMP_AUTHORIZATION_DURATION, authorizedAt).toISOString() };
+    const normalizedAuthorization = { ...authorization, driverEmployee: canonicalEmployeeId(authorization.driverEmployee), actionLocation: normalizeLocationName(authorization.actionLocation || authorization.location), location: normalizeLocationName(authorization.location) };
+    return authorization.status === "active" ? { ...normalizedAuthorization, type: TEMP_AUTHORIZATION_DURATION, expiresAt: expirationForDuration(TEMP_AUTHORIZATION_DURATION, authorizedAt).toISOString() } : normalizedAuthorization;
   });
-  normalized.devices = (normalized.devices || createSeedState().devices).map(normalizeDevice);
-  normalized.currentDeviceId = normalized.currentDeviceId || "DEV-DIV-01";
+  normalized.devices = (originalDevices.length ? originalDevices : createSeedState().devices).map(normalizeDevice);
+  const currentDeviceIndex = originalDevices.findIndex((device) => normalize(device.id) === originalCurrentDeviceId);
+  normalized.currentDeviceId = normalized.devices[currentDeviceIndex]?.id || normalized.devices.find((device) => device.id === canonicalDeviceId(originalCurrentDeviceId))?.id || normalized.devices[0]?.id || "D0001";
+  normalized.auditEvents = (normalized.auditEvents || []).map((event) => ({ ...event, location: normalizeLocationName(event.location), actor: String(event.actor || "").replaceAll("EWR Scanner", "EWR North Scanner"), description: String(event.description || "").replaceAll("EMP-", "E").replaceAll("EWR Scanner", "EWR North Scanner") })).filter((event) => event.location !== "Enterprise Repair Facility" && !event.description.includes("Enterprise Repair Facility"));
+  normalized.feedback = Array.isArray(normalized.feedback) ? normalized.feedback : [];
+  normalized.desktopUsers = Array.isArray(normalized.desktopUsers) && normalized.desktopUsers.length ? normalized.desktopUsers : createSeedState().desktopUsers;
   normalized.floaterLocationConfirmed = Boolean(normalized.floaterLocationConfirmed);
   return normalized;
 }
@@ -406,10 +398,10 @@ function migrateV06State(v06) {
   return migrated;
 }
 
-function normalizeDevice(device) {
+function normalizeDevice(device, index = 0) {
   const now = new Date().toISOString();
   const type = device.type === "Floater" ? "Floater" : "Fixed";
-  return { id: normalize(device.id), name: String(device.name || device.id || "Unnamed device").trim(), imei: normalizeImei(device.imei), type, assignedLocation: type === "Fixed" ? String(device.assignedLocation || "").trim() : "", status: device.status || (device.active === false ? "Inactive" : "Active"), phone: device.phone || "", notes: device.notes || "", active: device.active !== false && device.status !== "Inactive", createdAt: device.createdAt || now, updatedAt: device.updatedAt || now, lastUsedAt: device.lastUsedAt || "", lastTransactionLocation: device.lastTransactionLocation || "", createdBy: device.createdBy || "V0.7 migration", updatedBy: device.updatedBy || "V0.7 migration" };
+  return { id: canonicalDeviceId(device.id, index), name: String(device.name || device.id || "Unnamed device").trim(), imei: normalizeImei(device.imei), type, assignedLocation: type === "Fixed" ? normalizeLocationName(device.assignedLocation) : "", status: device.status || (device.active === false ? "Inactive" : "Active"), phone: device.phone || "", notes: device.notes || "", active: device.active !== false && device.status !== "Inactive", createdAt: device.createdAt || now, updatedAt: device.updatedAt || now, lastUsedAt: device.lastUsedAt || "", lastTransactionLocation: normalizeLocationName(device.lastTransactionLocation), createdBy: device.createdBy || "V0.7 migration", updatedBy: device.updatedBy || "V0.7 migration" };
 }
 
 function migrateV05State(v05) {
@@ -437,7 +429,7 @@ function normalizeVehicle(vehicle, index) {
   const now = new Date().toISOString();
   return {
     id: vehicle.id || `veh-${String(index + 1).padStart(3, "0")}`,
-    assignedBarcode: normalize(vehicle.assignedBarcode || `GFV-${String(index + 1).padStart(4, "0")}`),
+    assignedBarcode: canonicalVehicleBarcode(vehicle.assignedBarcode, index),
     vin: normalize(vehicle.vin), plate: normalize(vehicle.plate), make: vehicle.make || demo[0], model: vehicle.model || demo[1], year: Number(vehicle.year || demo[2]), color: vehicle.color || demo[3], active: vehicle.active !== false,
     createdAt: vehicle.createdAt || now, updatedAt: vehicle.updatedAt || now, createdBy: vehicle.createdBy || "V0.5 migration", updatedBy: vehicle.updatedBy || "V0.5 migration", removedAt: vehicle.removedAt || "", removedBy: vehicle.removedBy || "", reactivatedAt: vehicle.reactivatedAt || ""
   };
@@ -447,7 +439,7 @@ function mapTransactionVehicle(transaction, vehicles) {
   const vehicle = vehicles.find((item) => item.id === transaction.vehicleId || item.vin === normalize(transaction.vin) || (transaction.plate && item.plate === normalize(transaction.plate)));
   const driverEntryMethod = normalizeStoredEntryMethod(transaction.driverEntryMethod);
   const vehicleEntryMethod = normalizeStoredEntryMethod(transaction.vehicleEntryMethod === undefined ? transaction.barcodeEntryMethod : transaction.vehicleEntryMethod);
-  return { ...transaction, vehicleId: transaction.vehicleId || (vehicle ? vehicle.id : ""), vehicleBarcode: transaction.vehicleBarcode || (vehicle ? vehicle.assignedBarcode : ""), driverEntryMethod, vehicleEntryMethod };
+  return { ...transaction, driverEmployee: canonicalEmployeeId(transaction.driverEmployee), location: normalizeLocationName(transaction.location), vehicleId: transaction.vehicleId || (vehicle ? vehicle.id : ""), vehicleBarcode: canonicalVehicleBarcode(transaction.vehicleBarcode || (vehicle ? vehicle.assignedBarcode : "")), driverEntryMethod, vehicleEntryMethod };
 }
 
 function normalizeStoredEntryMethod(value) {
@@ -480,12 +472,9 @@ function saveState() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     ui.lastSavedAt = new Date();
-    setSaveStatus("Saved locally");
-    renderConnectivityStatus();
   } catch (error) {
     storageAvailable = false;
-    setSaveStatus("Not saved (storage unavailable)");
-    el.saveStatus.classList.add("warn");
+    setNotice("This browser could not save the current prototype data.", "warning");
   }
 }
 
@@ -544,8 +533,6 @@ function populateLocationControls() {
   el.scannerLocation.disabled = Boolean(device);
   el.filterLocation.innerHTML = `<option value="">All locations</option>${state.locations.map((location) => optionHtml(location.name, location.name === selectedSearchLocation, location.historicalOnly ? `${location.name} (history only)` : location.name)).join("")}`;
   state.workingLocation = el.scannerLocation.value || scannerChoices[0].name;
-  if (el.stationIdentity) el.stationIdentity.textContent = currentStationIdentity();
-  if (el.currentDeviceLabel) el.currentDeviceLabel.textContent = device ? `${device.id} - ${device.type}` : "No device";
 }
 
 function optionHtml(value, selected, label = value) {
@@ -554,7 +541,7 @@ function optionHtml(value, selected, label = value) {
 
 function startFlow() {
   const deviceCheck = isDeviceReady();
-  if (!deviceCheck.ok) { setNotice(deviceCheck.reason, "warning"); openDeviceSetup(); return; }
+  if (!deviceCheck.ok) { setNotice("Scanner unavailable. Contact a supervisor to confirm the assigned device.", "warning"); return; }
   resetFlow();
   ui.direction = null;
   ui.activeFlow = "scan";
@@ -617,7 +604,6 @@ function showWizardStep(step) {
   if (step === 1) el.barcodeInput.focus();
   if (step === 2) el.directionOut.focus();
   if (step === 3) el.reviewStepTitle.focus();
-  renderScanDetails();
 }
 
 function updateWizardDots() {
@@ -640,7 +626,6 @@ function resetFlow() {
   ui.driverEntryMethod = null;
   ui.vehicleEntryMethod = null;
   ui.validatedDriverEmployee = "";
-  renderScanDetails();
 }
 
 function clearDriverDerivedStateIfChanged(rawValue) {
@@ -663,7 +648,7 @@ function clearDriverDerivedStateIfChanged(rawValue) {
 function setScannerValue(fieldId, value) {
   const input = el[fieldId];
   if (!input) return;
-  input.value = fieldId === "barcodeInput" ? normalize(value) : value;
+  input.value = fieldId === "barcodeInput" ? canonicalVehicleBarcode(value) : value;
   recordScannerInput(fieldId, value, "Demo value");
   if (fieldId === "driverInput") { clearDriverDerivedStateIfChanged(value); updateDriverStatus(); }
   if (fieldId === "barcodeInput") updateBarcodeStatus();
@@ -674,7 +659,7 @@ function handleScanInput(fieldId) {
   const input = el[fieldId];
   const rawValue = input.value;
   recordScannerInput(fieldId, rawValue, "Input");
-  if (fieldId === "barcodeInput") { input.value = normalize(rawValue); ui.vehicleEntryMethod = null; }
+  if (fieldId === "barcodeInput") { input.value = canonicalVehicleBarcode(rawValue); ui.vehicleEntryMethod = null; }
   if (fieldId === "driverInput") { ui.driverEntryMethod = null; clearDriverDerivedStateIfChanged(rawValue); updateDriverStatus(); }
   if (fieldId === "barcodeInput") updateBarcodeStatus();
 }
@@ -690,7 +675,6 @@ function recordScannerInput(fieldId, rawValue, terminator) {
   ui.lastRawScan = rawValue || "No scan received";
   ui.lastScanField = labels[fieldId] || fieldId;
   ui.scanTerminator = terminator === "Enter" || terminator === "Tab" ? `${terminator} detected` : terminator;
-  renderScannerTestPanel();
 }
 
 function openManualEmployeeModal() {
@@ -773,12 +757,12 @@ function updateDriverStatus() {
     const license = licenseStatus(driver);
     const authorizationText = auth ? `Authorized through ${formatTimestamp(auth.expiresAt)}` : "Not authorized";
     el.driverStatus.textContent = `${driver.name} - ${authorizationText}. ${license.label}.`;
+    setNotice("Driver found. Continue to the vehicle barcode.", "success");
   }
-  renderScanDetails();
 }
 
 function updateBarcodeStatus() {
-  const value = normalize(el.barcodeInput.value);
+  const value = canonicalVehicleBarcode(el.barcodeInput.value);
   const vehicle = findVehicleByBarcode(value);
   if (!value) {
     el.barcodeStatus.textContent = "Awaiting vehicle barcode scan.";
@@ -789,8 +773,23 @@ function updateBarcodeStatus() {
   } else {
     const vinWarning = vehicle.vin.length === 17 ? "VIN is 17 characters." : `VIN warning: ${vehicle.vin.length} characters.`;
     el.barcodeStatus.textContent = `${vehicle.assignedBarcode}: ${vehicle.year} ${vehicle.make} ${vehicle.model}, ${vehicle.color}. VIN ${vehicle.vin}; ${vehicle.plate || "No plate"}. ${vinWarning}`;
+    setNotice("Vehicle found. Choose the movement.", "success");
   }
-  renderScanDetails();
+}
+
+function updateSupervisorStatus() {
+  recordScannerInput("supervisorInput", el.supervisorInput.value, "Input");
+  const supervisor = state.supervisors.find((item) => item.id === canonicalSupervisorId(el.supervisorInput.value));
+  if (!el.supervisorInput.value.trim()) {
+    el.supervisorStatus.textContent = "Awaiting a valid supervisor ID.";
+    return;
+  }
+  if (!supervisor) {
+    el.supervisorStatus.textContent = "Supervisor ID was not found.";
+    return;
+  }
+  el.supervisorStatus.textContent = `${supervisor.id} / ${supervisor.name} is ready to approve 9 hours.`;
+  setNotice("Supervisor found. Approve the temporary authorization to continue.", "success");
 }
 
 function validateDriverStep() {
@@ -809,7 +808,7 @@ function validateDriverStep() {
 }
 
 function validateBarcodeStep() {
-  const barcode = normalize(el.barcodeInput.value);
+  const barcode = canonicalVehicleBarcode(el.barcodeInput.value);
   el.barcodeInput.value = barcode;
   if (!barcode) {
     setNotice("Scan or enter an assigned vehicle barcode.", "warning");
@@ -883,7 +882,7 @@ function blockOutForSupervisor(driver) {
 
 function approveSupervisorOverride() {
   if (!ui.pendingOverride) return;
-  const supervisor = state.supervisors.find((item) => item.id === normalize(el.supervisorInput.value));
+  const supervisor = state.supervisors.find((item) => item.id === canonicalSupervisorId(el.supervisorInput.value));
   if (!supervisor) {
     el.supervisorStatus.textContent = "Invalid supervisor ID. Approval was not granted.";
     setNotice("Supervisor ID is not valid.", "danger");
@@ -902,7 +901,8 @@ function approveSupervisorOverride() {
   saveState();
   ui.pendingOverride = null;
   renderAll();
-  setNotice(`Supervisor approved ${humanDuration(duration)} across all current locations. Vehicle OUT can continue.`, "success");
+  el.supervisorStatus.textContent = `${supervisor.id} approved ${humanDuration(duration)}. Continuing to review.`;
+  setNotice(`Supervisor approved ${humanDuration(duration)}. Vehicle OUT can continue.`, "success");
   chooseDirection("OUT");
 }
 
@@ -988,10 +988,7 @@ function showTransactionConfirmation(transaction) {
     ["Location", transaction.location],
     ["Driver", `${transaction.driverEmployee} - ${transaction.driverName}`],
     ["Vehicle", `${transaction.vehicleBarcode || "No barcode"} - ${transaction.vin}${transaction.plate ? ` / ${transaction.plate}` : ""}`],
-    ["Authorization", transaction.authorizationStatus],
-    ["Driver entry path", entryMethodLabel(transaction.driverEntryMethod)],
-    ["Vehicle entry path", entryMethodLabel(transaction.vehicleEntryMethod)],
-    ["Note", transaction.note || "-"]
+    ["Authorization", transaction.authorizationStatus]
   ]);
   if (ui.confirmationTimer) window.clearTimeout(ui.confirmationTimer);
   ui.confirmationTimer = window.setTimeout(showScannerHome, 4500);
@@ -1009,16 +1006,17 @@ function findDriverAny(value) {
 
 function findVehicle(value) {
   const needle = normalize(value);
-  return state.vehicles.find((vehicle) => vehicle.vin === needle || vehicle.plate === needle || vehicle.assignedBarcode === needle) || null;
+  const barcode = canonicalVehicleBarcode(value);
+  return state.vehicles.find((vehicle) => vehicle.vin === needle || vehicle.plate === needle || vehicle.assignedBarcode === barcode) || null;
 }
 
 function findVehicleByBarcode(value) {
-  const needle = normalize(value);
+  const needle = canonicalVehicleBarcode(value);
   return state.vehicles.find((vehicle) => vehicle.assignedBarcode === needle) || null;
 }
 
 function readVehicleInput() {
-  const barcode = normalize(el.barcodeInput.value);
+  const barcode = canonicalVehicleBarcode(el.barcodeInput.value);
   if (!barcode) return null;
   return findVehicleByBarcode(barcode);
 }
@@ -1244,12 +1242,70 @@ function closeManagedModal(modal) {
   if (trigger && typeof trigger.focus === "function") trigger.focus();
 }
 
+function openFeedbackModal(surface) {
+  ui.modalTrigger = document.activeElement;
+  ui.feedbackSurface = surface;
+  el.feedbackForm.reset();
+  const isScanner = surface === "scanner";
+  el.feedbackEyebrow.textContent = isScanner ? "Scanner feedback" : "Desktop feedback";
+  el.feedbackDetailsRow.classList.toggle("hidden", isScanner);
+  el.feedbackContext.textContent = isScanner
+    ? `Includes ${state.workingLocation} and ${ui.activeFlow ? `scanner step ${ui.step + 1}` : "scanner home"}.`
+    : `Includes the supervisor desktop at ${state.workingLocation}.`;
+  el.feedbackModal.classList.remove("hidden");
+  window.setTimeout(() => el.feedbackNote.focus(), 20);
+}
+
+function closeFeedbackModal() { closeManagedModal(el.feedbackModal); }
+
+function submitFeedback(event) {
+  event.preventDefault();
+  const note = el.feedbackNote.value.trim();
+  if (!note) {
+    el.feedbackContext.textContent = "Describe what happened before sending feedback.";
+    shake(el.feedbackNote);
+    return;
+  }
+  const screen = ui.feedbackSurface === "scanner" ? (ui.activeFlow ? `Scanner step ${ui.step + 1}` : "Scanner home") : "Supervisor desktop";
+  state.feedback.unshift({ id: makeId("feedback"), createdAt: new Date().toISOString(), source: ui.feedbackSurface, name: el.feedbackName.value.trim(), note, details: el.feedbackDetails.value.trim(), location: state.workingLocation, screen });
+  addAudit("feedback_submitted", `${ui.feedbackSurface === "scanner" ? "Scanner" : "Desktop"} feedback submitted from ${screen}.`, el.feedbackName.value.trim() || ui.feedbackSurface, state.workingLocation);
+  saveState();
+  closeFeedbackModal();
+  setNotice("Feedback saved on this device for review.", "success");
+}
+
+function openDesktopUserModal() {
+  ui.modalTrigger = document.activeElement;
+  el.desktopUserForm.reset();
+  el.desktopUserNameError.textContent = "";
+  el.desktopUserModal.classList.remove("hidden");
+  window.setTimeout(() => el.desktopUserName.focus(), 20);
+}
+
+function closeDesktopUserModal() { closeManagedModal(el.desktopUserModal); }
+
+function saveDesktopUser(event) {
+  event.preventDefault();
+  const name = el.desktopUserName.value.trim();
+  if (!name) {
+    el.desktopUserNameError.textContent = "Name is required.";
+    shake(el.desktopUserName);
+    return;
+  }
+  const nextId = `U${String((state.desktopUsers || []).length + 1).padStart(4, "0")}`;
+  state.desktopUsers.push({ id: nextId, name, role: el.desktopUserRole.value, active: true, scope: el.desktopUserScope.value });
+  addAudit("desktop_user_created", `Desktop user ${nextId} created as ${el.desktopUserRole.value}.`, "Supervisor Console", el.desktopUserScope.value);
+  saveState();
+  closeDesktopUserModal();
+  renderAll();
+}
+
 function saveDriverForm(event) {
   event.preventDefault();
   clearDriverErrors();
-  const originalEmployee = normalize(el.driverEditEmployee.value);
+  const originalEmployee = canonicalEmployeeId(el.driverEditEmployee.value);
   const enteredEmployeeNumber = normalize(el.driverEmployeeNumber.value);
-  const employeeNumber = enteredEmployeeNumber ? `EMP-${normalizeEmployee(enteredEmployeeNumber)}` : "";
+  const employeeNumber = enteredEmployeeNumber ? canonicalEmployeeId(enteredEmployeeNumber) : "";
   const name = el.driverName.value.trim();
   const licenseExpires = el.driverLicenseExpires.value;
   let invalid = false;
@@ -1291,7 +1347,7 @@ function closeVehicleModal() { closeManagedModal(el.vehicleModal); }
 function saveVehicleForm(event) {
   event.preventDefault(); clearVehicleErrors();
   const vehicleId = el.vehicleEditId.value;
-  const fields = { make: el.vehicleMake.value.trim(), model: el.vehicleModel.value.trim(), year: Number(el.vehicleYear.value.trim()), color: el.vehicleColor.value.trim(), vin: normalize(el.vehicleVin.value), assignedBarcode: normalize(el.vehicleBarcode.value), plate: normalize(el.vehiclePlate.value), active: el.vehicleActive.value === "true" };
+  const fields = { make: el.vehicleMake.value.trim(), model: el.vehicleModel.value.trim(), year: Number(el.vehicleYear.value.trim()), color: el.vehicleColor.value.trim(), vin: normalize(el.vehicleVin.value), assignedBarcode: canonicalVehicleBarcode(el.vehicleBarcode.value), plate: normalize(el.vehiclePlate.value), active: el.vehicleActive.value === "true" };
   let invalid = false;
   [["make", el.vehicleMakeError, "Make is required."], ["model", el.vehicleModelError, "Model is required."], ["color", el.vehicleColorError, "Color is required."], ["vin", el.vehicleVinError, "VIN is required."], ["assignedBarcode", el.vehicleBarcodeError, "Assigned Barcode is required."]].forEach(([key, node, message]) => { if (!fields[key]) { node.textContent = message; invalid = true; } });
   if (!Number.isInteger(fields.year) || fields.year < 1900 || fields.year > new Date().getFullYear() + 2) { el.vehicleYearError.textContent = "Year must be a reasonable four-digit value."; invalid = true; }
@@ -1445,7 +1501,7 @@ function closeDeviceModal() { closeManagedModal(el.deviceModal); }
 
 function saveDeviceForm(event) {
   event.preventDefault(); clearDeviceErrors();
-  const existingId = el.deviceEditId.value; const id = normalize(el.deviceIdInput.value); const name = el.deviceNameInput.value.trim(); const imei = normalizeImei(el.deviceImeiInput.value); const type = el.deviceTypeInput.value; const assignedLocation = type === "Fixed" ? el.deviceLocationInput.value : ""; const status = el.deviceStatusInput.value;
+  const existingId = el.deviceEditId.value; const id = canonicalDeviceId(el.deviceIdInput.value, state.devices.length); const name = el.deviceNameInput.value.trim(); const imei = normalizeImei(el.deviceImeiInput.value); const type = el.deviceTypeInput.value; const assignedLocation = type === "Fixed" ? el.deviceLocationInput.value : ""; const status = el.deviceStatusInput.value;
   let invalid = false;
   if (!id) { el.deviceIdError.textContent = "Device ID is required."; invalid = true; }
   if (!existingId && state.devices.some((device) => device.id === id)) { el.deviceIdError.textContent = "Device ID must be unique."; invalid = true; }
@@ -1494,14 +1550,12 @@ function addAudit(type, description, actor, location, source = "user action") {
 }
 
 function renderAll() {
-  renderConnectivityStatus();
-  renderScannerTestPanel();
   renderScannerContext();
-  renderScanDetails();
   renderRecentActivity();
   renderSupervisor();
   renderVehicles();
   renderDevices();
+  renderDesktopUsers();
   ui.searchResults = filterTransactions();
   renderSearchResults();
 }
@@ -1513,24 +1567,6 @@ function renderScannerContext() {
   el.todayOutCount.textContent = transactionsToday.filter((item) => item.direction === "OUT").length;
   el.todayInCount.textContent = transactionsToday.filter((item) => item.direction === "IN").length;
   el.todayBlockCount.textContent = auditToday.filter((item) => item.type === "blocked_out").length;
-  el.contextOutCount.textContent = el.todayOutCount.textContent;
-  el.contextInCount.textContent = el.todayInCount.textContent;
-  el.contextBlockCount.textContent = el.todayBlockCount.textContent;
-  el.contextAuthorizedCount.textContent = state.drivers.filter((driver) => findActiveAuthorization(driver.employeeNumber)).length;
-}
-
-function renderScanDetails() {
-  const driver = findDriver(el.driverInput.value);
-  const vehicle = readVehicleInput();
-  const location = el.scannerLocation ? el.scannerLocation.value || "No location selected" : state.workingLocation;
-  const authorization = driver ? authorizationLabel(driver) : "Awaiting driver";
-  el.currentScanTitle.textContent = ui.activeFlow ? (ui.direction ? `Vehicle ${ui.direction}` : "Scan in progress") : "No transaction selected";
-  el.scanDetailList.innerHTML = summaryRows([
-    ["Location", location],
-    ["Driver", driver ? `${driver.employeeNumber} - ${driver.name}` : "Awaiting employee #"],
-    ["Vehicle", vehicle ? `${vehicle.assignedBarcode} - ${vehicle.year} ${vehicle.make} ${vehicle.model} / ${vehicle.vin}${vehicle.plate ? ` / ${vehicle.plate}` : ""}` : "Awaiting barcode"],
-    ["Authorization", authorization]
-  ]);
 }
 
 function renderScanSummary() {
@@ -1541,11 +1577,7 @@ function renderScanSummary() {
     ["Movement", `Vehicle ${ui.direction}`],
     ["Location", el.scannerLocation.value],
     ["Driver", driver ? `${driver.employeeNumber} - ${driver.name}` : "Awaiting employee #"],
-    ["Vehicle", vehicle ? `${vehicle.assignedBarcode} - ${vehicle.year} ${vehicle.make} ${vehicle.model} / ${vehicle.vin}${vehicle.plate ? ` / ${vehicle.plate}` : ""}` : "Awaiting barcode"],
-    ["Barcode", vehicle ? vehicle.assignedBarcode : "Awaiting assigned barcode"],
-    ["VIN", vehicle ? `${vehicle.vin}${vehicle.vin.length === 17 ? " (17 characters)" : ` (${vehicle.vin.length} characters - warning)`}` : "-"],
-    ["Driver entry path", entryMethodLabel(ui.driverEntryMethod)],
-    ["Vehicle entry path", entryMethodLabel(ui.vehicleEntryMethod)],
+    ["Vehicle", vehicle ? `${vehicle.assignedBarcode} - ${vehicle.year} ${vehicle.make} ${vehicle.model}` : "Awaiting barcode"],
     ["Authorization", authorization]
   ]);
 }
@@ -1558,24 +1590,6 @@ function authorizationLabel(driver, direction) {
   if (direction === "IN") return "Unauthorized IN - operational review";
   if (direction === "OUT") return "Supervisor approval required";
   return "Not authorized";
-}
-
-function renderScannerTestPanel() {
-  if (!el.lastRawScan) return;
-  el.lastRawScan.textContent = ui.lastRawScan;
-  el.lastScanField.textContent = ui.lastScanField;
-  el.scanTerminator.textContent = ui.scanTerminator;
-}
-
-function renderConnectivityStatus() {
-  if (!el.onlineStatus) return;
-  const isOnline = typeof navigator === "undefined" || navigator.onLine;
-  el.onlineStatus.textContent = isOnline ? "Network available" : "Network unavailable";
-  el.onlineStatus.classList.toggle("offline", !isOnline);
-  if (!storageAvailable) el.lastSavedLocal.textContent = "Local save unavailable";
-  else if (ui.lastSavedAt) el.lastSavedLocal.textContent = `Saved locally ${formatTime(ui.lastSavedAt)}`;
-  else el.lastSavedLocal.textContent = "Saved locally";
-  if (el.syncQueueCount) el.syncQueueCount.textContent = "Sync queue: 0";
 }
 
 function summaryRows(rows) {
@@ -1608,6 +1622,12 @@ function renderSupervisor() {
   renderLicenseCounts();
   renderLicenseWarnings();
   renderLocationList();
+}
+
+function renderDesktopUsers() {
+  if (!el.desktopUsersTableBody) return;
+  const users = state.desktopUsers || [];
+  el.desktopUsersTableBody.innerHTML = users.length ? users.map((user) => `<tr><td class="mono">${escapeHtml(user.id)}</td><td>${escapeHtml(user.name)}</td><td>${escapeHtml(user.role)}</td><td><span class="status-badge ${user.active ? "authorized" : "inactive"}">${user.active ? "Active" : "Inactive"}</span></td><td>${escapeHtml(user.scope)}</td></tr>`).join("") : `<tr><td colspan="5" class="empty-cell">No desktop users configured.</td></tr>`;
 }
 
 function renderDriverRow(driver) {
@@ -1709,10 +1729,6 @@ function setNotice(message, tone) {
   el.scannerNotice.className = `scanner-alert ${tone}`;
 }
 
-function setSaveStatus(text) {
-  el.saveStatus.lastChild.textContent = ` ${text}`;
-}
-
 function updateClock() {
   el.deviceClock.textContent = new Intl.DateTimeFormat([], { timeZone: BUSINESS_TIMEZONE, hour: "numeric", minute: "2-digit" }).format(new Date());
 }
@@ -1722,7 +1738,45 @@ function normalize(value) {
 }
 
 function normalizeEmployee(value) {
-  return normalize(value).replace(/^EMP-/, "");
+  return canonicalEmployeeId(value).replace(/^E/, "");
+}
+
+function canonicalEmployeeId(value) {
+  const digits = normalize(value).replace(/^EMP-?/, "").replace(/^E-?/, "").replace(/\D/g, "");
+  return digits ? `E${digits}` : "";
+}
+
+function canonicalVehicleBarcode(value, index) {
+  const source = normalize(value);
+  if (!source) return index === undefined ? "" : `G${String(index + 1).padStart(4, "0")}`;
+  const digits = source.replace(/^GFV-?/, "").replace(/^G-?/, "").replace(/\D/g, "");
+  return digits ? `G${digits.padStart(4, "0")}` : "";
+}
+
+function canonicalSupervisorId(value) {
+  const digits = normalize(value).replace(/^SUP-?/, "").replace(/^S-?/, "").replace(/\D/g, "");
+  return digits ? `S${digits}` : "";
+}
+
+function canonicalDeviceId(value, index = 0) {
+  const source = normalize(value);
+  const legacyDeviceIds = {
+    "DEV-DIV-01": "D0001",
+    "DEV-NORTH-01": "D0002",
+    "DEV-EWR-01": "D0003",
+    "DEV-LINDEN-01": "D0004",
+    "DEV-FLOAT-01": "D0005"
+  };
+  if (legacyDeviceIds[source]) return legacyDeviceIds[source];
+  if (/^D\d+$/.test(source)) return `D${source.slice(1).padStart(4, "0")}`;
+  return `D${String(index + 1).padStart(4, "0")}`;
+}
+
+function normalizeLocationName(value) {
+  const location = String(value || "").trim();
+  if (location === "EWR") return "EWR North";
+  if (location === "Elizabeth Repair Facility" || location === "Enterprise Repair Facility") return "Enterprise Repair Facility";
+  return location;
 }
 
 function normalizeImei(value) {

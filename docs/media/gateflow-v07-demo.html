@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GateFlow V0.7 Scanner Walkthrough</title>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; color: #10241f; background: #f4f7f4; }
+    header { background: #0f3f36; color: white; padding: 22px; }
+    main { max-width: 980px; margin: 0 auto; padding: 24px; }
+    video, audio { width: 100%; margin: 16px 0; }
+    .slide { display: grid; grid-template-columns: minmax(240px, 390px) 1fr; gap: 24px; padding: 20px 0; border-top: 1px solid #cbd9d5; align-items: center; }
+    .slide img { width: 100%; border: 1px solid #aebfba; border-radius: 8px; background: white; }
+    .slide h2 { margin: 0 0 8px; font-size: 24px; }
+    .slide p { margin: 0; font-size: 17px; line-height: 1.5; }
+    @media (max-width: 720px) { .slide { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>GateFlow V0.7 Scanner Walkthrough</h1>
+  </header>
+  <main>
+    <p>This short walkthrough shows the updated scanner flow, blocked OUT path, 9-hour supervisor approval, and return to review.</p>
+    <video controls src="gateflow-v07-demo.webm"></video>
+    <audio controls src="gateflow-v07-demo-audio.wav"></audio>
+
+      <section class="slide">
+        <img src="gateflow-v07-demo-frames/01-start.png" alt="Start Scanner">
+        <div>
+          <h2>Start Scanner</h2>
+          <p>The scanner opens on the working location with a simple start action.</p>
+        </div>
+      </section>
+
+      <section class="slide">
+        <img src="gateflow-v07-demo-frames/02-driver.png" alt="Driver Entry">
+        <div>
+          <h2>Driver Entry</h2>
+          <p>Enter or scan the driver as E1003. The old EMP prefix is no longer needed.</p>
+        </div>
+      </section>
+
+      <section class="slide">
+        <img src="gateflow-v07-demo-frames/03-barcode-recovered.png" alt="Vehicle Barcode">
+        <div>
+          <h2>Vehicle Barcode</h2>
+          <p>After a bad code, correcting to G0003 clears the red warning and confirms the vehicle.</p>
+        </div>
+      </section>
+
+      <section class="slide">
+        <img src="gateflow-v07-demo-frames/04-out-blocked.png" alt="OUT Blocked">
+        <div>
+          <h2>OUT Blocked</h2>
+          <p>Vehicle OUT is blocked when the driver needs authorization.</p>
+        </div>
+      </section>
+
+      <section class="slide">
+        <img src="gateflow-v07-demo-frames/05-supervisor-ready.png" alt="Supervisor Approval">
+        <div>
+          <h2>Supervisor Approval</h2>
+          <p>Enter S1001 to approve the fixed 9-hour temporary authorization.</p>
+        </div>
+      </section>
+
+      <section class="slide">
+        <img src="gateflow-v07-demo-frames/06-review-out.png" alt="Review Vehicle OUT">
+        <div>
+          <h2>Review Vehicle OUT</h2>
+          <p>After approval, the scan advances to the OUT review screen.</p>
+        </div>
+      </section>
+
+      <section class="slide">
+        <img src="gateflow-v07-demo-frames/07-complete.png" alt="Movement Recorded">
+        <div>
+          <h2>Movement Recorded</h2>
+          <p>The submitted movement appears in recent activity.</p>
+        </div>
+      </section>
+  </main>
+  <script>
+    async function recordGateFlowDemo(slides) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1280;
+      canvas.height = 720;
+      const ctx = canvas.getContext('2d');
+      const audio = new Audio('gateflow-v07-demo-audio.wav');
+      let stream = canvas.captureStream(30);
+      try {
+        const audioContext = new AudioContext();
+        const source = audioContext.createMediaElementSource(audio);
+        const destination = audioContext.createMediaStreamDestination();
+        source.connect(destination);
+        stream = new MediaStream([...stream.getVideoTracks(), ...destination.stream.getAudioTracks()]);
+        await audioContext.resume();
+      } catch (error) {
+        console.warn('Audio capture unavailable, recording video only.', error);
+      }
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus') ? 'video/webm;codecs=vp9,opus' : 'video/webm';
+      const chunks = [];
+      const recorder = new MediaRecorder(stream, { mimeType });
+      recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
+      const images = await Promise.all(slides.map((slide) => new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+        image.src = 'gateflow-v07-demo-frames/' + slide.file;
+      })));
+      const drawSlide = (slide, image, progress) => {
+        ctx.fillStyle = '#f4f7f4';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#0f3f36';
+        ctx.fillRect(0, 0, canvas.width, 84);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '700 32px Arial';
+        ctx.fillText('Lot Watch / GateFlow V0.7', 42, 54);
+        const phoneX = 80;
+        const phoneY = 118;
+        const phoneH = 552;
+        const phoneW = Math.round(image.width * (phoneH / image.height));
+        ctx.fillStyle = '#10241f';
+        ctx.roundRect(phoneX - 14, phoneY - 14, phoneW + 28, phoneH + 28, 28);
+        ctx.fill();
+        ctx.drawImage(image, phoneX, phoneY, phoneW, phoneH);
+        ctx.fillStyle = '#10241f';
+        ctx.font = '700 44px Arial';
+        ctx.fillText(slide.title, 580, 212);
+        ctx.fillStyle = '#30423c';
+        ctx.font = '28px Arial';
+        const words = slide.caption.split(' ');
+        let line = '';
+        let y = 274;
+        for (const word of words) {
+          const testLine = line ? line + ' ' + word : word;
+          if (ctx.measureText(testLine).width > 590) {
+            ctx.fillText(line, 580, y);
+            line = word;
+            y += 40;
+          } else {
+            line = testLine;
+          }
+        }
+        ctx.fillText(line, 580, y);
+        ctx.fillStyle = '#0a7d68';
+        ctx.fillRect(580, 620, Math.round(560 * progress), 10);
+        ctx.fillStyle = '#cbd9d5';
+        ctx.fillRect(580 + Math.round(560 * progress), 620, Math.round(560 * (1 - progress)), 10);
+      };
+      recorder.start();
+      audio.play().catch(() => {});
+      for (let i = 0; i < slides.length; i += 1) {
+        const started = performance.now();
+        while (performance.now() - started < slides[i].duration) {
+          drawSlide(slides[i], images[i], (i + (performance.now() - started) / slides[i].duration) / slides.length);
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+        }
+      }
+      recorder.stop();
+      await new Promise((resolve) => { recorder.onstop = resolve; });
+      const blob = new Blob(chunks, { type: mimeType });
+      const buffer = await blob.arrayBuffer();
+      let binary = '';
+      const bytes = new Uint8Array(buffer);
+      const chunkSize = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+      }
+      return { mimeType, size: bytes.length, base64: btoa(binary) };
+    }
+  </script>
+</body>
+</html>
