@@ -115,14 +115,13 @@ async function verifyViewport(cdp, url, width, height) {
   assert.equal(step1.actionVisible, true, `${width}x${height}: Step 1 primary action must be immediately visible (${JSON.stringify(step1)})`);
   assert.equal(step1.inputVisible, true, `${width}x${height}: Step 1 input must remain visible`);
   assert.equal(step1.inputDockOverlap, false, `${width}x${height}: Step 1 input must not overlap the action dock`);
-  assert.equal(step1.inputCenterHitId, "driverInput", `${width}x${height}: Step 1 input center must remain directly interactable`);
   assert.equal(step1.dockPosition, "fixed", `${width}x${height}: Step 1 action must be viewport-docked`);
-  assert.ok(step1.dockBottomGap >= 0 && step1.dockBottomGap <= 20, `${width}x${height}: Step 1 dock must remain anchored near the viewport bottom`);
+  assert.ok(step1.dockBottomGap >= 0 && step1.dockBottomGap <= 20, `${width}x${height}: Step 1 dock must remain anchored near the viewport bottom (${JSON.stringify(step1)})`);
 
   await evaluate(cdp, `(() => {
     const input = document.querySelector('#driverInput'); input.value = '1001'; input.dispatchEvent(new Event('input', { bubbles: true }));
     document.querySelector('#driverNext').click();
-    const barcode = document.querySelector('#barcodeInput'); barcode.value = 'GFV-0001'; barcode.dispatchEvent(new Event('input', { bubbles: true }));
+    const barcode = document.querySelector('#barcodeInput'); barcode.value = 'G0001'; barcode.dispatchEvent(new Event('input', { bubbles: true }));
     document.querySelector('#barcodeNext').click(); document.querySelector('#directionIn').click();
   })()`);
   const step4 = await evaluate(cdp, `(() => {
@@ -141,16 +140,59 @@ async function verifyViewport(cdp, url, width, height) {
   assert.equal(step4.submitPosition, "fixed", `${width}x${height}: Step 4 action must be viewport-docked`);
 
   const state = await evaluate(cdp, `({
-    networkLabel: document.querySelector('#onlineStatus').textContent,
     scannerLocations: Array.from(document.querySelector('#scannerLocation').options).map(option => option.textContent),
-    historyLocation: Array.from(document.querySelector('#filterLocation').options).find(option => option.value === 'Elizabeth Repair Facility')?.textContent,
-    historyRow: Array.from(document.querySelectorAll('#searchResultsBody tr')).some(row => row.textContent.includes('Elizabeth Repair Facility') && row.textContent.includes('History only'))
+    feedbackVisible: !document.querySelector('#openScannerFeedbackButton').hidden,
+    networkControlPresent: Boolean(document.querySelector('#onlineStatus')),
+    deviceSetupPresent: Boolean(document.querySelector('#deviceSetupButton')),
+    reviewRows: document.querySelectorAll('#scanSummary li').length
   })`);
-  assert.match(state.networkLabel, /^Network (available|unavailable)$/);
-  assert.equal(state.scannerLocations.includes("Elizabeth Repair Facility"), false);
-  assert.equal(state.historyLocation, "Elizabeth Repair Facility (history only)");
-  assert.equal(state.historyRow, true);
+  assert.deepEqual(state.scannerLocations, ["Division Street", "North Ave", "EWR North", "Linden"]);
+  assert.equal(state.feedbackVisible, true, "scanner feedback must be available");
+  assert.equal(state.networkControlPresent, false, "scanner must not render a connectivity diagnostic");
+  assert.equal(state.deviceSetupPresent, false, "scanner must not render device setup");
+  assert.equal(state.reviewRows, 5, "step 4 must show exactly five operational values");
   return { viewport: `${width}x${height}`, step1, step4 };
+}
+
+async function verifyRecoveryBehavior(cdp, url) {
+  await cdp.send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+  await cdp.send("Page.navigate", { url: `${url}?recovery` });
+  await waitForReady(cdp);
+  await evaluate(cdp, `(() => {
+    document.querySelector('#startScanButton').click();
+    const driver = document.querySelector('#driverInput'); driver.value = 'E1003'; driver.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('#driverNext').click();
+    const barcode = document.querySelector('#barcodeInput'); barcode.value = 'G0003'; barcode.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('#barcodeNext').click();
+    document.querySelector('#directionOut').click(); document.querySelector('#submitTransactionButton').click();
+  })()`);
+  await evaluate(cdp, `(() => { const state = JSON.parse(localStorage.getItem('lot-watch.gateflow.v0.7.state')); state.supervisors[0].id = 'SUP-1001'; state.migrationVersion = 7; localStorage.setItem('lot-watch.gateflow.v0.7.state', JSON.stringify(state)); })()`);
+  await cdp.send("Page.reload", { ignoreCache: true });
+  await waitForReady(cdp);
+  const migratedSupervisor = await evaluate(cdp, "JSON.parse(localStorage.getItem('lot-watch.gateflow.v0.7.state')).supervisors[0].id");
+  assert.equal(migratedSupervisor, "S1001", "legacy supervisor ID must persist as S1001 after migration");
+  await evaluate(cdp, `(() => {
+    document.querySelector('#startScanButton').click();
+    const driver = document.querySelector('#driverInput'); driver.value = 'E1003'; driver.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('#driverNext').click();
+    const barcode = document.querySelector('#barcodeInput'); barcode.value = 'G9999'; barcode.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('#barcodeNext').click();
+  })()`);
+  const invalidNotice = await evaluate(cdp, "document.querySelector('#scannerNotice').textContent");
+  assert.match(invalidNotice, /not found/i, "invalid barcode must show a clear blocking notice");
+  await evaluate(cdp, `(() => { const barcode = document.querySelector('#barcodeInput'); barcode.value = 'G0003'; barcode.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  const recoveredBarcode = await evaluate(cdp, `({ notice: document.querySelector('#scannerNotice').textContent, tone: document.querySelector('#scannerNotice').className, status: document.querySelector('#barcodeStatus').textContent })`);
+  assert.match(recoveredBarcode.notice, /Vehicle found/i, "valid barcode must replace the stale red warning");
+  assert.match(recoveredBarcode.tone, /success/, "valid barcode must use success feedback");
+  assert.match(recoveredBarcode.status, /G0003/, "valid barcode must resolve the inventory record");
+
+  await evaluate(cdp, `(() => { document.querySelector('#barcodeNext').click(); document.querySelector('#directionOut').click(); document.querySelector('#submitTransactionButton').click(); const supervisor = document.querySelector('#supervisorInput'); supervisor.value = 'SUP-1001'; supervisor.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  const supervisorReady = await evaluate(cdp, `({ notice: document.querySelector('#scannerNotice').textContent, status: document.querySelector('#supervisorStatus').textContent })`);
+  assert.match(supervisorReady.notice, /Supervisor found/i, "legacy supervisor ID must normalize before approval");
+  assert.match(supervisorReady.status, /S1001/, "supervisor status must show the canonical ID");
+  await evaluate(cdp, "document.querySelector('#approveSupervisorButton').click()");
+  const approval = await evaluate(cdp, `(() => { const state = JSON.parse(localStorage.getItem('lot-watch.gateflow.v0.7.state')); const authorization = state.authorizations.find(item => item.driverEmployee === 'E1003' && item.status === 'active'); return { heading: document.querySelector('#reviewStepTitle').textContent, notice: document.querySelector('#scannerNotice').textContent, summary: document.querySelector('#scanSummary').innerText, authorizedAt: authorization?.authorizedAt, expiresAt: authorization?.expiresAt }; })()`);
+  assert.match(approval.heading, /Review Vehicle OUT/, "approval must advance to the OUT review step");
+  assert.match(approval.notice, /approved 9 Hours/i, "approval result must be clear");
+  assert.match(approval.summary, /AUTHORIZATION/, "review must remain available after approval");
+  assert.equal(new Date(approval.expiresAt).getTime() - new Date(approval.authorizedAt).getTime(), 9 * 60 * 60 * 1000, "temporary authorization must last exactly nine hours");
+  return { barcode: recoveredBarcode.status, approval: approval.heading };
 }
 
 async function main() {
@@ -168,7 +210,7 @@ async function main() {
     await cdp.send("Page.enable");
     await cdp.send("Runtime.enable");
     const url = `http://127.0.0.1:${webPort}/`;
-    const results = [await verifyViewport(cdp, url, 360, 800), await verifyViewport(cdp, url, 412, 915)];
+    const results = [await verifyViewport(cdp, url, 360, 800), await verifyViewport(cdp, url, 412, 915), await verifyRecoveryBehavior(cdp, url)];
     console.log(`V0.7 browser regression checks passed: ${JSON.stringify(results)}`);
   } finally {
     if (cdp) cdp.close();

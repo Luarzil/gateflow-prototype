@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#123b35">
+  <meta name="theme-color" content="#169A5A">
   <meta name="description" content="Lot Watch / GateFlow V0.7 gate scanning and device controls.">
   <title>Lot Watch / GateFlow V0.7</title>
   <link rel="manifest" href="manifest.webmanifest">
@@ -32,9 +32,6 @@
         <button class="nav-tab" type="button" data-view="searchView">Search</button>
       </nav>
 
-      <div class="top-actions">
-        <span class="save-pill" id="saveStatus"><span class="status-dot" aria-hidden="true"></span>Saved locally</span>
-      </div>
     </header>
 
     <main>
@@ -46,21 +43,13 @@
                 <p id="deviceClock">--:--</p>
                 <h1 id="scannerHeading">Lot Watch / GateFlow</h1>
               </div>
-              <div class="device-badges" aria-label="Scanner input mode">
-                <span>Keyboard-wedge input</span>
-                <span>Device assigned below</span>
-              </div>
+              <button class="button ghost compact" id="openScannerFeedbackButton" type="button">Feedback</button>
             </header>
 
             <div class="scanner-alert neutral" id="scannerNotice" role="status">Working location set. Scan the driver, then the vehicle barcode.</div>
 
-            <section class="working-location-bar" aria-label="Working location and device state">
+            <section class="working-location-bar" aria-label="Working gate">
               <div class="working-location-select"><label for="scannerLocation">Working Location</label><select id="scannerLocation" name="scannerLocation"></select></div>
-              <div class="station-account"><span>Station account</span><strong id="stationIdentity">Division Street Scanner</strong></div>
-              <div class="station-account"><span>Current device</span><strong id="currentDeviceLabel">DEV-DIV-01</strong><button class="table-action" id="deviceSetupButton" type="button">Device setup</button></div>
-              <div class="connectivity-strip" aria-label="Connection and save status">
-                <span id="onlineStatus">Network available</span><span id="lastSavedLocal">Saved locally</span>
-              </div>
             </section>
 
             <div class="scanner-stage">
@@ -89,11 +78,10 @@
 
                 <div class="wizard-step" data-step="0">
                   <p class="screen-title">Driver Employee #</p>
-                  <p class="screen-subtitle">Step 1 of 4. Scan or enter the driver employee number. The EMP- prefix is optional.</p>
+                  <p class="screen-subtitle">Step 1 of 4. Scan or enter the driver employee number, for example E1003.</p>
                   <div class="scan-group">
                     <label for="driverInput">Driver Employee #</label>
-                    <div class="scan-input single"><input id="driverInput" name="driverInput" autocomplete="off" inputmode="text" placeholder="Scan or enter employee #, e.g. 1001"></div>
-                    <button class="button secondary full manual-entry-trigger" id="openManualEmployeeButton" type="button">Enter Employee Number Manually</button>
+                    <div class="scan-input single"><input id="driverInput" name="driverInput" autocomplete="off" inputmode="text" placeholder="Scan or enter employee #, e.g. E1003"></div>
                     <p class="field-status" id="driverStatus">Awaiting employee number scan.</p>
                   </div>
                   <div class="wizard-actions"><button class="button primary full" id="driverNext" type="button">Continue to vehicle barcode</button></div>
@@ -105,7 +93,6 @@
                   <div class="scan-group">
                     <label for="barcodeInput">Vehicle Barcode</label>
                     <div class="scan-input single"><input id="barcodeInput" name="barcodeInput" autocomplete="off" inputmode="text" placeholder="Scan assigned vehicle barcode"></div>
-                    <button class="button secondary full manual-entry-trigger" id="openManualBarcodeButton" type="button">Enter Barcode Manually</button>
                     <p class="field-status" id="barcodeStatus">Awaiting vehicle barcode scan.</p>
                   </div>
                   <div class="button-row"><button class="button secondary" id="barcodeBack" type="button">Back</button><button class="button primary" id="barcodeNext" type="button">Choose movement</button></div>
@@ -151,23 +138,6 @@
             </div>
           </section>
 
-          <aside class="gate-context detail-panel" aria-label="Gate summary">
-            <section class="context-section"><p class="eyebrow">Current scan</p><h2 id="currentScanTitle">No transaction selected</h2><div class="detail-list" id="scanDetailList"></div></section>
-            <section class="context-section metrics-panel" aria-label="Today at the gate">
-              <div><span>OUT today</span><strong id="contextOutCount">0</strong></div>
-              <div><span>IN today</span><strong id="contextInCount">0</strong></div>
-              <div><span>Blocked OUT</span><strong id="contextBlockCount">0</strong></div>
-              <div><span>Authorized</span><strong id="contextAuthorizedCount">0</strong></div>
-            </section>
-            <section class="context-section">
-              <p class="eyebrow">Transaction rule</p>
-              <p><strong>OUT</strong> requires an active authorization across all current locations. <strong>IN</strong> records the movement even when authorization is missing and flags it for operational review.</p>
-            </section>
-            <section class="context-section scanner-note">
-              <p class="eyebrow">Scanner input</p>
-              <p>Input fields accept typing and compatible keyboard-wedge scans. Hardware connection status is not reported on this screen.</p>
-            </section>
-          </aside>
         </div>
       </section>
 
@@ -178,11 +148,13 @@
             <h1 id="supervisorViewHeading">Drivers, authorizations, vehicles, and devices</h1>
             <p>Manage the gate roster, temporary authorizations, vehicle inventory, and assigned devices.</p>
           </div>
+          <button class="button secondary compact" id="openSupervisorFeedbackButton" type="button">Feedback</button>
         </div>
         <div class="supervisor-tabs" role="tablist" aria-label="Supervisor sections">
           <button class="supervisor-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="driversSection" id="driversTab" data-supervisor-section="driversSection">Drivers</button>
           <button class="supervisor-tab" type="button" role="tab" aria-selected="false" aria-controls="vehiclesSection" id="vehiclesTab" data-supervisor-section="vehiclesSection">Vehicles</button>
           <button class="supervisor-tab" type="button" role="tab" aria-selected="false" aria-controls="devicesSection" id="devicesTab" data-supervisor-section="devicesSection">Devices</button>
+          <button class="supervisor-tab" type="button" role="tab" aria-selected="false" aria-controls="usersSection" id="usersTab" data-supervisor-section="usersSection">Users</button>
         </div>
 
         <section id="driversSection" class="supervisor-section is-active" role="tabpanel" aria-labelledby="driversTab">
@@ -225,10 +197,19 @@
 
         <section id="devicesSection" class="supervisor-section" role="tabpanel" aria-labelledby="devicesTab" hidden>
           <section class="panel">
-            <div class="panel-heading"><div><p class="eyebrow">Device control center</p><h2>Gate scanner devices</h2></div><button class="button secondary" id="addDeviceButton" type="button">Add Device</button></div>
-            <p class="field-status" id="deviceActionStatus">Choose the simulated current device in Scanner device setup.</p>
+            <div class="panel-heading"><div><p class="eyebrow">Device control center</p><h2>Gate scanner devices</h2></div><div class="button-row"><button class="button secondary" id="openDeviceSetupButton" type="button">Set current scanner</button><button class="button secondary" id="addDeviceButton" type="button">Add Device</button></div></div>
+            <p class="field-status" id="deviceActionStatus">Choose the simulated current scanner here, outside the scan workflow.</p>
             <div class="table-wrap"><table><thead><tr><th>Device ID</th><th>Friendly name</th><th>IMEI</th><th>Type</th><th>Assigned location</th><th>Status</th><th>Last used</th><th>Last transaction location</th><th>Actions</th></tr></thead><tbody id="devicesTableBody"></tbody></table></div>
             <section class="panel compact-panel device-history-panel"><div class="panel-heading"><div><p class="eyebrow">History</p><h2>Recent device changes</h2></div></div><div id="deviceHistoryList" class="audit-list"></div></section>
+          </section>
+
+        </section>
+
+        <section id="usersSection" class="supervisor-section" role="tabpanel" aria-labelledby="usersTab" hidden>
+          <section class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">Desktop users</p><h2>Application users and roles</h2></div><button class="button secondary" id="addDesktopUserButton" type="button">Add desktop user</button></div>
+            <p class="field-status">Prototype-only user directory. Drivers are not application users; production roles require AWS-backed authentication and server-side authorization.</p>
+            <div class="table-wrap"><table><thead><tr><th>User ID</th><th>Name</th><th>Role</th><th>Status</th><th>Scope</th></tr></thead><tbody id="desktopUsersTableBody"></tbody></table></div>
           </section>
         </section>
 
@@ -237,11 +218,6 @@
             <p class="eyebrow">Locations</p>
             <h2>Configured gate locations</h2>
             <ul class="simple-list" id="locationList"></ul>
-          </section>
-          <section class="panel">
-            <p class="eyebrow">Users</p>
-            <h2>Future role-based permissions</h2>
-            <p>Owner / System Administrator may assign any role, including Manager. A Manager may manage Supervisor and Scanner User accounts but cannot create or promote a Manager. These interface permissions are not production access control; production enforcement requires authenticated server, API, and database authorization.</p>
           </section>
           <section class="panel">
             <p class="eyebrow">Label printer</p>
@@ -261,8 +237,8 @@
         </div>
 
         <form class="search-grid panel" id="searchForm">
-          <div><label for="filterVehicle">Barcode, VIN, or Plate</label><input id="filterVehicle" type="search" placeholder="e.g. GFV-0001, 1HGCM, or TRK"></div>
-          <div><label for="filterDriver">Employee # or driver</label><input id="filterDriver" type="search" placeholder="e.g. EMP-1001 or Nina"></div>
+          <div><label for="filterVehicle">Barcode, VIN, or Plate</label><input id="filterVehicle" type="search" placeholder="e.g. G0001, 1HGCM, or TRK"></div>
+          <div><label for="filterDriver">Employee # or driver</label><input id="filterDriver" type="search" placeholder="e.g. E1001 or Nina"></div>
           <div><label for="filterLocation">Location</label><select id="filterLocation"></select></div>
           <div><label for="filterDate">Date</label><input id="filterDate" type="date"></div>
           <div><label for="filterType">Movement</label><select id="filterType"><option value="">IN and OUT</option><option value="IN">Vehicle IN</option><option value="OUT">Vehicle OUT</option></select></div>
@@ -292,7 +268,7 @@
         <button class="button ghost compact" id="closeManualEmployeeButton" type="button" aria-label="Close manual employee entry">Close</button>
       </div>
       <label for="manualEmployeeInput">Driver Employee #</label>
-      <input id="manualEmployeeInput" autocomplete="off" inputmode="text" placeholder="EMP-1001">
+      <input id="manualEmployeeInput" autocomplete="off" inputmode="text" placeholder="E1001">
       <p class="field-status" id="manualEmployeeStatus">Manual entries follow the same validation as scans.</p>
       <div class="button-row"><button class="button secondary" id="cancelManualEmployeeButton" type="button">Cancel</button><button class="button primary" id="submitManualEmployeeButton" type="button">Use employee #</button></div>
     </section>
@@ -300,7 +276,7 @@
   <div class="modal-backdrop hidden" id="manualBarcodeModal" role="dialog" aria-modal="true" aria-labelledby="manualBarcodeHeading">
     <section class="modal-panel">
       <div class="panel-heading tight"><div><p class="eyebrow">Manual entry</p><h2 id="manualBarcodeHeading">Enter Vehicle Barcode</h2></div><button class="button ghost compact" id="closeManualBarcodeButton" type="button" aria-label="Close manual barcode entry">Close</button></div>
-      <label for="manualBarcodeInput">Assigned Vehicle Barcode</label><input id="manualBarcodeInput" autocomplete="off" placeholder="GFV-0001">
+      <label for="manualBarcodeInput">Assigned Vehicle Barcode</label><input id="manualBarcodeInput" autocomplete="off" placeholder="G0001">
       <p class="field-status" id="manualBarcodeStatus">Manual barcode entries use the same exact-match checks as scans.</p>
       <div class="button-row"><button class="button secondary" id="cancelManualBarcodeButton" type="button">Cancel</button><button class="button primary" id="submitManualBarcodeButton" type="button">Use Barcode</button></div>
     </section>
@@ -310,7 +286,7 @@
       <div class="panel-heading tight"><div><p class="eyebrow">Supervisor</p><h2 id="driverModalHeading">Add Driver</h2></div><button class="button ghost compact" id="closeDriverModalButton" type="button" aria-label="Close driver form">Close</button></div>
       <form id="driverForm" novalidate>
         <input id="driverEditEmployee" type="hidden">
-        <div class="form-row"><label for="driverEmployeeNumber">Employee Number</label><input id="driverEmployeeNumber" required autocomplete="off" placeholder="EMP-1007"><p class="field-status" id="driverEmployeeError"></p></div>
+        <div class="form-row"><label for="driverEmployeeNumber">Employee Number</label><input id="driverEmployeeNumber" required autocomplete="off" placeholder="E1007"><p class="field-status" id="driverEmployeeError"></p></div>
         <div class="form-row"><label for="driverName">Driver Name</label><input id="driverName" required autocomplete="off" placeholder="Driver name"><p class="field-status" id="driverNameError"></p></div>
         <div class="form-row"><label for="driverLicenseExpires">Driver-license expiration date</label><input id="driverLicenseExpires" type="date" required><p class="field-status" id="driverLicenseError"></p></div>
         <div class="form-row"><label for="driverActive">Driver status</label><select id="driverActive"><option value="true">Active</option><option value="false">Inactive</option></select></div>
@@ -329,7 +305,7 @@
           <div class="form-row"><label for="vehicleYear">Year</label><input id="vehicleYear" required inputmode="numeric" placeholder="2024"><p class="field-status" id="vehicleYearError"></p></div>
           <div class="form-row"><label for="vehicleColor">Color</label><input id="vehicleColor" required><p class="field-status" id="vehicleColorError"></p></div>
           <div class="form-row"><label for="vehicleVin">VIN</label><input id="vehicleVin" required autocomplete="off"><p class="field-status" id="vehicleVinError"></p></div>
-          <div class="form-row"><label for="vehicleBarcode">Assigned Barcode</label><input id="vehicleBarcode" required autocomplete="off" placeholder="GFV-0006"><p class="field-status" id="vehicleBarcodeError"></p></div>
+          <div class="form-row"><label for="vehicleBarcode">Assigned Barcode</label><input id="vehicleBarcode" required autocomplete="off" placeholder="G0006"><p class="field-status" id="vehicleBarcodeError"></p></div>
           <div class="form-row"><label for="vehiclePlate">Plate (optional)</label><input id="vehiclePlate" autocomplete="off"></div>
           <div class="form-row"><label for="vehicleActive">Inventory status</label><select id="vehicleActive"><option value="true">Active</option><option value="false">Inactive</option></select></div>
         </div>
@@ -339,8 +315,10 @@
     </section>
   </div>
   <div class="modal-backdrop hidden" id="driverProfileModal" role="dialog" aria-modal="true" aria-labelledby="driverProfileHeading"><section class="modal-panel"><div class="panel-heading tight"><div><p class="eyebrow">Driver profile</p><h2 id="driverProfileHeading">Driver</h2></div><button class="button ghost compact" id="closeDriverProfileButton" type="button">Close</button></div><div id="driverProfileBody" class="detail-list"></div><div class="button-row"><button class="button secondary" id="profileEditDriverButton" type="button">Edit Driver</button><button class="button danger" id="profileToggleDriverButton" type="button">Mark inactive</button></div></section></div>
-  <div class="modal-backdrop hidden" id="deviceSetupModal" role="dialog" aria-modal="true" aria-labelledby="deviceSetupHeading"><section class="modal-panel"><div class="panel-heading tight"><div><p class="eyebrow">Scanner setup</p><h2 id="deviceSetupHeading">Select Current Device</h2></div><button class="button ghost compact" id="closeDeviceSetupButton" type="button">Close</button></div><label for="currentDeviceSelect">Current device</label><select id="currentDeviceSelect"></select><div id="floaterLocationFields" class="form-row hidden"><label for="floaterLocationSelect">Floater working location</label><select id="floaterLocationSelect"></select><p class="field-status">Confirming a location locks it for this session.</p></div><p id="deviceSetupStatus" class="field-status"></p><div class="button-row"><button class="button secondary" id="changeFloaterLocationButton" type="button">Change Location</button><button class="button primary" id="confirmDeviceLocationButton" type="button">Confirm Location</button></div></section></div>
-  <div class="modal-backdrop hidden" id="deviceModal" role="dialog" aria-modal="true" aria-labelledby="deviceModalHeading"><section class="modal-panel modal-wide"><div class="panel-heading tight"><div><p class="eyebrow">Device control center</p><h2 id="deviceModalHeading">Add Device</h2></div><button class="button ghost compact" id="closeDeviceModalButton" type="button">Close</button></div><form id="deviceForm" novalidate><input id="deviceEditId" type="hidden"><div class="modal-form-grid"><div class="form-row"><label for="deviceIdInput">Device ID</label><input id="deviceIdInput" required placeholder="DEV-REGION-01"><p id="deviceIdError" class="field-status"></p></div><div class="form-row"><label for="deviceNameInput">Friendly Device Name</label><input id="deviceNameInput" required placeholder="Division Gate Scanner"><p id="deviceNameError" class="field-status"></p></div><div class="form-row"><label for="deviceImeiInput">IMEI</label><input id="deviceImeiInput" required inputmode="numeric" placeholder="000000000000001"><p id="deviceImeiError" class="field-status"></p></div><div class="form-row"><label for="deviceTypeInput">Device Type</label><select id="deviceTypeInput"><option value="Fixed">Fixed</option><option value="Floater">Floater</option></select></div><div class="form-row"><label for="deviceLocationInput">Assigned Location</label><select id="deviceLocationInput"></select><p id="deviceLocationError" class="field-status"></p></div><div class="form-row"><label for="deviceStatusInput">Status</label><select id="deviceStatusInput"><option value="Active">Active</option><option value="Spare">Spare</option><option value="Charging">Charging</option><option value="Repair">Repair</option><option value="Inactive">Inactive</option></select></div><div class="form-row"><label for="devicePhoneInput">Phone Number (optional)</label><input id="devicePhoneInput"></div><div class="form-row"><label for="deviceNotesInput">Notes (optional)</label><input id="deviceNotesInput"></div></div><div class="button-row"><button class="button secondary" id="cancelDeviceButton" type="button">Cancel</button><button class="button primary" type="submit">Save Device</button></div></form></section></div>
+  <div class="modal-backdrop hidden" id="feedbackModal" role="dialog" aria-modal="true" aria-labelledby="feedbackHeading"><section class="modal-panel"><div class="panel-heading tight"><div><p class="eyebrow" id="feedbackEyebrow">Scanner feedback</p><h2 id="feedbackHeading">Report an issue</h2></div><button class="button ghost compact" id="closeFeedbackButton" type="button">Close</button></div><form id="feedbackForm" novalidate><div class="form-row"><label for="feedbackName">Your name</label><input id="feedbackName" autocomplete="name" placeholder="Optional on scanner"></div><div class="form-row"><label for="feedbackNote">What happened?</label><textarea id="feedbackNote" rows="3" maxlength="500" required placeholder="Short description"></textarea></div><div class="form-row hidden" id="feedbackDetailsRow"><label for="feedbackDetails">Additional details</label><textarea id="feedbackDetails" rows="4" maxlength="1500" placeholder="What did you expect, and what should change?"></textarea></div><p class="field-status" id="feedbackContext"></p><div class="button-row"><button class="button secondary" id="cancelFeedbackButton" type="button">Cancel</button><button class="button primary" type="submit">Save feedback locally</button></div></form></section></div>
+  <div class="modal-backdrop hidden" id="desktopUserModal" role="dialog" aria-modal="true" aria-labelledby="desktopUserHeading"><section class="modal-panel"><div class="panel-heading tight"><div><p class="eyebrow">Desktop user</p><h2 id="desktopUserHeading">Add desktop user</h2></div><button class="button ghost compact" id="closeDesktopUserButton" type="button">Close</button></div><form id="desktopUserForm" novalidate><div class="form-row"><label for="desktopUserName">Name</label><input id="desktopUserName" required autocomplete="name"><p class="field-status" id="desktopUserNameError"></p></div><div class="form-row"><label for="desktopUserRole">Role</label><select id="desktopUserRole"><option value="Manager">Manager</option><option value="Owner / System Administrator">Owner / System Administrator</option><option value="Supervisor">Supervisor</option></select></div><div class="form-row"><label for="desktopUserScope">Location scope</label><select id="desktopUserScope"><option value="All locations">All locations</option><option value="Division Street">Division Street</option><option value="North Ave">North Ave</option><option value="EWR North">EWR North</option><option value="Linden">Linden</option></select></div><div class="button-row"><button class="button secondary" id="cancelDesktopUserButton" type="button">Cancel</button><button class="button primary" type="submit">Save user</button></div></form></section></div>
+  <div class="modal-backdrop hidden" id="deviceSetupModal" role="dialog" aria-modal="true" aria-labelledby="deviceSetupHeading"><section class="modal-panel"><div class="panel-heading tight"><div><p class="eyebrow">Supervisor device control</p><h2 id="deviceSetupHeading">Select Current Scanner</h2></div><button class="button ghost compact" id="closeDeviceSetupButton" type="button">Close</button></div><label for="currentDeviceSelect">Current scanner</label><select id="currentDeviceSelect"></select><div id="floaterLocationFields" class="form-row hidden"><label for="floaterLocationSelect">Floater working location</label><select id="floaterLocationSelect"></select><p class="field-status">Confirming a location locks it for this session.</p></div><p id="deviceSetupStatus" class="field-status"></p><div class="button-row"><button class="button secondary" id="changeFloaterLocationButton" type="button">Change Location</button><button class="button primary" id="confirmDeviceLocationButton" type="button">Confirm Location</button></div></section></div>
+  <div class="modal-backdrop hidden" id="deviceModal" role="dialog" aria-modal="true" aria-labelledby="deviceModalHeading"><section class="modal-panel modal-wide"><div class="panel-heading tight"><div><p class="eyebrow">Device control center</p><h2 id="deviceModalHeading">Add Device</h2></div><button class="button ghost compact" id="closeDeviceModalButton" type="button">Close</button></div><form id="deviceForm" novalidate><input id="deviceEditId" type="hidden"><div class="modal-form-grid"><div class="form-row"><label for="deviceIdInput">Device ID</label><input id="deviceIdInput" required placeholder="D0006"><p id="deviceIdError" class="field-status"></p></div><div class="form-row"><label for="deviceNameInput">Friendly Device Name</label><input id="deviceNameInput" required placeholder="Division Gate Scanner"><p id="deviceNameError" class="field-status"></p></div><div class="form-row"><label for="deviceImeiInput">IMEI</label><input id="deviceImeiInput" required inputmode="numeric" placeholder="000000000000001"><p id="deviceImeiError" class="field-status"></p></div><div class="form-row"><label for="deviceTypeInput">Device Type</label><select id="deviceTypeInput"><option value="Fixed">Fixed</option><option value="Floater">Floater</option></select></div><div class="form-row"><label for="deviceLocationInput">Assigned Location</label><select id="deviceLocationInput"></select><p id="deviceLocationError" class="field-status"></p></div><div class="form-row"><label for="deviceStatusInput">Status</label><select id="deviceStatusInput"><option value="Active">Active</option><option value="Spare">Spare</option><option value="Charging">Charging</option><option value="Repair">Repair</option><option value="Inactive">Inactive</option></select></div><div class="form-row"><label for="devicePhoneInput">Phone Number (optional)</label><input id="devicePhoneInput"></div><div class="form-row"><label for="deviceNotesInput">Notes (optional)</label><input id="deviceNotesInput"></div></div><div class="button-row"><button class="button secondary" id="cancelDeviceButton" type="button">Cancel</button><button class="button primary" type="submit">Save Device</button></div></form></section></div>
   <script src="app.js"></script>
 </body>
 </html>
