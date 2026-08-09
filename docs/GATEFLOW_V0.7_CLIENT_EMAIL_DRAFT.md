@@ -1,10 +1,12 @@
 # GateFlow V0.7 Client Email Draft
 
-Subject: GateFlow V0.7 review link and scanner walkthrough
+To: Patrick
+
+Subject: GateFlow V0.7 review build, manual, and walkthrough
 
 Patrick,
 
-I updated the GateFlow V0.7 review prototype based on the call notes and the follow-up scanner testing.
+I updated the GateFlow V0.7 review prototype based on the call notes and the follow-up scanner testing. This version includes the corrected scanner flow, the requested Enterprise-style green treatment, the updated operator manual, and a full walkthrough video.
 
 Main changes:
 
@@ -25,7 +27,7 @@ I also fixed two problems found during testing:
 - A red barcode warning now clears as soon as the barcode is corrected.
 - Temporary supervisor approval now accepts the supervisor ID, grants the 9-hour authorization, and advances back to the OUT review step.
 
-For review, try this path:
+Suggested review path:
 
 1. Start a vehicle scan.
 2. Enter driver `E1003`.
@@ -37,14 +39,18 @@ For review, try this path:
 
 Review link:
 
-[GateFlow V0.7 review prototype - paste latest verified Vercel review link here]
+[GateFlow V0.7 review prototype - insert approved public Vercel link here]
 
 Walkthrough:
 
-[GateFlow V0.7 full walkthrough - paste latest verified Vercel walkthrough link here]
+[GateFlow V0.7 full walkthrough - insert approved public Vercel walkthrough link here]
 
-I also attached the full walkthrough video, the V0.7 operator manual, and the packaged review bundle so the scanner, Supervisor pages, Search, Feedback, and known prototype limits can be reviewed without reading through all implementation notes.
+Attached:
 
-Note: the protected Vercel review links are temporary. If you need a non-expiring link, we can promote the verified build to the public production URL after approval.
+- V0.7 operator manual
+- Full walkthrough video
+- Packaged review bundle
 
 This is still a browser-local review prototype. It does not yet include the shared AWS backend, real authentication, shared multi-device data, barcode printing, or final Android scanner integration.
+
+Please review the scanner path first, then the Supervisor, Search, Feedback, and known prototype boundary sections in the walkthrough/manual.
