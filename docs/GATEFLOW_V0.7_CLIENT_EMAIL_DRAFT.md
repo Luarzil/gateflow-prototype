@@ -42,6 +42,6 @@ Walkthrough:
 
 [GateFlow V0.7 scanner walkthrough](https://gateflow-prototype-6jvi1r59o-raul-hernandez-watchdesk-github.vercel.app/docs/media/gateflow-v07-demo.html?_vercel_share=HIcalbhkh5zzg3MFPoOxGmYYYFXc5oMw)
 
-I also attached the short walkthrough video and the V0.7 operator manual so the scanner flow can be reviewed without reading through all implementation notes.
+I also attached the full walkthrough video and the V0.7 operator manual so the scanner, Supervisor pages, Search, Feedback, and known prototype limits can be reviewed without reading through all implementation notes.
 
 This is still a browser-local review prototype. It does not yet include the shared AWS backend, real authentication, shared multi-device data, barcode printing, or final Android scanner integration.

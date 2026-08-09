@@ -65,9 +65,9 @@ The first command contains exactly 84 named V0.7 checks. The browser check drive
 - `Lot-Watch-GateFlow-V0.7-Operator-Manual.md`: Patrick-facing operator manual.
 - `docs/GATEFLOW_V0.7_RELEASE_PACKET.md`: scope, changes, validation evidence, and rollback.
 - `docs/GATEFLOW_V0.7_CLIENT_EMAIL_DRAFT.md`: draft client email for approval before sending.
-- `docs/media/gateflow-v07-demo.html`: phone-friendly walkthrough page with video, narration audio, and captured scanner frames.
-- `docs/media/gateflow-v07-demo.webm`: browser-recorded walkthrough video.
-- `docs/media/gateflow-v07-demo-audio.wav`: narration audio.
+- `docs/media/gateflow-v07-demo.html`: full walkthrough page with video, narration audio, and captured scanner/Supervisor/Search frames.
+- `docs/media/gateflow-v07-demo.webm`: browser-recorded 19-step walkthrough video.
+- `docs/media/gateflow-v07-demo-audio.wav`: female narration audio generated with Microsoft Zira.
 
 ## Prototype boundaries
 

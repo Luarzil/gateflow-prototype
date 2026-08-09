@@ -44,9 +44,9 @@ The 84-case suite is a V0.7 contract/release-gate suite. The browser regression 
 
 The media package is stored under `docs/media/`:
 
-- `gateflow-v07-demo.webm` - short browser walkthrough video with captions and narration when generated successfully.
-- `gateflow-v07-demo-audio.wav` - narration audio file.
-- `gateflow-v07-demo.html` - fallback walkthrough page with the demo frames, captions, and audio.
+- `gateflow-v07-demo.webm` - 19-step browser walkthrough video covering Scanner, blocked OUT, supervisor approval, Supervisor pages, Search, Feedback, and prototype boundaries.
+- `gateflow-v07-demo-audio.wav` - female narration audio generated with Microsoft Zira.
+- `gateflow-v07-demo.html` - fallback walkthrough page with all demo frames, captions, video, and audio.
 
 ## Vercel Review Links
 
