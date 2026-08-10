@@ -1,4 +1,4 @@
-# GateFlow V0.6 Validator
+# GateFlow V0.7 Validator
 
 Internal regression test runner for the Lot Watch / GateFlow static prototype.
 
@@ -20,6 +20,8 @@ Do not run this against a production customer deployment. It is an in-house loca
 
 ## What it proves
 
-The current 34-check suite tests normal and negative workflow paths: Scanner cancel behavior, Supervisor navigation, driver required fields/create/edit/deactivate/reactivate behavior, bulk authorization and deauthorization confirmations, vehicle required fields/inventory/barcode uniqueness/history/restore behavior, barcode scanner lookup, inactive vehicle blocking, authorized and blocked OUT movement, unauthorized IN review, license rules, duration calculations, reset confirmation and recovery, combined Search filters, and V0.5-to-V0.6 state migration.
+The current 84-scenario suite registers every retained V0.6 regression once and adds distinct V0.7 checks for numeric employee numbers, manual barcode entry, stale driver-state clearing, the fixed nine-hour authorization rule, Fixed/Floater device controls, submission-time device revalidation, transaction metadata, Search, persistence, and V0.6-to-V0.7 migration.
+
+It deliberately tests prohibited actions too, including an invalid supervisor approval, manual barcode entry for a missing or inactive vehicle, a Floater scan before a location is confirmed, and a duplicate device IMEI.
 
 It does **not** turn a static browser prototype into secure software. Real user permissions, data tamper prevention, and access control require server-side authentication and authorization in a production backend.

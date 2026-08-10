@@ -1,6 +1,8 @@
-# Lot Watch / GateFlow V0.6 Supervisor and Vehicle Inventory Review
+# Lot Watch / GateFlow V0.7 Call Updates
 
-Static HTML, CSS, and JavaScript PWA prototype for Zebra TC-series style gate operations. V0.6 keeps the V0.5 transaction rules and adds Supervisor-based driver management, vehicle inventory, and assigned-barcode scanning.
+Static HTML, CSS, and JavaScript PWA prototype for gate operations. This update keeps the scanner focused on recording an IN or OUT movement and moves device selection to Supervisor controls.
+
+The current review build uses an Enterprise-style green palette for Lot Watch / GateFlow controls, headers, app theme metadata, icon artwork, and walkthrough media.
 
 ## Run locally
 
@@ -12,35 +14,65 @@ python -m http.server 8800 --bind 127.0.0.1
 
 Open `http://127.0.0.1:8800/`.
 
-## V0.6 workflow
+## V0.7 workflow
 
-1. Choose one Working Location: Division Street, North Ave, EWR, or Linden.
-2. Scan or enter Driver Employee #.
-3. Scan the assigned Vehicle Barcode, such as `GFV-0001`.
-4. GateFlow resolves the active vehicle profile and shows its barcode, year, make, model, color, VIN, and plate.
+1. Work at one configured gate: Division Street, North Ave, EWR North, or Linden.
+2. Scan or enter Driver Employee #, such as `E1003`.
+3. Scan the assigned Vehicle Barcode, such as `G0001`.
+4. GateFlow resolves the active vehicle profile.
 5. Select IN or OUT and submit.
 
 OUT still requires active driver authorization and an unexpired license. Unauthorized OUT remains blocked for Supervisor temporary authorization. Unauthorized IN remains allowed and is flagged for operational review. Inactive inventory vehicles are blocked from new IN and OUT movements.
 
 ## Supervisor
 
-The Supervisor view contains Drivers and Vehicles sub-sections:
+The Supervisor view contains Drivers, Vehicles, Devices, and Users sub-sections:
 
 - Drivers: create, edit, mark inactive/reactivate, bulk-authorize, revoke authorizations, and review license urgency.
 - Vehicles: create, edit, remove from inventory, restore to inventory, filter status, and search barcode/VIN/plate/make/model/year/color.
+- Devices: manage the simulated current scanner outside the scanning workflow.
+- Users: maintain prototype desktop-user roles. Drivers are operational records, not application accounts.
 
 Vehicle removal is a soft deactivation. Historical records and assigned barcode values remain searchable; a removed barcode cannot be reused.
 
 ## Data and migration
 
-V0.6 stores data in `lot-watch.gateflow.v0.6.state`. It migrates a valid V0.5 state from `lot-watch.gateflow.v0.5.state` without deleting or overwriting that key. Migration adds deterministic vehicle IDs and `GFV-0001` through `GFV-0005` demo barcodes, then maps historical transactions to vehicle snapshots.
+V0.7 stores prototype data in `lot-watch.gateflow.v0.7.state`. It preserves V0.6, V0.5, and V0.4 keys and migrates a valid V0.6 state without deleting or overwriting that source key. The migration converts legacy employee and vehicle codes to `E####` and `G####`, respectively, and removes the invalid yard from active data.
 
-`Elizabeth Repair Facility` remains historical-only: it is searchable but cannot be selected for a new scan.
+The configured locations are Division Street, North Ave, EWR North, and Linden.
+
+## Device control
+
+Supervisor > Devices manages simulated Fixed and Floater devices. A Fixed device supplies and locks its assigned location. A Floater must select and confirm an active location before scanning; changing that location requires confirmation and resets an unfinished scan.
+
+## Feedback
+
+The scanner and Supervisor views provide a compact feedback form. Scanner feedback records the current location and scanner screen; desktop feedback records the current Supervisor context. In this prototype, feedback remains local browser data.
 
 ## Validation
 
-The in-house `gateflow-validator/` runs UI regression checks. Serve the repository, then open `http://127.0.0.1:8800/gateflow-validator/`. It restores the browser's prior local state after each full run.
+Run the V0.7 call-update release gate with the bundled Node runtime:
+
+```powershell
+node --test tests\v07-84-regression.test.js
+node tests\v07-presentation.browser.test.js
+```
+
+The first command contains exactly 84 named V0.7 checks. The browser check drives the scanner through phone-size viewports, invalid-to-valid barcode recovery, legacy supervisor-ID migration, temporary approval, and advancement to the OUT review screen.
+
+`gateflow-validator/` is retained as a historical V0.6 harness and is not release evidence for these call updates.
+
+## Patrick review packet
+
+- `Lot-Watch-GateFlow-V0.7-Operator-Manual.md`: Patrick-facing operator manual.
+- `Lot-Watch-GateFlow-V0.7-Call-Update-Guide.md`: change-focused V0.7 call update guide.
+- `docs/GATEFLOW_V0.7_RELEASE_PACKET.md`: scope, changes, validation evidence, and rollback.
+- `docs/GATEFLOW_V0.7_CLIENT_EMAIL_DRAFT.md`: draft client email for approval before sending.
+- `docs/media/gateflow-v07-demo.html`: full walkthrough page with video, narration audio, and captured scanner/Supervisor/Search frames.
+- `docs/media/gateflow-v07-demo.webm`: browser-recorded 19-step walkthrough video.
+- `docs/media/gateflow-v07-demo-audio.wav`: female narration audio generated with Microsoft Zira.
+- `dist/GateFlow-V0.7-Patrick-Review-Package.zip`: packaged review bundle containing the app files, manual, release packet, email draft, and walkthrough media.
 
 ## Prototype boundaries
 
-This is not production software. It has no shared database, real authentication, secure server-side role enforcement, printer integration, barcode-image generation, Samsung/Verizon integration, native Android app, or real Zebra device integration. Future production may use DataWedge, Android Intents, Enterprise Browser or native Android, customer-owned hosting, and offline synchronization.
+This is not production software. It has no shared database, real authentication, secure server-side role enforcement, printer integration, barcode-image generation, native Android app, or real device integration. The next AWS step is a read-only account and resource inventory; no cloud changes are included here.
