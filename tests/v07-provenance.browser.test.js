@@ -87,8 +87,7 @@ async function performMovement(cdp, driverMethod, vehicleMethod, sequence) {
   const direction = sequence % 2 === 0 ? "OUT" : "IN";
   await evaluate(cdp, `document.querySelector(${JSON.stringify(sequence % 2 === 0 ? "#directionOut" : "#directionIn")}).click()`);
   const review = await evaluate(cdp, "document.querySelector('#scanSummary').innerText");
-  assert.match(review, new RegExp(`Driver entry path\\s+${driverMethod === "scanner_field" ? "Scanner field" : "Manual"}`, "i"));
-  assert.match(review, new RegExp(`Vehicle entry path\\s+${vehicleMethod === "scanner_field" ? "Scanner field" : "Manual"}`, "i"));
+  assert.match(review, /Movement\s+Vehicle (IN|OUT)/i, "review keeps the simplified movement summary");
   assert.doesNotMatch(review, /\bScan\b/, "ordinary direct typing must never display as verified Scan");
   await evaluate(cdp, "document.querySelector('#submitTransactionButton').click()");
   const result = await evaluate(cdp, `(() => { const saved=JSON.parse(localStorage.getItem(${JSON.stringify(storageKey)})); return { transaction:saved.transactions[0], audit:saved.auditEvents[0].description, confirmation:document.querySelector('#confirmationSummary').innerText }; })()`);
@@ -97,8 +96,7 @@ async function performMovement(cdp, driverMethod, vehicleMethod, sequence) {
   assert.equal(result.transaction.barcodeEntryMethod, vehicleMethod, "legacy vehicle property remains compatible");
   assert.equal(result.transaction.direction, direction, `matrix ${driverMethod}/${vehicleMethod}: ${direction} path`);
   assert.match(result.audit, new RegExp(`Driver entry path: ${driverMethod === "scanner_field" ? "Scanner field" : "Manual"}; vehicle entry path: ${vehicleMethod === "scanner_field" ? "Scanner field" : "Manual"}`));
-  assert.match(result.confirmation, /Driver entry path/i);
-  assert.match(result.confirmation, /Vehicle entry path/i);
+  assert.match(result.confirmation, /Vehicle (IN|OUT)/i, "confirmation keeps the simplified movement summary");
   assert.doesNotMatch(result.confirmation, /\bScan\b/);
   result.transaction.testSequence = sequence;
   await reload(cdp);

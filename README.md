@@ -31,7 +31,7 @@ The Supervisor view contains Drivers, Vehicles, Devices, and Users sub-sections:
 - Drivers: create, edit, mark inactive/reactivate, bulk-authorize, revoke authorizations, and review license urgency.
 - Vehicles: create, edit, remove from inventory, restore to inventory, filter status, and search barcode/VIN/plate/make/model/year/color.
 - Devices: manage the simulated current scanner outside the scanning workflow.
-- Users: maintain prototype desktop-user roles. Drivers are operational records, not application accounts.
+- Users: maintain prototype desktop-user roles, usernames, demo reset status, and an ability matrix with `Restricted`, `View only`, and `Assign`. Drivers are operational records, not application accounts.
 
 Vehicle removal is a soft deactivation. Historical records and assigned barcode values remain searchable; a removed barcode cannot be reused.
 
@@ -55,10 +55,11 @@ Run the V0.7 call-update release gate with the bundled Node runtime:
 
 ```powershell
 node --test tests\v07-84-regression.test.js
+node --test tests\v08-user-auth-abilities.test.js
 node tests\v07-presentation.browser.test.js
 ```
 
-The first command contains exactly 84 named V0.7 checks. The browser check drives the scanner through phone-size viewports, invalid-to-valid barcode recovery, legacy supervisor-ID migration, temporary approval, and advancement to the OUT review screen.
+The first command contains exactly 84 named V0.7 checks. The V0.8 user-auth test covers Patrick's username, demo password/reset, ability matrix, and driver-exclusion request. The browser check drives the scanner through phone-size viewports, invalid-to-valid barcode recovery, legacy supervisor-ID migration, temporary approval, and advancement to the OUT review screen.
 
 `gateflow-validator/` is retained as a historical V0.6 harness and is not release evidence for these call updates.
 
@@ -75,4 +76,4 @@ The first command contains exactly 84 named V0.7 checks. The browser check drive
 
 ## Prototype boundaries
 
-This is not production software. It has no shared database, real authentication, secure server-side role enforcement, printer integration, barcode-image generation, native Android app, or real device integration. The next AWS step is a read-only account and resource inventory; no cloud changes are included here.
+This is not production software. It has no shared database, real authentication, secure server-side role enforcement, printer integration, barcode-image generation, native Android app, or real device integration. Demo credential fields are not saved as production passwords. The next AWS step is a read-only account and resource inventory; no cloud changes are included here.

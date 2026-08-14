@@ -25,6 +25,17 @@ const BUSINESS_TIMEZONE = "America/New_York";
 const LICENSE_VALID_THROUGH_PRINTED_DATE = true;
 const ENTRY_METHODS = ["scanner_field", "manual"];
 const LEGACY_ENTRY_METHOD = "legacy_unknown";
+const DESKTOP_USER_ROLES = ["Scanner", "Fleet Lead", "Supervisor", "Manager", "Admin"];
+const ABILITY_LEVELS = ["Restricted", "View only", "Assign"];
+const DESKTOP_USER_ABILITIES = [
+  { id: "scanner", title: "Scanner", description: "Use the gate scanner workflow." },
+  { id: "driverProfiles", title: "Driver profiles", description: "View or maintain driver profile and authorization controls." },
+  { id: "vehicles", title: "Vehicles", description: "View or maintain vehicle inventory records." },
+  { id: "devices", title: "Devices", description: "View or maintain scanner devices and replacements." },
+  { id: "users", title: "Users", description: "View or maintain application users and abilities." },
+  { id: "search", title: "Search / audit", description: "View movement history and audit-style records." },
+  { id: "feedback", title: "Feedback", description: "Review scanner and supervisor feedback." }
+];
 
 let storageAvailable = true;
 
@@ -74,6 +85,9 @@ function cacheElements() {
     "flowCancel", "wizardDots", "scannerLocation", "driverInput", "driverStatus", "driverNext", "barcodeInput",
     "barcodeStatus", "barcodeBack", "barcodeNext", "transactionNote", "reviewStepTitle", "reviewBack",
     "scanSummary", "submitTransactionButton", "supervisorReason", "supervisorInput",
+    "openManualEmployeeButton", "openManualBarcodeButton",
+    "manualEmployeeModal", "manualEmployeeInput", "manualEmployeeStatus", "closeManualEmployeeButton", "cancelManualEmployeeButton", "submitManualEmployeeButton",
+    "manualBarcodeModal", "manualBarcodeInput", "manualBarcodeStatus", "closeManualBarcodeButton", "cancelManualBarcodeButton", "submitManualBarcodeButton",
     "supervisorStatus", "cancelSupervisorButton", "approveSupervisorButton", "confirmationTitle",
     "confirmationSummary", "confirmationDoneButton", "gateMiniFeed", "todayOutCount", "todayInCount", "todayBlockCount",
     "adminAuthorizedCount", "authorizedDriversBody", "driversTableBody", "licenseWarningBody",
@@ -93,7 +107,7 @@ function cacheElements() {
     "openDeviceSetupButton", "deviceSetupModal", "closeDeviceSetupButton", "currentDeviceSelect", "floaterLocationFields", "floaterLocationSelect", "deviceSetupStatus", "confirmDeviceLocationButton", "changeFloaterLocationButton",
     "devicesTableBody", "deviceHistoryList", "addDeviceButton", "deviceModal", "deviceForm", "closeDeviceModalButton", "cancelDeviceButton", "deviceEditId", "deviceIdInput", "deviceNameInput", "deviceImeiInput", "deviceTypeInput", "deviceLocationInput", "deviceStatusInput", "devicePhoneInput", "deviceNotesInput", "deviceIdError", "deviceNameError", "deviceImeiError", "deviceLocationError", "deviceActionStatus",
     "driverProfileModal", "closeDriverProfileButton", "driverProfileHeading", "driverProfileBody", "profileEditDriverButton", "profileToggleDriverButton",
-    "openScannerFeedbackButton", "openSupervisorFeedbackButton", "feedbackModal", "feedbackForm", "feedbackEyebrow", "feedbackName", "feedbackNote", "feedbackDetailsRow", "feedbackDetails", "feedbackContext", "closeFeedbackButton", "cancelFeedbackButton", "desktopUsersTableBody", "addDesktopUserButton", "desktopUserModal", "desktopUserForm", "desktopUserName", "desktopUserRole", "desktopUserScope", "desktopUserNameError", "closeDesktopUserButton", "cancelDesktopUserButton"
+    "openScannerFeedbackButton", "openSupervisorFeedbackButton", "feedbackModal", "feedbackForm", "feedbackEyebrow", "feedbackName", "feedbackNote", "feedbackDetailsRow", "feedbackDetails", "feedbackContext", "closeFeedbackButton", "cancelFeedbackButton", "desktopUsersTableBody", "addDesktopUserButton", "desktopUserModal", "desktopUserForm", "desktopUserName", "desktopUserUsername", "desktopUserPassword", "desktopUserResetRequired", "desktopUserRole", "desktopUserScope", "desktopAbilityGrid", "desktopUserNameError", "desktopUserUsernameError", "closeDesktopUserButton", "cancelDesktopUserButton"
   ].forEach((id) => {
     el[id] = document.getElementById(id);
   });
@@ -127,6 +141,14 @@ function bindEvents() {
   el.driverInput.addEventListener("input", () => handleScanInput("driverInput"));
   el.barcodeInput.addEventListener("input", () => handleScanInput("barcodeInput"));
   el.supervisorInput.addEventListener("input", updateSupervisorStatus);
+  el.openManualEmployeeButton.addEventListener("click", openManualEmployeeModal);
+  el.openManualBarcodeButton.addEventListener("click", openManualBarcodeModal);
+  el.closeManualEmployeeButton.addEventListener("click", closeManualEmployeeModal);
+  el.cancelManualEmployeeButton.addEventListener("click", closeManualEmployeeModal);
+  el.submitManualEmployeeButton.addEventListener("click", submitManualEmployee);
+  el.closeManualBarcodeButton.addEventListener("click", closeManualBarcodeModal);
+  el.cancelManualBarcodeButton.addEventListener("click", closeManualBarcodeModal);
+  el.submitManualBarcodeButton.addEventListener("click", submitManualBarcode);
 
   document.querySelectorAll("[data-demo-field]").forEach((button) => {
     button.addEventListener("click", () => setScannerValue(button.dataset.demoField, button.dataset.demoValue));
@@ -184,8 +206,9 @@ function bindEvents() {
   el.closeDesktopUserButton.addEventListener("click", closeDesktopUserModal);
   el.cancelDesktopUserButton.addEventListener("click", closeDesktopUserModal);
   el.desktopUserForm.addEventListener("submit", saveDesktopUser);
-  [el.driverModal, el.vehicleModal, el.deviceModal, el.deviceSetupModal, el.driverProfileModal, el.feedbackModal, el.desktopUserModal].forEach((modal) => modal.addEventListener("click", (event) => { if (event.target === modal) closeManagedModal(modal); }));
-  document.addEventListener("keydown", (event) => { if (event.key === "Escape") { [el.driverModal, el.vehicleModal, el.deviceModal, el.deviceSetupModal, el.driverProfileModal, el.feedbackModal, el.desktopUserModal].forEach(closeManagedModal); } });
+  el.desktopUsersTableBody.addEventListener("click", handleDesktopUserAction);
+  [el.manualEmployeeModal, el.manualBarcodeModal, el.driverModal, el.vehicleModal, el.deviceModal, el.deviceSetupModal, el.driverProfileModal, el.feedbackModal, el.desktopUserModal].forEach((modal) => modal.addEventListener("click", (event) => { if (event.target === modal) closeManagedModal(modal); }));
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") { [el.manualEmployeeModal, el.manualBarcodeModal, el.driverModal, el.vehicleModal, el.deviceModal, el.deviceSetupModal, el.driverProfileModal, el.feedbackModal, el.desktopUserModal].forEach(closeManagedModal); } });
 
   el.searchForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -257,9 +280,22 @@ function createSeedState() {
     ],
     feedback: [],
     desktopUsers: [
-      { id: "U0001", name: "Avery Morgan", role: "Owner / System Administrator", active: true, scope: "All locations" },
-      { id: "U0002", name: "Jordan Wells", role: "Manager", active: true, scope: "All locations" }
+      seedDesktopUser("U0001", "Avery Morgan", "avery.morgan", "Admin", "All locations", "Assign"),
+      seedDesktopUser("U0002", "Jordan Wells", "jordan.wells", "Manager", "All locations", "View only")
     ]
+  };
+}
+
+function seedDesktopUser(id, name, username, role, scope, abilityLevel) {
+  return {
+    id,
+    name,
+    username,
+    role,
+    active: true,
+    scope,
+    credentialPrototype: { passwordStatus: "not_stored", resetRequired: false, updatedAt: "" },
+    abilities: defaultDesktopAbilities(abilityLevel)
   };
 }
 
@@ -386,7 +422,7 @@ function normalizeV07State(saved) {
   normalized.currentDeviceId = normalized.devices[currentDeviceIndex]?.id || normalized.devices.find((device) => device.id === canonicalDeviceId(originalCurrentDeviceId))?.id || normalized.devices[0]?.id || "D0001";
   normalized.auditEvents = (normalized.auditEvents || []).map((event) => ({ ...event, location: normalizeLocationName(event.location), actor: String(event.actor || "").replaceAll("EWR Scanner", "EWR North Scanner"), description: String(event.description || "").replaceAll("EMP-", "E").replaceAll("EWR Scanner", "EWR North Scanner") })).filter((event) => event.location !== "Enterprise Repair Facility" && !event.description.includes("Enterprise Repair Facility"));
   normalized.feedback = Array.isArray(normalized.feedback) ? normalized.feedback : [];
-  normalized.desktopUsers = Array.isArray(normalized.desktopUsers) && normalized.desktopUsers.length ? normalized.desktopUsers : createSeedState().desktopUsers;
+  normalized.desktopUsers = (Array.isArray(normalized.desktopUsers) && normalized.desktopUsers.length ? normalized.desktopUsers : createSeedState().desktopUsers).map((user, index) => normalizeDesktopUser(user, index));
   normalized.floaterLocationConfirmed = Boolean(normalized.floaterLocationConfirmed);
   return normalized;
 }
@@ -402,6 +438,56 @@ function normalizeDevice(device, index = 0) {
   const now = new Date().toISOString();
   const type = device.type === "Floater" ? "Floater" : "Fixed";
   return { id: canonicalDeviceId(device.id, index), name: String(device.name || device.id || "Unnamed device").trim(), imei: normalizeImei(device.imei), type, assignedLocation: type === "Fixed" ? normalizeLocationName(device.assignedLocation) : "", status: device.status || (device.active === false ? "Inactive" : "Active"), phone: device.phone || "", notes: device.notes || "", active: device.active !== false && device.status !== "Inactive", createdAt: device.createdAt || now, updatedAt: device.updatedAt || now, lastUsedAt: device.lastUsedAt || "", lastTransactionLocation: normalizeLocationName(device.lastTransactionLocation), createdBy: device.createdBy || "V0.7 migration", updatedBy: device.updatedBy || "V0.7 migration" };
+}
+
+function normalizeDesktopUser(user, index = 0) {
+  const role = normalizeDesktopRole(user.role);
+  const username = normalizeUsername(user.username || user.login || user.email || user.name || `user${index + 1}`);
+  const credential = user.credentialPrototype || {};
+  return {
+    id: user.id || `U${String(index + 1).padStart(4, "0")}`,
+    name: String(user.name || username || "Unnamed user").trim(),
+    username,
+    role,
+    active: user.active !== false,
+    scope: user.scope || "All locations",
+    credentialPrototype: {
+      passwordStatus: credential.passwordStatus || "not_stored",
+      resetRequired: Boolean(credential.resetRequired),
+      updatedAt: credential.updatedAt || ""
+    },
+    abilities: normalizeDesktopAbilities(user.abilities)
+  };
+}
+
+function normalizeDesktopRole(role) {
+  const value = String(role || "").trim();
+  if (value === "Owner / System Administrator") return "Admin";
+  return DESKTOP_USER_ROLES.includes(value) ? value : "Scanner";
+}
+
+function normalizeUsername(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, ".")
+    .replace(/^[._-]+|[._-]+$/g, "")
+    .replace(/[.]{2,}/g, ".") || "";
+}
+
+function defaultDesktopAbilities(level = "Restricted") {
+  const safeLevel = ABILITY_LEVELS.includes(level) ? level : "Restricted";
+  return DESKTOP_USER_ABILITIES.reduce((abilities, ability) => {
+    abilities[ability.id] = safeLevel;
+    return abilities;
+  }, {});
+}
+
+function normalizeDesktopAbilities(abilities = {}) {
+  return DESKTOP_USER_ABILITIES.reduce((normalized, ability) => {
+    normalized[ability.id] = abilities && ABILITY_LEVELS.includes(abilities[ability.id]) ? abilities[ability.id] : "Restricted";
+    return normalized;
+  }, {});
 }
 
 function migrateV05State(v05) {
@@ -1278,23 +1364,66 @@ function openDesktopUserModal() {
   ui.modalTrigger = document.activeElement;
   el.desktopUserForm.reset();
   el.desktopUserNameError.textContent = "";
+  el.desktopUserUsernameError.textContent = "";
+  renderDesktopAbilityControls(defaultDesktopAbilities());
   el.desktopUserModal.classList.remove("hidden");
   window.setTimeout(() => el.desktopUserName.focus(), 20);
 }
 
 function closeDesktopUserModal() { closeManagedModal(el.desktopUserModal); }
 
+function renderDesktopAbilityControls(abilities) {
+  if (!el.desktopAbilityGrid) return;
+  const normalized = normalizeDesktopAbilities(abilities);
+  el.desktopAbilityGrid.innerHTML = DESKTOP_USER_ABILITIES.map((ability) => `
+    <div class="ability-row">
+      <div><strong>${escapeHtml(ability.title)}</strong><span>${escapeHtml(ability.description)}</span></div>
+      <select data-user-ability="${escapeHtml(ability.id)}" aria-label="${escapeHtml(ability.title)} ability">
+        ${ABILITY_LEVELS.map((level) => `<option value="${escapeHtml(level)}" ${normalized[ability.id] === level ? "selected" : ""}>${escapeHtml(level)}</option>`).join("")}
+      </select>
+    </div>
+  `).join("");
+}
+
+function collectDesktopAbilities() {
+  const abilities = defaultDesktopAbilities();
+  el.desktopAbilityGrid.querySelectorAll("[data-user-ability]").forEach((select) => {
+    abilities[select.dataset.userAbility] = ABILITY_LEVELS.includes(select.value) ? select.value : "Restricted";
+  });
+  return abilities;
+}
+
 function saveDesktopUser(event) {
   event.preventDefault();
   const name = el.desktopUserName.value.trim();
+  const username = normalizeUsername(el.desktopUserUsername.value);
+  el.desktopUserNameError.textContent = "";
+  el.desktopUserUsernameError.textContent = "";
   if (!name) {
     el.desktopUserNameError.textContent = "Name is required.";
     shake(el.desktopUserName);
     return;
   }
+  if (!username) {
+    el.desktopUserUsernameError.textContent = "Username is required.";
+    shake(el.desktopUserUsername);
+    return;
+  }
+  if ((state.desktopUsers || []).some((user) => normalizeUsername(user.username) === username)) {
+    el.desktopUserUsernameError.textContent = "Username must be unique.";
+    shake(el.desktopUserUsername);
+    return;
+  }
   const nextId = `U${String((state.desktopUsers || []).length + 1).padStart(4, "0")}`;
-  state.desktopUsers.push({ id: nextId, name, role: el.desktopUserRole.value, active: true, scope: el.desktopUserScope.value });
-  addAudit("desktop_user_created", `Desktop user ${nextId} created as ${el.desktopUserRole.value}.`, "Supervisor Console", el.desktopUserScope.value);
+  const now = new Date().toISOString();
+  const credentialPrototype = {
+    passwordStatus: el.desktopUserPassword.value ? "demo_value_entered_not_saved" : "not_stored",
+    resetRequired: el.desktopUserResetRequired.value === "true",
+    updatedAt: now
+  };
+  state.desktopUsers.push(normalizeDesktopUser({ id: nextId, name, username, role: el.desktopUserRole.value, active: true, scope: el.desktopUserScope.value, credentialPrototype, abilities: collectDesktopAbilities() }));
+  el.desktopUserPassword.value = "";
+  addAudit("desktop_user_created", `Desktop user ${nextId} created as ${el.desktopUserRole.value}; credential fields are prototype-only and password value was not saved.`, "Supervisor Console", el.desktopUserScope.value);
   saveState();
   closeDesktopUserModal();
   renderAll();
@@ -1627,7 +1756,37 @@ function renderSupervisor() {
 function renderDesktopUsers() {
   if (!el.desktopUsersTableBody) return;
   const users = state.desktopUsers || [];
-  el.desktopUsersTableBody.innerHTML = users.length ? users.map((user) => `<tr><td class="mono">${escapeHtml(user.id)}</td><td>${escapeHtml(user.name)}</td><td>${escapeHtml(user.role)}</td><td><span class="status-badge ${user.active ? "authorized" : "inactive"}">${user.active ? "Active" : "Inactive"}</span></td><td>${escapeHtml(user.scope)}</td></tr>`).join("") : `<tr><td colspan="5" class="empty-cell">No desktop users configured.</td></tr>`;
+  el.desktopUsersTableBody.innerHTML = users.length ? users.map((user) => {
+    const normalizedUser = normalizeDesktopUser(user);
+    return `<tr><td class="mono">${escapeHtml(normalizedUser.id)}</td><td>${escapeHtml(normalizedUser.name)}</td><td class="mono">${escapeHtml(normalizedUser.username)}</td><td>${escapeHtml(normalizedUser.role)}</td><td><span class="status-badge ${normalizedUser.active ? "authorized" : "inactive"}">${normalizedUser.active ? "Active" : "Inactive"}</span></td><td>${escapeHtml(normalizedUser.scope)}</td><td>${escapeHtml(credentialStatusLabel(normalizedUser))}</td><td>${abilitySummary(normalizedUser.abilities)}</td><td><button class="table-action" type="button" data-user-action="reset" data-user-id="${escapeHtml(normalizedUser.id)}">Mark reset</button></td></tr>`;
+  }).join("") : `<tr><td colspan="9" class="empty-cell">No desktop users configured.</td></tr>`;
+}
+
+function credentialStatusLabel(user) {
+  const credential = user.credentialPrototype || {};
+  if (credential.resetRequired) return "Reset required";
+  if (credential.passwordStatus === "demo_value_entered_not_saved") return "Demo password entered - not saved";
+  return "No production password stored";
+}
+
+function abilitySummary(abilities) {
+  const normalized = normalizeDesktopAbilities(abilities);
+  return DESKTOP_USER_ABILITIES.map((ability) => {
+    const level = normalized[ability.id];
+    const badgeClass = level === "Assign" ? "authorized" : level === "View only" ? "unauthorized" : "inactive";
+    return `<span class="ability-chip ${badgeClass}">${escapeHtml(ability.title)}: ${escapeHtml(level)}</span>`;
+  }).join(" ");
+}
+
+function handleDesktopUserAction(event) {
+  const button = event.target.closest("[data-user-action]");
+  if (!button) return;
+  const user = state.desktopUsers.find((item) => item.id === button.dataset.userId);
+  if (!user || button.dataset.userAction !== "reset") return;
+  user.credentialPrototype = { ...(user.credentialPrototype || {}), passwordStatus: "reset_invite_pending", resetRequired: true, updatedAt: new Date().toISOString() };
+  addAudit("desktop_user_password_reset_marked", `Desktop user ${user.id} marked for prototype password reset. No reset email was sent.`, "Supervisor Console", user.scope || "");
+  saveState();
+  renderAll();
 }
 
 function renderDriverRow(driver) {

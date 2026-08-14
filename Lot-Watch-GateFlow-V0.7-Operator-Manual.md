@@ -208,9 +208,19 @@ Fixed devices supply and lock their assigned location. Floater devices must sele
 
 ### Users
 
-Users is a prototype-only desktop user directory. It exists to show how manager/supervisor roles may be organized later.
+Users is a prototype-only desktop user directory. It exists to show how Scanner, Fleet Lead, Supervisor, Manager, and Admin roles may be organized later.
 
-Important boundary: these users are not secure production accounts. Real authentication and server-side role enforcement require the future AWS-backed system.
+The user form now shows a username, demo password/reset status, role, location scope, and an ability matrix. Each ability uses the same three planning states:
+
+- Restricted
+- View only
+- Assign
+
+New users start with every ability set to Restricted unless the manager changes the dropdowns before saving. The table also includes a local **Mark reset** action to show a password-reset workflow.
+
+Important boundary: these users are not secure production accounts. Demo password values are not saved as production passwords, no reset email is sent, and permissions shown here are planning controls only. Real authentication and server-side role enforcement require the future AWS-backed system.
+
+Drivers remain operational records. They are not application login accounts and do not receive username, password, reset, or ability-matrix fields.
 
 ## Search View
 

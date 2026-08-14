@@ -20,10 +20,10 @@ Use **Feedback** in the scanner for a short report. The prototype automatically 
 - **Drivers**: maintain the driver roster and temporary authorizations.
 - **Vehicles**: maintain active vehicle inventory.
 - **Devices**: select and manage the simulated current scanner.
-- **Users**: maintain prototype desktop users and roles. Drivers are not desktop application users.
+- **Users**: maintain prototype desktop users, usernames, demo password-reset status, roles, and ability dropdowns. Every ability starts as **Restricted** and can be changed to **View only** or **Assign**. Drivers are not desktop application users.
 
 Configured gates are Division Street, North Ave, EWR North, and Linden. The old invalid yard is not used.
 
 ## Prototype limits
 
-This release is a browser-local prototype. It does not provide real authentication, server-side permissions, shared data, immutable audit history, or cloud feedback delivery. AWS work is limited to a future read-only inventory until a separate approval is granted.
+This release is a browser-local prototype. It does not provide real authentication, server-side permissions, shared data, immutable audit history, or cloud feedback delivery. Demo password fields are not saved as production passwords, and reset actions do not send email. AWS work is limited to a read-only inventory until a separate approval is granted.
