@@ -25,7 +25,22 @@ const BUSINESS_TIMEZONE = "America/New_York";
 const LICENSE_VALID_THROUGH_PRINTED_DATE = true;
 const ENTRY_METHODS = ["scanner_field", "manual"];
 const LEGACY_ENTRY_METHOD = "legacy_unknown";
+// CR-V08-BETA-CRITICAL-APP-001: provisional inventory state for auto-created inbound vehicles.
+const PROVISIONAL_STATUS = "provisional";
+const COMPLETE_STATUS = "complete";
 const DESKTOP_USER_ROLES = ["Scanner", "Fleet Lead", "Supervisor", "Manager", "Admin"];
+// CR-V08-BETA-CRITICAL-APP-002 (081526 v7 edit #10): the OUT override is restricted to
+// Fleet Lead and above. DESKTOP_USER_ROLES is ordered by seniority, so its index is the rank.
+// Before this change the approver list carried no role at all and any listed ID could approve.
+const OVERRIDE_MIN_ROLE = "Fleet Lead";
+
+function roleRank(role) {
+  return DESKTOP_USER_ROLES.indexOf(role);
+}
+
+function canApproveOverride(approver) {
+  return Boolean(approver) && roleRank(approver.role) >= roleRank(OVERRIDE_MIN_ROLE);
+}
 const ABILITY_LEVELS = ["Restricted", "View only", "Assign"];
 const DESKTOP_USER_ABILITIES = [
   { id: "scanner", title: "Scanner", description: "Use the gate scanner workflow." },
@@ -54,7 +69,6 @@ const ui = {
   modalTrigger: null,
   driverEntryMethod: null,
   vehicleEntryMethod: null,
-  confirmationTimer: null,
   profileEmployee: "",
   validatedDriverEmployee: "",
   feedbackSurface: "scanner"
@@ -81,15 +95,16 @@ document.addEventListener("DOMContentLoaded", () => {
 function cacheElements() {
   [
     "resetDemoButton", "deviceClock", "scannerHeading", "scannerNotice",
-    "scannerHome", "scanWizard", "supervisorPanel", "transactionConfirmation", "startScanButton",
+    "scannerHome", "scanWizard", "supervisorPanel", "startScanButton",
     "flowCancel", "wizardDots", "scannerLocation", "driverInput", "driverStatus", "driverNext", "barcodeInput",
     "barcodeStatus", "barcodeBack", "barcodeNext", "transactionNote", "reviewStepTitle", "reviewBack",
     "scanSummary", "submitTransactionButton", "supervisorReason", "supervisorInput",
     "openManualEmployeeButton", "openManualBarcodeButton",
     "manualEmployeeModal", "manualEmployeeInput", "manualEmployeeStatus", "closeManualEmployeeButton", "cancelManualEmployeeButton", "submitManualEmployeeButton",
     "manualBarcodeModal", "manualBarcodeInput", "manualBarcodeStatus", "closeManualBarcodeButton", "cancelManualBarcodeButton", "submitManualBarcodeButton",
-    "supervisorStatus", "cancelSupervisorButton", "approveSupervisorButton", "confirmationTitle",
-    "confirmationSummary", "confirmationDoneButton", "gateMiniFeed", "todayOutCount", "todayInCount", "todayBlockCount",
+    "supervisorStatus", "cancelSupervisorButton", "approveSupervisorButton",
+    "incompleteInventoryPanel", "incompleteInventoryBody", "incompleteInventoryCount",
+    "gateMiniFeed", "todayOutCount", "todayInCount", "todayBlockCount",
     "adminAuthorizedCount", "authorizedDriversBody", "driversTableBody", "licenseWarningBody",
     "deauthorizeAllButton", "locationList", "searchForm", "filterVehicle",
     "filterDriver", "filterLocation", "filterDate", "filterType", "clearSearchButton",
@@ -130,7 +145,6 @@ function bindEvents() {
   el.submitTransactionButton.addEventListener("click", startTransaction);
   el.cancelSupervisorButton.addEventListener("click", cancelSupervisorOverride);
   el.approveSupervisorButton.addEventListener("click", approveSupervisorOverride);
-  el.confirmationDoneButton.addEventListener("click", showScannerHome);
 
   el.scannerLocation.addEventListener("change", () => {
     state.workingLocation = el.scannerLocation.value;
@@ -255,8 +269,10 @@ function createSeedState() {
       { name: "Linden", active: true }
     ],
     supervisors: [
-      { id: "S1001", name: "Morgan Lee" },
-      { id: "S2040", name: "Jordan Wells" }
+      { id: "S1001", name: "Morgan Lee", role: "Supervisor" },
+      { id: "S2040", name: "Jordan Wells", role: "Fleet Lead" },
+      // Deliberately below the override threshold so the rule is testable during beta.
+      { id: "S3090", name: "Casey Rowe", role: "Scanner" }
     ],
     devices: [
       seedDevice("D0001", "Division Gate Scanner", "000000000000001", "Fixed", "Division Street"),
@@ -315,7 +331,7 @@ function seedDriver(employeeNumber, name, licenseOffsetDays, active) {
 
 function seedVehicle(id, barcode, vin, plate, make, model, year, color) {
   const now = new Date().toISOString();
-  return { id, assignedBarcode: barcode, vin, plate, make, model, year, color, active: true, createdAt: now, updatedAt: now, createdBy: "System seed", updatedBy: "System seed", removedAt: "", removedBy: "", reactivatedAt: "" };
+  return { id, assignedBarcode: barcode, vin, plate, make, model, year, color, active: true, createdAt: now, updatedAt: now, createdBy: "System seed", updatedBy: "System seed", removedAt: "", removedBy: "", reactivatedAt: "", inventoryStatus: COMPLETE_STATUS, createdSource: "seed", needsSupervisorCompletion: false, provisionalFromTxId: "", provisionalAt: "", completedBy: "", completedAt: "" };
 }
 
 function seedDevice(id, name, imei, type, assignedLocation) {
@@ -409,7 +425,10 @@ function normalizeV07State(saved) {
   normalized.locations = (normalized.locations || []).map((location) => ({ ...location, name: normalizeLocationName(location.name) })).filter((location) => location.name && location.name !== "Enterprise Repair Facility");
   if (!normalized.locations.length) normalized.locations = createSeedState().locations;
   normalized.drivers = (normalized.drivers || []).map((driver) => ({ ...driver, employeeNumber: canonicalEmployeeId(driver.employeeNumber) }));
-  normalized.supervisors = (normalized.supervisors || createSeedState().supervisors).map((supervisor) => ({ ...supervisor, id: canonicalSupervisorId(supervisor.id) }));
+  // CR-V08-BETA-CRITICAL-APP-002: stored approvers predate the role field. They are defaulted to
+  // the minimum rank that preserves their existing ability to approve, rather than to a senior
+  // role. Patrick should confirm the real rank of each approver before beta.
+  normalized.supervisors = (normalized.supervisors || createSeedState().supervisors).map((supervisor) => ({ ...supervisor, id: canonicalSupervisorId(supervisor.id), role: DESKTOP_USER_ROLES.includes(supervisor.role) ? supervisor.role : OVERRIDE_MIN_ROLE }));
   normalized.vehicles = (normalized.vehicles || []).map((vehicle, index) => normalizeVehicle(vehicle, index));
   normalized.transactions = (normalized.transactions || []).map((transaction) => mapTransactionVehicle({ ...transaction, driverEmployee: canonicalEmployeeId(transaction.driverEmployee), location: normalizeLocationName(transaction.location), workingLocation: normalizeLocationName(transaction.workingLocation), deviceId: transaction.deviceId ? canonicalDeviceId(transaction.deviceId) : "" }, normalized.vehicles)).filter((transaction) => transaction.location && transaction.location !== "Enterprise Repair Facility");
   normalized.authorizations = (normalized.authorizations || []).map((authorization) => {
@@ -517,8 +536,53 @@ function normalizeVehicle(vehicle, index) {
     id: vehicle.id || `veh-${String(index + 1).padStart(3, "0")}`,
     assignedBarcode: canonicalVehicleBarcode(vehicle.assignedBarcode, index),
     vin: normalize(vehicle.vin), plate: normalize(vehicle.plate), make: vehicle.make || demo[0], model: vehicle.model || demo[1], year: Number(vehicle.year || demo[2]), color: vehicle.color || demo[3], active: vehicle.active !== false,
-    createdAt: vehicle.createdAt || now, updatedAt: vehicle.updatedAt || now, createdBy: vehicle.createdBy || "V0.5 migration", updatedBy: vehicle.updatedBy || "V0.5 migration", removedAt: vehicle.removedAt || "", removedBy: vehicle.removedBy || "", reactivatedAt: vehicle.reactivatedAt || ""
+    createdAt: vehicle.createdAt || now, updatedAt: vehicle.updatedAt || now, createdBy: vehicle.createdBy || "V0.5 migration", updatedBy: vehicle.updatedBy || "V0.5 migration", removedAt: vehicle.removedAt || "", removedBy: vehicle.removedBy || "", reactivatedAt: vehicle.reactivatedAt || "",
+    // CR-V08-BETA-CRITICAL-APP-001: records without an inventory status predate provisional
+    // inventory and are treated as complete. Nothing existing becomes provisional retroactively.
+    inventoryStatus: vehicle.inventoryStatus === PROVISIONAL_STATUS ? PROVISIONAL_STATUS : COMPLETE_STATUS,
+    createdSource: vehicle.createdSource || "migration",
+    needsSupervisorCompletion: vehicle.inventoryStatus === PROVISIONAL_STATUS ? vehicle.needsSupervisorCompletion !== false : false,
+    provisionalFromTxId: vehicle.provisionalFromTxId || "",
+    provisionalAt: vehicle.provisionalAt || "",
+    completedBy: vehicle.completedBy || "",
+    completedAt: vehicle.completedAt || ""
   };
+}
+
+function isProvisionalVehicle(vehicle) {
+  return Boolean(vehicle) && vehicle.inventoryStatus === PROVISIONAL_STATUS;
+}
+
+function provisionalVehicles() {
+  return state.vehicles.filter(isProvisionalVehicle);
+}
+
+// Single creation point for auto-created inbound inventory. Duplicate-safe: the canonical
+// barcode is the natural key, so a re-scan of the same unknown barcode returns the existing
+// record instead of creating a second one.
+function createProvisionalVehicle(barcode, context) {
+  const canonical = canonicalVehicleBarcode(barcode);
+  if (!canonical) return null;
+  const existing = findVehicleByBarcode(canonical);
+  if (existing) return existing;
+  const now = new Date().toISOString();
+  const vehicle = {
+    id: makeId("veh"),
+    assignedBarcode: canonical,
+    vin: "", plate: "", make: "", model: "", year: 0, color: "",
+    active: true,
+    createdAt: now, updatedAt: now,
+    createdBy: context.actor, updatedBy: context.actor,
+    removedAt: "", removedBy: "", reactivatedAt: "",
+    inventoryStatus: PROVISIONAL_STATUS,
+    createdSource: "inbound_scan",
+    needsSupervisorCompletion: true,
+    provisionalFromTxId: context.transactionId || "",
+    provisionalAt: now,
+    completedBy: "", completedAt: ""
+  };
+  state.vehicles.push(vehicle);
+  return vehicle;
 }
 
 function mapTransactionVehicle(transaction, vehicles) {
@@ -637,7 +701,6 @@ function startFlow() {
 }
 
 function showScannerHome() {
-  if (ui.confirmationTimer) { window.clearTimeout(ui.confirmationTimer); ui.confirmationTimer = null; }
   resetFlow();
   ui.activeFlow = null;
   ui.direction = null;
@@ -651,8 +714,7 @@ function setScannerScreen(name) {
   const screens = {
     home: el.scannerHome,
     wizard: el.scanWizard,
-    override: el.supervisorPanel,
-    confirm: el.transactionConfirmation
+    override: el.supervisorPanel
   };
   Object.values(screens).forEach((screen) => screen.classList.add("hidden"));
   screens[name].classList.remove("hidden");
@@ -708,7 +770,7 @@ function resetFlow() {
   el.supervisorInput.value = "";
   el.driverStatus.textContent = "Awaiting employee number scan.";
   el.barcodeStatus.textContent = "Awaiting vehicle barcode scan.";
-  el.supervisorStatus.textContent = "Awaiting a valid supervisor ID.";
+  el.supervisorStatus.textContent = `Awaiting a valid ${OVERRIDE_MIN_ROLE} or above ID.`;
   ui.driverEntryMethod = null;
   ui.vehicleEntryMethod = null;
   ui.validatedDriverEmployee = "";
@@ -716,7 +778,7 @@ function resetFlow() {
 
 function clearDriverDerivedStateIfChanged(rawValue) {
   const employeeNumber = normalizeEmployee(rawValue);
-  if (!ui.validatedDriverEmployee || employeeNumber === ui.validatedDriverEmployee) return;
+  if (!ui.validatedDriverEmployee || employeeNumber === ui.validatedDriverEmployee) return false;
   ui.validatedDriverEmployee = "";
   ui.pendingOverride = null;
   ui.direction = null;
@@ -726,9 +788,10 @@ function clearDriverDerivedStateIfChanged(rawValue) {
   el.transactionNote.value = "";
   el.supervisorInput.value = "";
   el.barcodeStatus.textContent = "Awaiting vehicle barcode scan.";
-  el.supervisorStatus.textContent = "Awaiting a valid supervisor ID.";
+  el.supervisorStatus.textContent = `Awaiting a valid ${OVERRIDE_MIN_ROLE} or above ID.`;
   setNotice("Driver changed. Previous vehicle, authorization review, and pending approval were cleared.", "warning");
   if (ui.activeFlow === "scan" && ui.step !== 0) showWizardStep(0);
+  return true;
 }
 
 function setScannerValue(fieldId, value) {
@@ -746,7 +809,10 @@ function handleScanInput(fieldId) {
   const rawValue = input.value;
   recordScannerInput(fieldId, rawValue, "Input");
   if (fieldId === "barcodeInput") { input.value = canonicalVehicleBarcode(rawValue); ui.vehicleEntryMethod = null; }
-  if (fieldId === "driverInput") { ui.driverEntryMethod = null; clearDriverDerivedStateIfChanged(rawValue); updateDriverStatus(); }
+  // The cleared-state warning must survive: updateDriverStatus would otherwise overwrite it with
+  // its success notice on the very next line, and the operator would never learn that the
+  // previous vehicle, direction, and pending approval were discarded.
+  if (fieldId === "driverInput") { ui.driverEntryMethod = null; const cleared = clearDriverDerivedStateIfChanged(rawValue); updateDriverStatus({ preserveNotice: cleared }); }
   if (fieldId === "barcodeInput") updateBarcodeStatus();
 }
 
@@ -755,7 +821,7 @@ function recordScannerInput(fieldId, rawValue, terminator) {
     driverInput: "Driver Employee #",
     barcodeInput: "Vehicle Barcode",
     manualBarcodeInput: "Manual Vehicle Barcode",
-    supervisorInput: "Supervisor ID",
+    supervisorInput: "Approver ID",
     manualEmployeeInput: "Manual Employee #"
   };
   ui.lastRawScan = rawValue || "No scan received";
@@ -822,8 +888,9 @@ function submitManualBarcode() {
   recordScannerInput("manualBarcodeInput", barcode, "Enter");
   if (!barcode) { el.manualBarcodeStatus.textContent = "Vehicle barcode is required."; shake(el.manualBarcodeInput); return; }
   const vehicle = findVehicleByBarcode(barcode);
-  if (!vehicle) { el.manualBarcodeStatus.textContent = "Vehicle barcode was not found. Enter the exact assigned barcode."; shake(el.manualBarcodeInput); return; }
-  if (!vehicle.active) { el.manualBarcodeStatus.textContent = "Vehicle is inactive and cannot be used for a new movement."; shake(el.manualBarcodeInput); return; }
+  // CR-V08-BETA-CRITICAL-APP-001: manual entry follows the same rule as scanning. An unknown
+  // barcode is accepted here and resolved by direction in startTransaction.
+  if (vehicle && !vehicle.active) { el.manualBarcodeStatus.textContent = "Vehicle is inactive and cannot be used for a new movement."; shake(el.manualBarcodeInput); return; }
   el.barcodeInput.value = barcode;
   ui.vehicleEntryMethod = "manual";
   addAudit("manual_barcode_accepted", `Manual vehicle barcode entry accepted for ${barcode}.`, currentStationIdentity(), state.workingLocation);
@@ -834,7 +901,7 @@ function submitManualBarcode() {
   showWizardStep(2);
 }
 
-function updateDriverStatus() {
+function updateDriverStatus(options = {}) {
   const driver = findDriver(el.driverInput.value);
   if (!driver) {
     el.driverStatus.textContent = "Employee number not found in the active driver roster.";
@@ -843,7 +910,7 @@ function updateDriverStatus() {
     const license = licenseStatus(driver);
     const authorizationText = auth ? `Authorized through ${formatTimestamp(auth.expiresAt)}` : "Not authorized";
     el.driverStatus.textContent = `${driver.name} - ${authorizationText}. ${license.label}.`;
-    setNotice("Driver found. Continue to the vehicle barcode.", "success");
+    if (!options.preserveNotice) setNotice("Driver found. Continue to the vehicle barcode.", "success");
   }
 }
 
@@ -853,7 +920,11 @@ function updateBarcodeStatus() {
   if (!value) {
     el.barcodeStatus.textContent = "Awaiting vehicle barcode scan.";
   } else if (!vehicle) {
-    el.barcodeStatus.textContent = "Vehicle barcode was not found. Scan an assigned inventory barcode.";
+    // CR-V08-BETA-CRITICAL-APP-001: an unknown barcode is no longer an error. It is added to
+    // inventory on Vehicle IN. Neutral tone and no setNotice, so the operator is not interrupted.
+    el.barcodeStatus.textContent = `${value}: not in inventory. It will be added on Vehicle IN. Vehicle OUT is not available until a supervisor completes the record.`;
+  } else if (isProvisionalVehicle(vehicle)) {
+    el.barcodeStatus.textContent = `${vehicle.assignedBarcode}: incomplete inventory record awaiting supervisor completion. Vehicle IN is allowed; Vehicle OUT is blocked.`;
   } else if (!vehicle.active) {
     el.barcodeStatus.textContent = "Vehicle is inactive and cannot be used for a new movement.";
   } else {
@@ -867,15 +938,19 @@ function updateSupervisorStatus() {
   recordScannerInput("supervisorInput", el.supervisorInput.value, "Input");
   const supervisor = state.supervisors.find((item) => item.id === canonicalSupervisorId(el.supervisorInput.value));
   if (!el.supervisorInput.value.trim()) {
-    el.supervisorStatus.textContent = "Awaiting a valid supervisor ID.";
+    el.supervisorStatus.textContent = `Awaiting a valid ${OVERRIDE_MIN_ROLE} or above ID.`;
     return;
   }
   if (!supervisor) {
-    el.supervisorStatus.textContent = "Supervisor ID was not found.";
+    el.supervisorStatus.textContent = "Approver ID was not found.";
     return;
   }
-  el.supervisorStatus.textContent = `${supervisor.id} / ${supervisor.name} is ready to approve 9 hours.`;
-  setNotice("Supervisor found. Approve the temporary authorization to continue.", "success");
+  if (!canApproveOverride(supervisor)) {
+    el.supervisorStatus.textContent = `${supervisor.id} / ${supervisor.name} holds ${supervisor.role || "no role"} and cannot approve this override. ${OVERRIDE_MIN_ROLE} or above is required.`;
+    return;
+  }
+  el.supervisorStatus.textContent = `${supervisor.id} / ${supervisor.name} (${supervisor.role}) is ready to approve 9 hours.`;
+  setNotice(`${OVERRIDE_MIN_ROLE} or above found. Approve the temporary authorization to continue.`, "success");
 }
 
 function validateDriverStep() {
@@ -903,12 +978,10 @@ function validateBarcodeStep() {
     return;
   }
   const vehicle = findVehicleByBarcode(barcode);
-  if (!vehicle) {
-    setNotice("Vehicle barcode was not found. New movements require an assigned inventory barcode.", "danger");
-    shake(el.barcodeInput);
-    return;
-  }
-  if (!vehicle.active) {
+  // CR-V08-BETA-CRITICAL-APP-001: unknown barcodes continue to the movement choice. The record
+  // is created on IN; OUT is gated separately in startTransaction so an unknown vehicle can
+  // never leave. Direction is not known at this step, which is why the gate lives downstream.
+  if (vehicle && !vehicle.active) {
     setNotice("Vehicle is inactive and cannot be used for a new movement.", "danger");
     shake(el.barcodeInput);
     return;
@@ -936,6 +1009,23 @@ function startTransaction() {
   const draft = readTransactionDraft();
   if (!draft) return;
 
+  // CR-V08-BETA-CRITICAL-APP-001 — "Allowed IN != Authorized OUT".
+  // This gate is deliberately evaluated BEFORE the driver license and authorization checks so
+  // that no driver-level approval, including a supervisor override, can release a vehicle whose
+  // inventory record is unknown or incomplete. The vehicle is a separate authorization subject.
+  if (draft.direction === "OUT" && (!draft.vehicle || isProvisionalVehicle(draft.vehicle))) {
+    blockOutForIncompleteVehicle(draft);
+    return;
+  }
+  if (draft.direction === "IN" && !draft.vehicle) {
+    draft.vehicle = createProvisionalVehicle(draft.barcode, { actor: currentStationIdentity() });
+    if (!draft.vehicle) {
+      setNotice("Vehicle barcode could not be read. Re-scan the vehicle.", "danger");
+      return;
+    }
+    draft.provisionalCreated = true;
+  }
+
   const license = licenseStatus(draft.driver);
   const auth = findActiveAuthorization(draft.driver.employeeNumber);
   if (draft.direction === "OUT" && license.tone === "expired") {
@@ -952,11 +1042,30 @@ function startTransaction() {
   completeTransaction(draft);
 }
 
+// CR-V08-BETA-CRITICAL-APP-001: a vehicle-level OUT block. Unlike blockOutForSupervisor this
+// offers no override path, because the missing information is about the vehicle, not the driver.
+// Clearing it requires a supervisor to complete the inventory record in the Supervisor area.
+function blockOutForIncompleteVehicle(draft) {
+  const known = Boolean(draft.vehicle);
+  const reason = known
+    ? `Vehicle ${draft.barcode} has an incomplete inventory record.`
+    : `Vehicle ${draft.barcode} is not in inventory.`;
+  addAudit(
+    "blocked_out_incomplete_vehicle",
+    `${reason} Vehicle OUT blocked. Driver ${draft.driver.employeeNumber} was not the cause; the vehicle record must be completed by a supervisor.`,
+    currentStationIdentity(),
+    draft.location
+  );
+  saveState();
+  renderAll();
+  setNotice(`Vehicle OUT blocked. ${reason} A supervisor must complete the vehicle record first.`, "danger");
+}
+
 function blockOutForSupervisor(driver) {
   ui.pendingOverride = { driverEmployee: driver.employeeNumber, location: el.scannerLocation.value };
-  el.supervisorReason.textContent = `${driver.employeeNumber} / ${driver.name} is not authorized for this gate movement. Vehicle OUT is blocked until a supervisor approves a temporary authorization.`;
+  el.supervisorReason.textContent = `${driver.employeeNumber} / ${driver.name} is not authorized for this gate movement. Vehicle OUT is blocked until a ${OVERRIDE_MIN_ROLE} or above approves a temporary authorization.`;
   el.supervisorInput.value = "";
-  el.supervisorStatus.textContent = "Awaiting a valid supervisor ID.";
+  el.supervisorStatus.textContent = `Awaiting a valid ${OVERRIDE_MIN_ROLE} or above ID.`;
   setScannerScreen("override");
   const vehicle = readVehicleInput();
   addAudit("blocked_out", `Blocked Vehicle OUT attempt for ${driver.employeeNumber} / ${vehicle ? vehicle.assignedBarcode : "vehicle pending"}.`, currentStationIdentity(), el.scannerLocation.value);
@@ -970,8 +1079,19 @@ function approveSupervisorOverride() {
   if (!ui.pendingOverride) return;
   const supervisor = state.supervisors.find((item) => item.id === canonicalSupervisorId(el.supervisorInput.value));
   if (!supervisor) {
-    el.supervisorStatus.textContent = "Invalid supervisor ID. Approval was not granted.";
-    setNotice("Supervisor ID is not valid.", "danger");
+    el.supervisorStatus.textContent = "Invalid approver ID. Approval was not granted.";
+    setNotice("Approver ID is not valid.", "danger");
+    shake(el.supervisorInput);
+    return;
+  }
+  // CR-V08-BETA-CRITICAL-APP-002: the rank check is enforced HERE, at the point the
+  // authorization is actually granted, not only in the status text. A listed ID is not
+  // sufficient; the approver must hold Fleet Lead or above.
+  if (!canApproveOverride(supervisor)) {
+    el.supervisorStatus.textContent = `${supervisor.id} / ${supervisor.name} holds ${supervisor.role || "no role"} and cannot approve a Vehicle OUT override. ${OVERRIDE_MIN_ROLE} or above is required.`;
+    addAudit("override_denied_insufficient_role", `Override attempt denied: ${supervisor.id} / ${supervisor.name} holds ${supervisor.role || "no role"}, below the ${OVERRIDE_MIN_ROLE} threshold.`, currentStationIdentity(), ui.pendingOverride.location);
+    saveState();
+    setNotice(`Approval denied. ${OVERRIDE_MIN_ROLE} or above is required.`, "danger");
     shake(el.supervisorInput);
     return;
   }
@@ -1004,7 +1124,14 @@ function readTransactionDraft() {
     setNotice("Driver must be scanned or entered before submitting.", "warning");
     return null;
   }
-  if (!vehicle || !vehicle.active) {
+  const barcode = canonicalVehicleBarcode(el.barcodeInput.value);
+  if (!barcode) {
+    setNotice("A vehicle barcode must be scanned before submitting.", "warning");
+    return null;
+  }
+  // CR-V08-BETA-CRITICAL-APP-001: an unknown barcode yields a null vehicle here. startTransaction
+  // decides what that means based on direction; it is never an implicit rejection.
+  if (vehicle && !vehicle.active) {
     setNotice("An active vehicle barcode must be scanned before submitting.", "warning");
     return null;
   }
@@ -1013,7 +1140,7 @@ function readTransactionDraft() {
     setNotice("Driver and vehicle entry methods must be recorded before submitting.", "warning");
     return null;
   }
-  return { driver, vehicle, location: el.scannerLocation.value, direction: ui.direction, note: el.transactionNote.value.trim(), driverEntryMethod: ui.driverEntryMethod, vehicleEntryMethod: ui.vehicleEntryMethod };
+  return { driver, vehicle: vehicle || null, barcode, location: el.scannerLocation.value, direction: ui.direction, note: el.transactionNote.value.trim(), driverEntryMethod: ui.driverEntryMethod, vehicleEntryMethod: ui.vehicleEntryMethod };
 }
 
 function completeTransaction(draft) {
@@ -1050,6 +1177,17 @@ function completeTransaction(draft) {
   };
   if (device) { device.lastUsedAt = transaction.timestamp; device.lastTransactionLocation = draft.location; device.updatedAt = transaction.timestamp; }
   state.transactions.unshift(transaction);
+  // CR-V08-BETA-CRITICAL-APP-001: bind the provisional record to the inbound event that created
+  // it, so the audit trail shows where an auto-created vehicle came from.
+  if (draft.provisionalCreated) {
+    draft.vehicle.provisionalFromTxId = transaction.id;
+    addAudit(
+      "provisional_vehicle_created",
+      `Provisional inventory record created for ${draft.vehicle.assignedBarcode} from inbound scan. Transaction ${transaction.id}; entry path: ${entryMethodLabel(draft.vehicleEntryMethod)}; device ${transaction.deviceName || transaction.deviceId || "unassigned"}; operator ${transaction.submittedBy}. Vehicle OUT remains blocked until a supervisor completes the record.`,
+      currentStationIdentity(),
+      draft.location
+    );
+  }
   addAudit(
     draft.direction === "OUT" ? "out_transaction" : "in_transaction",
     `Vehicle ${draft.direction} recorded for ${draft.driver.employeeNumber} / ${draft.vehicle.assignedBarcode}. Driver entry path: ${entryMethodLabel(draft.driverEntryMethod)}; vehicle entry path: ${entryMethodLabel(draft.vehicleEntryMethod)}.`,
@@ -1061,23 +1199,11 @@ function completeTransaction(draft) {
   }
   saveState();
   renderAll();
-  showTransactionConfirmation(transaction);
-  setNotice(`Vehicle ${draft.direction} saved.`, "success");
-}
-
-function showTransactionConfirmation(transaction) {
-  setScannerScreen("confirm");
-  window.setTimeout(() => el.confirmationDoneButton.focus(), 30);
-  el.confirmationTitle.textContent = `Vehicle ${transaction.direction} recorded`;
-  el.confirmationSummary.innerHTML = summaryRows([
-    ["Movement", `Vehicle ${transaction.direction}`],
-    ["Location", transaction.location],
-    ["Driver", `${transaction.driverEmployee} - ${transaction.driverName}`],
-    ["Vehicle", `${transaction.vehicleBarcode || "No barcode"} - ${transaction.vin}${transaction.plate ? ` / ${transaction.plate}` : ""}`],
-    ["Authorization", transaction.authorizationStatus]
-  ]);
-  if (ui.confirmationTimer) window.clearTimeout(ui.confirmationTimer);
-  ui.confirmationTimer = window.setTimeout(showScannerHome, 4500);
+  // 081526 v7 edit #9: a clean submission returns straight to the start page for the next scan.
+  // The operator has no time to read a post-submit review, and the extra tap cost every
+  // transaction. The pre-submit review step (step 3) is unchanged — that is the real check.
+  showScannerHome();
+  setNotice(`Vehicle ${draft.direction} saved for ${transaction.driverEmployee} / ${transaction.vehicleBarcode}.`, "success");
 }
 
 function findDriver(value) {
@@ -1487,11 +1613,22 @@ function saveVehicleForm(event) {
   const existing = state.vehicles.find((vehicle) => vehicle.id === vehicleId);
   if (existing) {
     const barcodeChanged = existing.assignedBarcode !== fields.assignedBarcode;
+    const wasProvisional = isProvisionalVehicle(existing);
     Object.assign(existing, fields, { updatedAt: now, updatedBy: "Supervisor Console" });
+    // CR-V08-BETA-CRITICAL-APP-001: the form already requires make, model, color, VIN and
+    // barcode, so a successful save is exactly the completion step Patrick asked for. Saving
+    // it clears provisional state and is what unblocks Vehicle OUT for this record.
+    if (wasProvisional) {
+      existing.inventoryStatus = COMPLETE_STATUS;
+      existing.needsSupervisorCompletion = false;
+      existing.completedBy = "Supervisor Console";
+      existing.completedAt = now;
+      addAudit("provisional_vehicle_completed", `Provisional inventory record ${existing.assignedBarcode} completed by supervisor. Vehicle OUT is now permitted for this vehicle.`, "Supervisor Console", "");
+    }
     addAudit("vehicle_edited", `Vehicle ${existing.id} edited.`, "Supervisor Console", "");
     if (barcodeChanged) addAudit("barcode_changed", `Vehicle ${existing.id} barcode changed to ${fields.assignedBarcode}.`, "Supervisor Console", "");
   } else {
-    const vehicle = { id: makeId("veh"), ...fields, createdAt: now, updatedAt: now, createdBy: "Supervisor Console", updatedBy: "Supervisor Console", removedAt: "", removedBy: "", reactivatedAt: "" };
+    const vehicle = { id: makeId("veh"), ...fields, createdAt: now, updatedAt: now, createdBy: "Supervisor Console", updatedBy: "Supervisor Console", removedAt: "", removedBy: "", reactivatedAt: "", inventoryStatus: COMPLETE_STATUS, createdSource: "supervisor", needsSupervisorCompletion: false, provisionalFromTxId: "", provisionalAt: "", completedBy: "", completedAt: "" };
     state.vehicles.push(vehicle);
     addAudit("vehicle_created", `Vehicle ${vehicle.id} created.`, "Supervisor Console", "");
     addAudit("barcode_assigned", `Barcode ${vehicle.assignedBarcode} assigned to ${vehicle.id}.`, "Supervisor Console", "");
@@ -1516,7 +1653,23 @@ function handleVehicleTableAction(event) {
   saveState(); renderAll();
 }
 
+// CR-V08-BETA-CRITICAL-APP-001: the supervisor work queue for auto-created inbound vehicles.
+function renderIncompleteInventory() {
+  if (!el.incompleteInventoryBody) return;
+  const pending = provisionalVehicles();
+  el.incompleteInventoryCount.textContent = String(pending.length);
+  el.incompleteInventoryPanel.classList.toggle("hidden", pending.length === 0);
+  el.incompleteInventoryBody.innerHTML = pending.length
+    ? pending.map((vehicle) => {
+      const missing = [["VIN", vehicle.vin], ["Make", vehicle.make], ["Model", vehicle.model], ["Year", vehicle.year], ["Color", vehicle.color], ["Plate", vehicle.plate]]
+        .filter(([, value]) => !value).map(([label]) => label).join(", ");
+      return `<tr><td class="mono">${escapeHtml(vehicle.assignedBarcode)}</td><td>${escapeHtml(formatTimestamp(vehicle.provisionalAt))}</td><td>${escapeHtml(missing || "None")}</td><td><button class="table-action" type="button" data-vehicle-action="edit" data-vehicle-id="${escapeHtml(vehicle.id)}">Complete record</button></td></tr>`;
+    }).join("")
+    : `<tr><td colspan="4" class="empty-cell">No vehicles are awaiting completion.</td></tr>`;
+}
+
 function renderVehicles() {
+  renderIncompleteInventory();
   if (!el.vehiclesTableBody) return;
   const needle = normalize(el.vehicleSearch.value);
   const status = el.vehicleStatusFilter.value;
@@ -1525,7 +1678,7 @@ function renderVehicles() {
     const haystack = [vehicle.assignedBarcode, vehicle.vin, vehicle.plate, vehicle.make, vehicle.model, vehicle.year, vehicle.color].join(" ").toUpperCase();
     return matchesStatus && (!needle || haystack.includes(needle));
   });
-  el.vehiclesTableBody.innerHTML = vehicles.length ? vehicles.map((vehicle) => `<tr><td class="mono">${escapeHtml(vehicle.assignedBarcode)}</td><td>${escapeHtml(vehicle.year)}</td><td>${escapeHtml(vehicle.make)}</td><td>${escapeHtml(vehicle.model)}</td><td>${escapeHtml(vehicle.color)}</td><td class="mono">${escapeHtml(vehicle.vin)}</td><td>${escapeHtml(vehicle.plate || "-")}</td><td><span class="status-badge ${vehicle.active ? "authorized" : "inactive"}">${vehicle.active ? "Active" : "Inactive"}</span></td><td class="action-stack"><button class="table-action" type="button" data-vehicle-action="edit" data-vehicle-id="${escapeHtml(vehicle.id)}">Edit</button><button class="table-action ${vehicle.active ? "danger-text" : "success-text"}" type="button" data-vehicle-action="${vehicle.active ? "remove" : "restore"}" data-vehicle-id="${escapeHtml(vehicle.id)}">${vehicle.active ? "Remove from Inventory" : "Restore to Inventory"}</button></td></tr>`).join("") : `<tr><td colspan="9" class="empty-cell">No vehicles match this inventory view.</td></tr>`;
+  el.vehiclesTableBody.innerHTML = vehicles.length ? vehicles.map((vehicle) => `<tr><td class="mono">${escapeHtml(vehicle.assignedBarcode)}</td><td>${escapeHtml(vehicle.year)}</td><td>${escapeHtml(vehicle.make)}</td><td>${escapeHtml(vehicle.model)}</td><td>${escapeHtml(vehicle.color)}</td><td class="mono">${escapeHtml(vehicle.vin)}</td><td>${escapeHtml(vehicle.plate || "-")}</td><td><span class="status-badge ${vehicle.active ? "authorized" : "inactive"}">${vehicle.active ? "Active" : "Inactive"}</span>${isProvisionalVehicle(vehicle) ? ` <span class="status-badge provisional" title="Added by an inbound scan. Vehicle OUT is blocked until this record is completed.">Incomplete</span>` : ""}</td><td class="action-stack"><button class="table-action" type="button" data-vehicle-action="edit" data-vehicle-id="${escapeHtml(vehicle.id)}">Edit</button><button class="table-action ${vehicle.active ? "danger-text" : "success-text"}" type="button" data-vehicle-action="${vehicle.active ? "remove" : "restore"}" data-vehicle-id="${escapeHtml(vehicle.id)}">${vehicle.active ? "Remove from Inventory" : "Restore to Inventory"}</button></td></tr>`).join("") : `<tr><td colspan="9" class="empty-cell">No vehicles match this inventory view.</td></tr>`;
 }
 
 function openDriverProfile(driver) {
