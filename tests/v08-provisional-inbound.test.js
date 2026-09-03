@@ -82,3 +82,20 @@ test("081526 #3 tall modals can scroll to reach lower fields", () => {
   assert.ok(panel.includes("overflow-y: auto;"), "modal panel must scroll");
   assert.ok(panel.includes("max-height:"), "modal panel must be height-bounded");
 });
+
+// --- 081526 #10: override restricted to Fleet Lead and above ---------------
+test("#10 an explicit minimum override role exists", includes(app, 'const OVERRIDE_MIN_ROLE = "Fleet Lead";'));
+test("#10 rank is derived from the ordered role list", includes(app, "return DESKTOP_USER_ROLES.indexOf(role);"));
+test("#10 approvers carry a role", includes(app, '{ id: "S1001", name: "Morgan Lee", role: "Supervisor" }'));
+
+test("#10 the rank check is enforced at approval, not only in the status text", () => {
+  const approve = app.slice(app.indexOf("function approveSupervisorOverride"), app.indexOf("function cancelSupervisorOverride") > 0 ? app.indexOf("function cancelSupervisorOverride") : app.length);
+  const gate = approve.indexOf("canApproveOverride(supervisor)");
+  const grant = approve.indexOf("authorizeDriver(");
+  assert.ok(gate > -1, "approval must check the approver rank");
+  assert.ok(grant > -1, "approval must still grant authorization");
+  assert.ok(gate < grant, "the rank check must precede granting the authorization");
+});
+
+test("#10 a denied override is audited", includes(app, '"override_denied_insufficient_role"'));
+test("#10 stored approvers without a role default to the minimum, not a senior role", includes(app, "DESKTOP_USER_ROLES.includes(supervisor.role) ? supervisor.role : OVERRIDE_MIN_ROLE"));

@@ -121,9 +121,9 @@
                   <p class="eyebrow">Supervisor authorization required</p>
                   <h2 id="supervisorHeading">Vehicle OUT blocked</h2>
                   <p id="supervisorReason">This driver is not authorized for this movement.</p>
-                  <label for="supervisorInput">Supervisor ID</label>
-                  <div class="scan-input single"><input id="supervisorInput" name="supervisorInput" autocomplete="off" inputmode="text" placeholder="Scan or enter supervisor ID"></div>
-                  <p class="field-status" id="supervisorStatus">Awaiting a valid supervisor ID.</p>
+                  <label for="supervisorInput">Approver ID (Fleet Lead or above)</label>
+                  <div class="scan-input single"><input id="supervisorInput" name="supervisorInput" autocomplete="off" inputmode="text" placeholder="Scan or enter Fleet Lead or above ID"></div>
+                  <p class="field-status" id="supervisorStatus">Awaiting a valid Fleet Lead or above ID.</p>
                   <label for="supervisorDuration">Temporary authorization</label>
                   <input id="supervisorDuration" type="hidden" value="9_hours"><p class="field-status">Fleet Lead authorization is fixed at 9 hours.</p>
                   <div class="button-row"><button class="button secondary" id="cancelSupervisorButton" type="button">Cancel OUT</button><button class="button warning" id="approveSupervisorButton" type="button">Approve temporary authorization</button></div>

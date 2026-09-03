@@ -29,6 +29,18 @@ const LEGACY_ENTRY_METHOD = "legacy_unknown";
 const PROVISIONAL_STATUS = "provisional";
 const COMPLETE_STATUS = "complete";
 const DESKTOP_USER_ROLES = ["Scanner", "Fleet Lead", "Supervisor", "Manager", "Admin"];
+// CR-V08-BETA-CRITICAL-APP-002 (081526 v7 edit #10): the OUT override is restricted to
+// Fleet Lead and above. DESKTOP_USER_ROLES is ordered by seniority, so its index is the rank.
+// Before this change the approver list carried no role at all and any listed ID could approve.
+const OVERRIDE_MIN_ROLE = "Fleet Lead";
+
+function roleRank(role) {
+  return DESKTOP_USER_ROLES.indexOf(role);
+}
+
+function canApproveOverride(approver) {
+  return Boolean(approver) && roleRank(approver.role) >= roleRank(OVERRIDE_MIN_ROLE);
+}
 const ABILITY_LEVELS = ["Restricted", "View only", "Assign"];
 const DESKTOP_USER_ABILITIES = [
   { id: "scanner", title: "Scanner", description: "Use the gate scanner workflow." },
@@ -257,8 +269,10 @@ function createSeedState() {
       { name: "Linden", active: true }
     ],
     supervisors: [
-      { id: "S1001", name: "Morgan Lee" },
-      { id: "S2040", name: "Jordan Wells" }
+      { id: "S1001", name: "Morgan Lee", role: "Supervisor" },
+      { id: "S2040", name: "Jordan Wells", role: "Fleet Lead" },
+      // Deliberately below the override threshold so the rule is testable during beta.
+      { id: "S3090", name: "Casey Rowe", role: "Scanner" }
     ],
     devices: [
       seedDevice("D0001", "Division Gate Scanner", "000000000000001", "Fixed", "Division Street"),
@@ -411,7 +425,10 @@ function normalizeV07State(saved) {
   normalized.locations = (normalized.locations || []).map((location) => ({ ...location, name: normalizeLocationName(location.name) })).filter((location) => location.name && location.name !== "Enterprise Repair Facility");
   if (!normalized.locations.length) normalized.locations = createSeedState().locations;
   normalized.drivers = (normalized.drivers || []).map((driver) => ({ ...driver, employeeNumber: canonicalEmployeeId(driver.employeeNumber) }));
-  normalized.supervisors = (normalized.supervisors || createSeedState().supervisors).map((supervisor) => ({ ...supervisor, id: canonicalSupervisorId(supervisor.id) }));
+  // CR-V08-BETA-CRITICAL-APP-002: stored approvers predate the role field. They are defaulted to
+  // the minimum rank that preserves their existing ability to approve, rather than to a senior
+  // role. Patrick should confirm the real rank of each approver before beta.
+  normalized.supervisors = (normalized.supervisors || createSeedState().supervisors).map((supervisor) => ({ ...supervisor, id: canonicalSupervisorId(supervisor.id), role: DESKTOP_USER_ROLES.includes(supervisor.role) ? supervisor.role : OVERRIDE_MIN_ROLE }));
   normalized.vehicles = (normalized.vehicles || []).map((vehicle, index) => normalizeVehicle(vehicle, index));
   normalized.transactions = (normalized.transactions || []).map((transaction) => mapTransactionVehicle({ ...transaction, driverEmployee: canonicalEmployeeId(transaction.driverEmployee), location: normalizeLocationName(transaction.location), workingLocation: normalizeLocationName(transaction.workingLocation), deviceId: transaction.deviceId ? canonicalDeviceId(transaction.deviceId) : "" }, normalized.vehicles)).filter((transaction) => transaction.location && transaction.location !== "Enterprise Repair Facility");
   normalized.authorizations = (normalized.authorizations || []).map((authorization) => {
@@ -753,7 +770,7 @@ function resetFlow() {
   el.supervisorInput.value = "";
   el.driverStatus.textContent = "Awaiting employee number scan.";
   el.barcodeStatus.textContent = "Awaiting vehicle barcode scan.";
-  el.supervisorStatus.textContent = "Awaiting a valid supervisor ID.";
+  el.supervisorStatus.textContent = `Awaiting a valid ${OVERRIDE_MIN_ROLE} or above ID.`;
   ui.driverEntryMethod = null;
   ui.vehicleEntryMethod = null;
   ui.validatedDriverEmployee = "";
@@ -771,7 +788,7 @@ function clearDriverDerivedStateIfChanged(rawValue) {
   el.transactionNote.value = "";
   el.supervisorInput.value = "";
   el.barcodeStatus.textContent = "Awaiting vehicle barcode scan.";
-  el.supervisorStatus.textContent = "Awaiting a valid supervisor ID.";
+  el.supervisorStatus.textContent = `Awaiting a valid ${OVERRIDE_MIN_ROLE} or above ID.`;
   setNotice("Driver changed. Previous vehicle, authorization review, and pending approval were cleared.", "warning");
   if (ui.activeFlow === "scan" && ui.step !== 0) showWizardStep(0);
 }
@@ -800,7 +817,7 @@ function recordScannerInput(fieldId, rawValue, terminator) {
     driverInput: "Driver Employee #",
     barcodeInput: "Vehicle Barcode",
     manualBarcodeInput: "Manual Vehicle Barcode",
-    supervisorInput: "Supervisor ID",
+    supervisorInput: "Approver ID",
     manualEmployeeInput: "Manual Employee #"
   };
   ui.lastRawScan = rawValue || "No scan received";
@@ -917,15 +934,19 @@ function updateSupervisorStatus() {
   recordScannerInput("supervisorInput", el.supervisorInput.value, "Input");
   const supervisor = state.supervisors.find((item) => item.id === canonicalSupervisorId(el.supervisorInput.value));
   if (!el.supervisorInput.value.trim()) {
-    el.supervisorStatus.textContent = "Awaiting a valid supervisor ID.";
+    el.supervisorStatus.textContent = `Awaiting a valid ${OVERRIDE_MIN_ROLE} or above ID.`;
     return;
   }
   if (!supervisor) {
-    el.supervisorStatus.textContent = "Supervisor ID was not found.";
+    el.supervisorStatus.textContent = "Approver ID was not found.";
     return;
   }
-  el.supervisorStatus.textContent = `${supervisor.id} / ${supervisor.name} is ready to approve 9 hours.`;
-  setNotice("Supervisor found. Approve the temporary authorization to continue.", "success");
+  if (!canApproveOverride(supervisor)) {
+    el.supervisorStatus.textContent = `${supervisor.id} / ${supervisor.name} holds ${supervisor.role || "no role"} and cannot approve this override. ${OVERRIDE_MIN_ROLE} or above is required.`;
+    return;
+  }
+  el.supervisorStatus.textContent = `${supervisor.id} / ${supervisor.name} (${supervisor.role}) is ready to approve 9 hours.`;
+  setNotice(`${OVERRIDE_MIN_ROLE} or above found. Approve the temporary authorization to continue.`, "success");
 }
 
 function validateDriverStep() {
@@ -1038,9 +1059,9 @@ function blockOutForIncompleteVehicle(draft) {
 
 function blockOutForSupervisor(driver) {
   ui.pendingOverride = { driverEmployee: driver.employeeNumber, location: el.scannerLocation.value };
-  el.supervisorReason.textContent = `${driver.employeeNumber} / ${driver.name} is not authorized for this gate movement. Vehicle OUT is blocked until a supervisor approves a temporary authorization.`;
+  el.supervisorReason.textContent = `${driver.employeeNumber} / ${driver.name} is not authorized for this gate movement. Vehicle OUT is blocked until a ${OVERRIDE_MIN_ROLE} or above approves a temporary authorization.`;
   el.supervisorInput.value = "";
-  el.supervisorStatus.textContent = "Awaiting a valid supervisor ID.";
+  el.supervisorStatus.textContent = `Awaiting a valid ${OVERRIDE_MIN_ROLE} or above ID.`;
   setScannerScreen("override");
   const vehicle = readVehicleInput();
   addAudit("blocked_out", `Blocked Vehicle OUT attempt for ${driver.employeeNumber} / ${vehicle ? vehicle.assignedBarcode : "vehicle pending"}.`, currentStationIdentity(), el.scannerLocation.value);
@@ -1054,8 +1075,19 @@ function approveSupervisorOverride() {
   if (!ui.pendingOverride) return;
   const supervisor = state.supervisors.find((item) => item.id === canonicalSupervisorId(el.supervisorInput.value));
   if (!supervisor) {
-    el.supervisorStatus.textContent = "Invalid supervisor ID. Approval was not granted.";
-    setNotice("Supervisor ID is not valid.", "danger");
+    el.supervisorStatus.textContent = "Invalid approver ID. Approval was not granted.";
+    setNotice("Approver ID is not valid.", "danger");
+    shake(el.supervisorInput);
+    return;
+  }
+  // CR-V08-BETA-CRITICAL-APP-002: the rank check is enforced HERE, at the point the
+  // authorization is actually granted, not only in the status text. A listed ID is not
+  // sufficient; the approver must hold Fleet Lead or above.
+  if (!canApproveOverride(supervisor)) {
+    el.supervisorStatus.textContent = `${supervisor.id} / ${supervisor.name} holds ${supervisor.role || "no role"} and cannot approve a Vehicle OUT override. ${OVERRIDE_MIN_ROLE} or above is required.`;
+    addAudit("override_denied_insufficient_role", `Override attempt denied: ${supervisor.id} / ${supervisor.name} holds ${supervisor.role || "no role"}, below the ${OVERRIDE_MIN_ROLE} threshold.`, currentStationIdentity(), ui.pendingOverride.location);
+    saveState();
+    setNotice(`Approval denied. ${OVERRIDE_MIN_ROLE} or above is required.`, "danger");
     shake(el.supervisorInput);
     return;
   }
