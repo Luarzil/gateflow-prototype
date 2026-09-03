@@ -130,13 +130,6 @@
                 </div>
               </section>
 
-              <section class="scanner-screen hidden" id="transactionConfirmation" aria-live="polite">
-                <div class="scanner-confirm">
-                  <p class="eyebrow">Complete</p><h2 id="confirmationTitle">Transaction submitted</h2><ul class="summary-list" id="confirmationSummary"></ul>
-                  <button class="button primary full" id="confirmationDoneButton" type="button">Start Next Scan</button>
-                </div>
-              </section>
-
             </div>
           </section>
 
@@ -190,6 +183,11 @@
         </section>
 
         <section id="vehiclesSection" class="supervisor-section" role="tabpanel" aria-labelledby="vehiclesTab" hidden>
+          <section class="panel" id="incompleteInventoryPanel">
+            <div class="panel-heading"><div><p class="eyebrow">Incomplete inventory</p><h2>Vehicles Awaiting Completion</h2></div><span class="status-badge provisional" id="incompleteInventoryCount">0</span></div>
+            <p class="field-status">These vehicles were added automatically by an inbound scan. Vehicle OUT stays blocked for each one until its record is completed.</p>
+            <div class="table-wrap"><table><thead><tr><th>Assigned Barcode</th><th>Added</th><th>Missing information</th><th>Actions</th></tr></thead><tbody id="incompleteInventoryBody"></tbody></table></div>
+          </section>
           <section class="panel">
             <div class="panel-heading"><div><p class="eyebrow">Vehicle inventory</p><h2>Active fleet vehicles</h2></div><button class="button secondary" id="addVehicleButton" type="button">Add Vehicle</button></div>
             <div class="bulk-toolbar vehicle-toolbar"><div><label for="vehicleSearch">Search vehicles</label><input id="vehicleSearch" type="search" placeholder="Barcode, VIN, plate, make, model, year, or color"></div><div><label for="vehicleStatusFilter">Inventory status</label><select id="vehicleStatusFilter"><option value="active">Active</option><option value="inactive">Inactive</option><option value="all">All</option></select></div></div>
