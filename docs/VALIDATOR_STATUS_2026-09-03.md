@@ -73,3 +73,53 @@ No bypass. The rule is enforced, including the new rank check.
 3. Until then, the `node --test` suites are the working gate. They pass, including the 84-case
    V0.7 regression file, which is a different artifact from this browser runner despite the
    coincidental number.
+
+---
+
+## Refresh completed — 2026-09-03
+
+The runner has been retargeted to V0.7/V0.8 and now covers the new rules.
+
+| Run | Score |
+|---|---|
+| Baseline `efe40a6`, before any of today's work | 32 / 84 |
+| After CR-001/002, before the refresh | 25 / 91 |
+| **After the refresh** | **90 / 90** |
+
+### What changed in the runner
+
+- **Identifiers retargeted:** `EMP-100x` to `E100x`, `GFV-000x` to `G000x`, `SUP-1001` to `S1001`,
+  `DEV-*-01` to `D000x`, `EWR` to `EWR North`, Elizabeth to Enterprise Repair Facility. Legacy
+  tolerance is still covered — one scenario deliberately feeds `EMP-1002` to prove old values
+  still resolve.
+- **Removed scenarios for surfaces V0.7 deleted:** connectivity/sync placeholders
+  (`#onlineStatus`, `#syncQueueCount`), the scanner Enter diagnostic (`#lastRawScan`), and the
+  two reset-demo scenarios (`#deviceSetupButton`). The node suite already asserts these are gone.
+- **Post-submit behavior:** three confirmation-screen scenarios replaced with two that assert
+  the immediate return to the scanner home and the absence of the old screen.
+- **Device deactivation** now goes through the edit form status, matching the app.
+- **Retired location:** V0.7 purges Enterprise Repair Facility from locations and history, so
+  the scenario now asserts its *absence* instead of its searchability.
+- **12 new scenarios** for provisional inbound, the vehicle-level OUT gate, and the Fleet Lead
+  rank rule — including the security-critical case where an authorized driver still cannot
+  release a provisional vehicle.
+
+### One real application bug found and fixed
+
+`handleScanInput` called `clearDriverDerivedStateIfChanged(...)` and then `updateDriverStatus()`
+on the same line. The first sets the warning "Driver changed. Previous vehicle, authorization
+review, and pending approval were cleared."; the second immediately overwrote it with "Driver
+found. Continue to the vehicle barcode."
+
+The operator was therefore never told that changing the driver had discarded the vehicle,
+direction, and any pending approval. `updateDriverStatus` now takes a `preserveNotice` option
+and the clear function reports whether it acted.
+
+This bug predates today's work — it was failing at the `efe40a6` baseline too, hidden among the
+52 stale failures. It is exactly the kind of thing the runner exists to catch.
+
+### Scenario count
+
+The suite is now **90 scenarios**, not 84. The number changed because dead scenarios were
+removed and twelve new ones added. The node `tests/v07-84-regression.test.js` file is a separate
+artifact and still asserts exactly 84 cases.

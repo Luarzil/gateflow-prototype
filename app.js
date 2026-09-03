@@ -778,7 +778,7 @@ function resetFlow() {
 
 function clearDriverDerivedStateIfChanged(rawValue) {
   const employeeNumber = normalizeEmployee(rawValue);
-  if (!ui.validatedDriverEmployee || employeeNumber === ui.validatedDriverEmployee) return;
+  if (!ui.validatedDriverEmployee || employeeNumber === ui.validatedDriverEmployee) return false;
   ui.validatedDriverEmployee = "";
   ui.pendingOverride = null;
   ui.direction = null;
@@ -791,6 +791,7 @@ function clearDriverDerivedStateIfChanged(rawValue) {
   el.supervisorStatus.textContent = `Awaiting a valid ${OVERRIDE_MIN_ROLE} or above ID.`;
   setNotice("Driver changed. Previous vehicle, authorization review, and pending approval were cleared.", "warning");
   if (ui.activeFlow === "scan" && ui.step !== 0) showWizardStep(0);
+  return true;
 }
 
 function setScannerValue(fieldId, value) {
@@ -808,7 +809,10 @@ function handleScanInput(fieldId) {
   const rawValue = input.value;
   recordScannerInput(fieldId, rawValue, "Input");
   if (fieldId === "barcodeInput") { input.value = canonicalVehicleBarcode(rawValue); ui.vehicleEntryMethod = null; }
-  if (fieldId === "driverInput") { ui.driverEntryMethod = null; clearDriverDerivedStateIfChanged(rawValue); updateDriverStatus(); }
+  // The cleared-state warning must survive: updateDriverStatus would otherwise overwrite it with
+  // its success notice on the very next line, and the operator would never learn that the
+  // previous vehicle, direction, and pending approval were discarded.
+  if (fieldId === "driverInput") { ui.driverEntryMethod = null; const cleared = clearDriverDerivedStateIfChanged(rawValue); updateDriverStatus({ preserveNotice: cleared }); }
   if (fieldId === "barcodeInput") updateBarcodeStatus();
 }
 
@@ -897,7 +901,7 @@ function submitManualBarcode() {
   showWizardStep(2);
 }
 
-function updateDriverStatus() {
+function updateDriverStatus(options = {}) {
   const driver = findDriver(el.driverInput.value);
   if (!driver) {
     el.driverStatus.textContent = "Employee number not found in the active driver roster.";
@@ -906,7 +910,7 @@ function updateDriverStatus() {
     const license = licenseStatus(driver);
     const authorizationText = auth ? `Authorized through ${formatTimestamp(auth.expiresAt)}` : "Not authorized";
     el.driverStatus.textContent = `${driver.name} - ${authorizationText}. ${license.label}.`;
-    setNotice("Driver found. Continue to the vehicle barcode.", "success");
+    if (!options.preserveNotice) setNotice("Driver found. Continue to the vehicle barcode.", "success");
   }
 }
 
