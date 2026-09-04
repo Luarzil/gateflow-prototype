@@ -1,7 +1,7 @@
 "use strict";
 
 /*
-  Lot Watch / GateFlow V0.7 review prototype notes:
+  Veri-Gate V0.8 review prototype notes:
   - This is still a static HTML/CSS/JS prototype. Typed and scanned values use the
     same validation path without presenting a hardware-specific input mode.
   - Production needs customer-owned or customer-approved hosted data storage
@@ -446,7 +446,7 @@ function loadState() {
       return migrated;
     }
   } catch (error) {
-    console.warn("Could not load or migrate Lot Watch state", error);
+    console.warn("Could not load or migrate Veri-Gate state", error);
   }
   return createSeedState();
 }
@@ -766,7 +766,7 @@ function showScannerHome() {
   resetFlow();
   ui.activeFlow = null;
   ui.direction = null;
-  el.scannerHeading.textContent = "Lot Watch / GateFlow";
+  el.scannerHeading.textContent = "Veri-Gate";
   setScannerScreen("home");
   setNotice("Ready. Working location stays selected for this session.", "neutral");
   renderAll();
@@ -2084,7 +2084,7 @@ function isHistoricalOnlyLocation(locationName) {
 }
 
 function resetDemo() {
-  const ok = typeof confirm === "function" ? confirm("Reset the GateFlow demo data? Current prototype changes will be replaced.") : true;
+  const ok = typeof confirm === "function" ? confirm("Reset the Veri-Gate demo data? Current prototype changes will be replaced.") : true;
   if (!ok) return;
   const fresh = createSeedState();
   Object.keys(state).forEach((key) => delete state[key]);
