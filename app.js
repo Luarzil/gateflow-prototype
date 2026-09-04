@@ -21,6 +21,60 @@ const V05_STORAGE_KEY = "lot-watch.gateflow.v0.5.state";
 const LEGACY_STORAGE_KEY = "lot-watch.gateflow.v0.4.state";
 const TEMP_AUTHORIZATION_DURATION = "9_hours";
 const VIEWS = ["scannerView", "supervisorView", "searchView"];
+
+// CR-V09-ROLE-SHELLS-001 - one codebase, two shells.
+//
+// A gate operator on a handheld and a supervisor at a desk are doing different jobs, so they
+// get different interfaces out of the same build:
+//
+//   scanner  - the gate handheld. Scanner view only. Supervisor and Search are not reachable,
+//              so there is nothing to tap into by accident mid-shift.
+//   console  - the desktop. Everything, including the scanner view, because a supervisor
+//              legitimately needs to see what the operator sees.
+//
+// The shell is deliberately NOT a security boundary. Hiding a tab is a usability decision;
+// real restriction needs the server-side permissions from CR-V08-AWS-DEV-ENV-001. This only
+// decides what is worth showing.
+const SHELLS = {
+  scanner: ["scannerView"],
+  console: ["scannerView", "supervisorView", "searchView"]
+};
+const SHELL_STORAGE_KEY = "lot-watch.gateflow.shell";
+const HANDHELD_MAX_WIDTH = 768;
+
+function resolveShell() {
+  // 1. An explicit ?shell= wins and is remembered. This is how a handheld gets provisioned:
+  //    open the scanner URL once on the device and it stays a scanner.
+  const requested = new URLSearchParams(window.location.search).get("shell");
+  if (requested && SHELLS[requested]) {
+    try { window.localStorage.setItem(SHELL_STORAGE_KEY, requested); } catch (error) { /* private mode */ }
+    return requested;
+  }
+  // 2. A remembered choice from a previous visit.
+  try {
+    const stored = window.localStorage.getItem(SHELL_STORAGE_KEY);
+    if (stored && SHELLS[stored]) return stored;
+  } catch (error) { /* private mode */ }
+  // 3. Otherwise infer: a narrow screen is a handheld.
+  return window.innerWidth <= HANDHELD_MAX_WIDTH ? "scanner" : "console";
+}
+
+function shellViews() {
+  return SHELLS[ui.shell] || SHELLS.console;
+}
+
+function applyShell() {
+  const allowed = shellViews();
+  document.querySelectorAll("[data-view]").forEach((button) => {
+    button.hidden = !allowed.includes(button.dataset.view);
+  });
+  document.body.dataset.shell = ui.shell;
+  // The nav is noise when there is only one destination.
+  const nav = document.querySelector(".top-nav");
+  if (nav) nav.hidden = allowed.length < 2;
+  if (!allowed.includes(ui.activeView)) showView(allowed[0]);
+}
+
 const BUSINESS_TIMEZONE = "America/New_York";
 const LICENSE_VALID_THROUGH_PRINTED_DATE = true;
 const ENTRY_METHODS = ["scanner_field", "manual"];
@@ -56,6 +110,8 @@ let storageAvailable = true;
 
 const el = {};
 const ui = {
+  shell: "console",
+  activeView: "scannerView",
   direction: null,
   step: 0,
   activeFlow: null,
@@ -78,6 +134,8 @@ const state = loadState();
 
 document.addEventListener("DOMContentLoaded", () => {
   cacheElements();
+  ui.shell = resolveShell();
+  applyShell();
   bindEvents();
   expireAuthorizations("system");
   populateLocationControls();
@@ -630,6 +688,10 @@ function saveState() {
 
 function showView(viewId) {
   if (!VIEWS.includes(viewId)) return;
+  // CR-V09-ROLE-SHELLS-001: a view outside the active shell is unreachable, including by deep
+  // link. The scanner shell cannot be navigated into the supervisor console.
+  if (!shellViews().includes(viewId)) return;
+  ui.activeView = viewId;
   expireAuthorizations("system");
   VIEWS.forEach((id) => {
     const section = document.getElementById(id);
