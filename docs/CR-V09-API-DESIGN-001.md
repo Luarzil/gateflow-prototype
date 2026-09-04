@@ -49,12 +49,41 @@ offline-decided for supervisor review.
 
 Simplest. Any outage stops the gate completely. Almost certainly unacceptable at a real site.
 
-**Recommendation: A for the pilot.** It is the smallest thing that is honest about risk. If
-Cavalry's outages turn out to be frequent or long, B becomes a real conversation — but that
-should be driven by observed data, not assumed.
+### Option D — Offline OUT requires a named supervisor *(the likely long-term answer)*
 
-**Ask Patrick:** how long can a gate be offline, and is stopping departures during an outage
-acceptable?
+The device still refuses to release a vehicle on its own judgement, but a Fleet Lead or above
+physically present can authorize a specific vehicle out with their own ID, reusing the existing
+override flow. The movement is queued, flagged `offline_decided`, and lands in a review queue
+when signal returns.
+
+This converts *"the system decides on stale data"* into *"a named human decided and is
+accountable"* — which is the correct answer whenever a system cannot verify something. Do not
+guess, and do not stop; escalate to a person and record who.
+
+The residual risk is real but bounded: a supervisor could wave through a driver whose
+authorization was revoked minutes earlier. They can already do that today, in person, with a
+clipboard. This does not create a new hole; it makes the existing one auditable.
+
+Reuses machinery that already exists — the override flow, the approver list (small, changes
+rarely, cheap to cache), and the audit table.
+
+### Recommendation
+
+**Build A now. Instrument it. Add D if the data justifies it.**
+
+1. **A first** — smallest honest thing, ships fast.
+2. **Log every offline period and its duration from day one.** This turns question #7 from an
+   argument into a measurement, and it costs almost nothing to add.
+3. **Add D when observed outages justify it.** If the gate drops for ninety seconds twice a
+   month, A is fine permanently and the work was never needed. If it drops for an hour on a
+   Tuesday, D gets built with evidence behind it rather than on speculation.
+
+The one thing that would change this ordering: if Cavalry says up front that departures pausing
+is unacceptable even once, build D immediately — a single queue of blocked trucks in front of the
+client during a pilot costs more than the code does.
+
+**Ask Patrick:** how long can a gate realistically be offline, and is pausing departures
+acceptable — or does he want the supervisor-approval path from the start?
 
 ---
 
