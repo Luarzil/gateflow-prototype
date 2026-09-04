@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Veri-Gate V0.8 Walkthrough</title>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; color: #10241f; background: #f4f7f4; }
+    header { background: #169A5A; color: white; padding: 22px; }
+    main { max-width: 1120px; margin: 0 auto; padding: 24px; }
+    video, audio { width: 100%; margin: 16px 0; }
+    .slide { display: grid; grid-template-columns: minmax(280px, 560px) 1fr; gap: 24px; padding: 20px 0; border-top: 1px solid #cbd9d5; align-items: center; }
+    .slide img { width: 100%; border: 1px solid #aebfba; border-radius: 8px; background: white; }
+    .slide h2 { margin: 0 0 8px; font-size: 24px; }
+    .slide p { margin: 0; font-size: 17px; line-height: 1.5; }
+    .slide .step { color: #169A5A; font-weight: 700; text-transform: uppercase; font-size: 12px; letter-spacing: .04em; margin-bottom: 8px; }
+    @media (max-width: 760px) { .slide { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Veri-Gate V0.8 Walkthrough</h1>
+  </header>
+  <main>
+    <p>This walkthrough shows the scanner flow, temporary authorization, Supervisor pages, Search, Feedback, and prototype boundaries.</p>
+    <video controls src="verigate-v08-demo.webm"></video>
+    <audio controls src="verigate-v08-demo-audio.wav"></audio>
+
+      <section class="slide">
+        <img src="verigate-v08-demo-frames/01-scanner-home.png" alt="The Scanner">
+        <div>
+          <p class="step">Step 1 of 12</p>
+          <h2>The Scanner</h2>
+          <p>A gate operator opens Veri-Gate on the handheld. On a phone it shows the scanner and nothing else.</p>
+        </div>
+      </section>
+
+      <section class="slide">
+        <img src="verigate-v08-demo-frames/02-driver-entry.png" alt="Step One: The Driver">
+        <div>
+          <p class="step">Step 2 of 12</p>
+          <h2>Step One: The Driver</h2>
+          <p>The operator scans or types the driver employee number.</p>
+        </div>
+      </section>
+
+      <section class="slide">
+        <img src="verigate-v08-demo-frames/03-unknown-vehicle.png" alt="A Vehicle We Have Never Seen">
+        <div>
+          <p class="step">Step 3 of 12</p>
+          <h2>A Vehicle We Have Never Seen</h2>
+          <p>An unknown barcode is accepted. The operator is not interrupted.</p>
+        </div>
+      </section>
+
+      <section class="slide">
+        <img src="verigate-v08-demo-frames/04-movement-choice.png" alt="Step Three: Direction">
+        <div>
+          <p class="step">Step 4 of 12</p>
+          <h2>Step Three: Direction</h2>
+          <p>The operator chooses Vehicle IN or Vehicle OUT.</p>
+        </div>
+      </section>
+
+      <section class="slide">
+        <img src="verigate-v08-demo-frames/05-submitted-home.png" alt="Straight Back to Work">
+        <div>
+          <p class="step">Step 5 of 12</p>
+          <h2>Straight Back to Work</h2>
+          <p>After submitting, the scanner returns immediately to the home screen.</p>
+        </div>
+      </section>
+
+      <section class="slide">
+        <img src="verigate-v08-demo-frames/06-out-blocked.png" alt="The Rule That Matters">
+        <div>
+          <p class="step">Step 6 of 12</p>
+          <h2>The Rule That Matters</h2>
+          <p>The same vehicle is refused on the way OUT.</p>
+        </div>
+      </section>
+
+      <section class="slide">
+        <img src="verigate-v08-demo-frames/07-console-shell.png" alt="The Supervisor Console">
+        <div>
+          <p class="step">Step 7 of 12</p>
+          <h2>The Supervisor Console</h2>
+          <p>On a computer, the same build shows the full console.</p>
+        </div>
+      </section>
+
+      <section class="slide">
+        <img src="verigate-v08-demo-frames/08-incomplete-queue.png" alt="Incomplete Inventory">
+        <div>
+          <p class="step">Step 8 of 12</p>
+          <h2>Incomplete Inventory</h2>
+          <p>Vehicles added by an inbound scan appear in a queue for completion.</p>
+        </div>
+      </section>
+
+      <section class="slide">
+        <img src="verigate-v08-demo-frames/09-complete-record.png" alt="Completing the Record">
+        <div>
+          <p class="step">Step 9 of 12</p>
+          <h2>Completing the Record</h2>
+          <p>The supervisor fills in the vehicle details.</p>
+        </div>
+      </section>
+
+      <section class="slide">
+        <img src="verigate-v08-demo-frames/10-out-allowed.png" alt="Released">
+        <div>
+          <p class="step">Step 10 of 12</p>
+          <h2>Released</h2>
+          <p>With the record complete, the vehicle is allowed OUT.</p>
+        </div>
+      </section>
+
+      <section class="slide">
+        <img src="verigate-v08-demo-frames/11-override-role.png" alt="Fleet Lead And Above">
+        <div>
+          <p class="step">Step 11 of 12</p>
+          <h2>Fleet Lead And Above</h2>
+          <p>An under-ranked approver cannot authorise a blocked OUT.</p>
+        </div>
+      </section>
+
+      <section class="slide">
+        <img src="verigate-v08-demo-frames/12-search.png" alt="Search And History">
+        <div>
+          <p class="step">Step 12 of 12</p>
+          <h2>Search And History</h2>
+          <p>Movements remain searchable by driver, vehicle, plate, VIN, location and date.</p>
+        </div>
+      </section>
+  </main>
+  <script>
+    async function recordVeriGateDemo(slides) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1280;
+      canvas.height = 720;
+      const ctx = canvas.getContext('2d');
+      const audio = new Audio('verigate-v08-demo-audio.wav');
+      let stream = canvas.captureStream(30);
+      try {
+        const audioContext = new AudioContext();
+        const source = audioContext.createMediaElementSource(audio);
+        const destination = audioContext.createMediaStreamDestination();
+        source.connect(destination);
+        stream = new MediaStream([...stream.getVideoTracks(), ...destination.stream.getAudioTracks()]);
+        await audioContext.resume();
+      } catch (error) {
+        console.warn('Audio capture unavailable, recording video only.', error);
+      }
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus') ? 'video/webm;codecs=vp9,opus' : 'video/webm';
+      const chunks = [];
+      const recorder = new MediaRecorder(stream, { mimeType });
+      recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
+      const images = await Promise.all(slides.map((slide) => new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+        image.src = 'verigate-v08-demo-frames/' + slide.file;
+      })));
+      const roundRect = (x, y, width, height, radius) => {
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.arcTo(x + width, y, x + width, y + height, radius);
+        ctx.arcTo(x + width, y + height, x, y + height, radius);
+        ctx.arcTo(x, y + height, x, y, radius);
+        ctx.arcTo(x, y, x + width, y, radius);
+        ctx.closePath();
+      };
+      const wrapText = (text, x, y, maxWidth, lineHeight) => {
+        const words = text.split(' ');
+        let line = '';
+        for (const word of words) {
+          const testLine = line ? line + ' ' + word : word;
+          if (ctx.measureText(testLine).width > maxWidth) {
+            ctx.fillText(line, x, y);
+            line = word;
+            y += lineHeight;
+          } else {
+            line = testLine;
+          }
+        }
+        ctx.fillText(line, x, y);
+      };
+      const drawSlide = (slide, image, index, progress) => {
+        ctx.fillStyle = '#f4f7f4';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#169A5A';
+        ctx.fillRect(0, 0, canvas.width, 78);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '700 30px Arial';
+        ctx.fillText('Lot Watch / GateFlow V0.7', 40, 50);
+        ctx.font = '18px Arial';
+        ctx.fillText('Full review walkthrough', 910, 49);
+
+        if (slide.mode === 'phone') {
+          const phoneH = 560;
+          const phoneW = Math.round(image.width * (phoneH / image.height));
+          const phoneX = 82;
+          const phoneY = 112;
+          ctx.fillStyle = '#004B2E';
+          roundRect(phoneX - 14, phoneY - 14, phoneW + 28, phoneH + 28, 26);
+          ctx.fill();
+          ctx.drawImage(image, phoneX, phoneY, phoneW, phoneH);
+          ctx.fillStyle = '#004B2E';
+          ctx.font = '700 42px Arial';
+          ctx.fillText(slide.title, 565, 194);
+          ctx.fillStyle = '#30423c';
+          ctx.font = '27px Arial';
+          wrapText(slide.caption, 565, 260, 620, 39);
+        } else {
+          const shotW = 760;
+          const shotH = Math.round(image.height * (shotW / image.width));
+          const shotX = 42;
+          const shotY = 122;
+          ctx.fillStyle = '#004B2E';
+          roundRect(shotX - 10, shotY - 10, shotW + 20, shotH + 20, 16);
+          ctx.fill();
+          ctx.drawImage(image, shotX, shotY, shotW, shotH);
+          ctx.fillStyle = '#004B2E';
+          ctx.font = '700 38px Arial';
+          ctx.fillText(slide.title, 850, 186);
+          ctx.fillStyle = '#30423c';
+          ctx.font = '25px Arial';
+          wrapText(slide.caption, 850, 248, 360, 36);
+        }
+
+        ctx.fillStyle = '#647b75';
+        ctx.font = '18px Arial';
+        ctx.fillText('Step ' + (index + 1) + ' of ' + slides.length, 40, 694);
+        ctx.fillStyle = '#169A5A';
+        ctx.fillRect(160, 681, Math.round(960 * progress), 10);
+        ctx.fillStyle = '#cbd9d5';
+        ctx.fillRect(160 + Math.round(960 * progress), 681, Math.round(960 * (1 - progress)), 10);
+      };
+      recorder.start();
+      audio.play().catch(() => {});
+      for (let i = 0; i < slides.length; i += 1) {
+        const started = performance.now();
+        while (performance.now() - started < slides[i].duration) {
+          drawSlide(slides[i], images[i], i, (i + (performance.now() - started) / slides[i].duration) / slides.length);
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+        }
+      }
+      recorder.stop();
+      await new Promise((resolve) => { recorder.onstop = resolve; });
+      const blob = new Blob(chunks, { type: mimeType });
+      const buffer = await blob.arrayBuffer();
+      let binary = '';
+      const bytes = new Uint8Array(buffer);
+      const chunkSize = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+      }
+      return { mimeType, size: bytes.length, durationMs: slides.reduce((sum, slide) => sum + slide.duration, 0), base64: btoa(binary) };
+    }
+  </script>
+</body>
+</html>

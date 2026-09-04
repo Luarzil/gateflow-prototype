@@ -1,6 +1,9 @@
 android/
 node_modules/
 tests/
-docs/
 patrick-os/
+docs/CR-*
+docs/GATEFLOW_*
+docs/PATRICK_*
 *.md
+!docs/media/**
