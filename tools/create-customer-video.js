@@ -7,109 +7,141 @@ const { spawn, spawnSync } = require("node:child_process");
 
 const root = path.resolve(__dirname, "..");
 const mediaDir = path.join(root, "docs", "media");
-const frameDir = path.join(mediaDir, "verigate-v08-demo-frames");
+const frameDir = path.join(mediaDir, "verigate-customer-frames");
 const chromePath = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
-const audioPath = path.join(mediaDir, "verigate-v08-demo-audio.wav");
-const videoPath = path.join(mediaDir, "verigate-v08-demo.webm");
-const htmlPath = path.join(mediaDir, "verigate-v08-demo.html");
+const audioPath = path.join(mediaDir, "verigate-customer-audio.wav");
+const videoPath = path.join(mediaDir, "verigate-customer.webm");
+const htmlPath = path.join(mediaDir, "verigate-customer.html");
 const voiceName = "Microsoft Zira Desktop";
 
 const slides = [
   {
-    file: "01-scanner-home.png",
+    file: "01-title.png",
     mode: "phone",
-    title: "The Scanner",
-    caption: "A gate operator opens Veri-Gate on the handheld. On a phone it shows the scanner and nothing else.",
-    narration: "This is Veri-Gate version zero point eight. On a handheld, the operator sees only the scanner. The supervisor screens are not there at all, so there is nothing to tap into by accident during a shift.",
-    duration: 5200
+    title: "Veri-Gate",
+    caption: "Vehicle movement control for gated facilities.",
+    narration: "Veri-Gate. Vehicle movement control for gated facilities.",
+    duration: 12000
   },
   {
-    file: "02-driver-entry.png",
-    mode: "phone",
-    title: "Step One: The Driver",
-    caption: "The operator scans or types the driver employee number.",
-    narration: "The workflow is four guided steps. First, the driver employee number is scanned or entered.",
-    duration: 4200
+    file: "02-problem.png",
+    mode: "desktop",
+    title: "Every Movement Is A Question",
+    caption: "Who was driving, were they allowed, which vehicle, and when.",
+    narration: "Every vehicle that enters or leaves a facility is a question. Who was driving. Were they allowed. Which vehicle was it. When did it happen. Most gates answer those questions on paper, or not at all, and the answer is needed weeks later, when something has already gone wrong.",
+    duration: 22000
   },
   {
-    file: "03-unknown-vehicle.png",
+    file: "03-handheld.png",
     mode: "phone",
-    title: "A Vehicle We Have Never Seen",
-    caption: "An unknown barcode is accepted. The operator is not interrupted.",
-    narration: "Here is the change Patrick asked for. This vehicle is not in inventory. The scanner accepts it anyway and does not stop to ask for approval. Vehicles coming in are not the risk.",
-    duration: 6200
+    title: "One Screen At The Gate",
+    caption: "The operator sees the scan and nothing else.",
+    narration: "Veri-Gate runs on a rugged Android handheld at the gate. The operator sees one screen: the scan. No menus to get lost in, no settings to change by accident. Everything else in the system is somewhere else, on another screen.",
+    duration: 20000
   },
   {
-    file: "04-movement-choice.png",
+    file: "04-driver.png",
     mode: "phone",
-    title: "Step Three: Direction",
-    caption: "The operator chooses Vehicle IN or Vehicle OUT.",
-    narration: "The operator chooses the direction of travel.",
-    duration: 3600
+    title: "Start With The Driver",
+    caption: "Scan the badge, or type the number if it is damaged.",
+    narration: "A movement starts with the driver. The operator scans the employee badge, or types the number if a badge is damaged. Veri-Gate shows who they are and whether their licence and authorisation are current, before the vehicle is even involved.",
+    duration: 18000
   },
   {
-    file: "05-submitted-home.png",
+    file: "05-vehicle.png",
     mode: "phone",
-    title: "Straight Back to Work",
-    caption: "After submitting, the scanner returns immediately to the home screen.",
-    narration: "After submitting, the scanner goes straight back to the start. The old confirmation screen and its extra tap are gone, exactly as requested in the August fifteenth notes. At a busy gate that time adds up.",
-    duration: 6000
+    title: "Then The Vehicle",
+    caption: "Make, model, colour and plate come straight back.",
+    narration: "Then the vehicle. Scan the barcode on the windscreen and the make, model, colour and plate come straight back, so the operator can confirm the vehicle in front of them is the vehicle on the screen.",
+    duration: 16000
   },
   {
-    file: "06-out-blocked.png",
+    file: "06-movement.png",
     mode: "phone",
-    title: "The Rule That Matters",
-    caption: "The same vehicle is refused on the way OUT.",
-    narration: "Now the same vehicle tries to leave. It is blocked. Being allowed in did not make it authorised to go out. That rule is enforced in the database itself, not just on this screen, so it holds even if something goes wrong in the app.",
-    duration: 7000
+    title: "In Or Out. One Tap.",
+    caption: "Recorded with driver, vehicle, gate, device and exact time.",
+    narration: "In or out. One tap. The movement is recorded with the driver, the vehicle, the gate, the device, the exact time, and whether the barcode was scanned or entered by hand. Then the scanner returns straight to the start, ready for the next vehicle. At a busy gate, seconds matter.",
+    duration: 20000
   },
   {
-    file: "07-console-shell.png",
+    file: "07-unknown.png",
+    mode: "phone",
+    title: "A Vehicle Nobody Expected",
+    caption: "Accepted, recorded, and created automatically.",
+    narration: "Vehicles arrive that are not on any list. A transfer nobody logged, a new unit, a contractor truck. Veri-Gate accepts it, records the arrival, and creates the vehicle automatically. The operator is not stopped and not asked to make a decision. A vehicle arriving is rarely the risk.",
+    duration: 26000
+  },
+  {
+    file: "08-blocked.png",
+    mode: "phone",
+    title: "Leaving Is Different",
+    caption: "The same vehicle is refused on the way out.",
+    narration: "Leaving is different. That same vehicle now tries to go out, and Veri-Gate refuses. Its record is incomplete, so it stays until a supervisor completes it. Look closely: the driver is fully authorised. It does not matter. Being allowed in never means being authorised out. That rule is enforced in the database itself, so it holds even if something goes wrong on the device.",
+    duration: 28000
+  },
+  {
+    file: "09-override.png",
+    mode: "phone",
+    title: "Exceptions On The Record",
+    caption: "A Fleet Lead or above can approve. Anyone below is refused by name.",
+    narration: "Real operations need exceptions. When a driver is not authorised, the gate does not simply stop. A Fleet Lead or above can approve a temporary authorisation on the spot. Anyone below that rank is refused by name and by role, and the refusal is recorded. Exceptions become evidence instead of favours.",
+    duration: 24000
+  },
+  {
+    file: "10-console.png",
     mode: "desktop",
     title: "The Supervisor Console",
-    caption: "On a computer, the same build shows the full console.",
-    narration: "On a computer, the same application shows the full supervisor console. One codebase, two experiences, decided by the screen it opens on.",
-    duration: 5200
+    caption: "Same application, same data, different job.",
+    narration: "On a computer, the same system opens as a full console. Same application, same data, different job.",
+    duration: 20000
   },
   {
-    file: "08-incomplete-queue.png",
+    file: "11-complete.png",
     mode: "desktop",
-    title: "Incomplete Inventory",
-    caption: "Vehicles added by an inbound scan appear in a queue for completion.",
-    narration: "Every vehicle the scanner added automatically appears here, with the missing information listed. This is the supervisor work item Patrick asked for.",
-    duration: 5600
+    title: "Completing The Record",
+    caption: "The supervisor fills in what the gate could not know.",
+    narration: "Every vehicle the gate created automatically appears here, with the missing details listed. The supervisor fills them in, and the vehicle is released for normal use. Nothing was blocked forever. It waited for a person to confirm what it was.",
+    duration: 20000
   },
   {
-    file: "09-complete-record.png",
+    file: "12-drivers.png",
     mode: "desktop",
-    title: "Completing the Record",
-    caption: "The supervisor fills in the vehicle details.",
-    narration: "The supervisor completes the record with the vehicle details.",
-    duration: 4200
+    title: "Drivers And Authorisation",
+    caption: "Roster, licence expiry, and temporary authorisations.",
+    narration: "Supervisors manage the driver roster, licence expiry, and temporary authorisations, individually or in groups. Drivers are records, never logins. Only staff have accounts, and what each account can do is set per person.",
+    duration: 22000
   },
   {
-    file: "10-out-allowed.png",
+    file: "13-devices.png",
+    mode: "desktop",
+    title: "Devices And Locations",
+    caption: "Every handheld is registered to a gate.",
+    narration: "Every handheld is registered to a gate, or assigned to one at the start of a shift. A device that is not ready cannot scan, so a movement is never recorded against the wrong location.",
+    duration: 18000
+  },
+  {
+    file: "14-search.png",
+    mode: "desktop",
+    title: "Every Movement, Searchable",
+    caption: "By driver, vehicle, plate, licence number, gate or date.",
+    narration: "Everything is searchable. By driver, vehicle, plate, licence number, gate or date range. When someone asks what left on Tuesday afternoon, the answer takes seconds and it is the same answer every time.",
+    duration: 22000
+  },
+  {
+    file: "15-yard.png",
     mode: "phone",
-    title: "Released",
-    caption: "With the record complete, the vehicle is allowed OUT.",
-    narration: "With the record complete, the same vehicle is now allowed out. Nothing was blocked permanently. It simply waited for a person to confirm what it was.",
-    duration: 5600
+    title: "Built For The Yard",
+    caption: "A standard Android app that keeps working without a signal.",
+    narration: "Veri-Gate installs as a standard Android application. It runs on the handheld itself, so it keeps working when the signal does not. Movements are stored on the device and upload automatically when the connection returns, marked as delayed so nothing is silently lost. No cabling, no gate hardware, no site works.",
+    duration: 22000
   },
   {
-    file: "11-override-role.png",
+    file: "16-close.png",
     mode: "phone",
-    title: "Fleet Lead And Above",
-    caption: "An under-ranked approver cannot authorise a blocked OUT.",
-    narration: "When a driver needs an override, only a Fleet Lead or above can approve it. A scanner-level ID is refused and the refusal is recorded. This was checked and confirmed.",
-    duration: 6000
-  },
-  {
-    file: "12-search.png",
-    mode: "desktop",
-    title: "Search And History",
-    caption: "Movements remain searchable by driver, vehicle, plate, VIN, location and date.",
-    narration: "Everything recorded stays searchable by driver, vehicle, plate, licence number, location and date.",
-    duration: 5200
+    title: "Veri-Gate",
+    caption: "Every vehicle accounted for. Every exception on the record.",
+    narration: "Veri-Gate. Every vehicle accounted for, every exception on the record, every question answered in seconds.",
+    duration: 15000
   }
 ];
 
@@ -241,10 +273,12 @@ async function screenshot(cdp, filename) {
 
 async function captureFrames(cdp, appUrl) {
   const phone = () => setViewport(cdp, 390, 844, true);
-  const desktop = () => setViewport(cdp, 1366, 900, false);
+  const desktop = () => setViewport(cdp, 1280, 860, false);
   const type = (sel, value) => evaluate(cdp, `(() => { const n = document.querySelector('${sel}'); n.value = '${value}'; n.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   const click = (sel) => evaluate(cdp, `document.querySelector('${sel}').click()`);
   const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+  const scanner = async () => { await cdp.send("Page.navigate", { url: `${appUrl}?shell=scanner` }); await waitForReady(cdp); await pause(400); };
+  const console_ = async () => { await cdp.send("Page.navigate", { url: `${appUrl}?shell=console` }); await waitForReady(cdp); await pause(500); };
 
   await phone();
   await cdp.send("Page.navigate", { url: `${appUrl}?shell=scanner&demo=${Date.now()}` });
@@ -252,78 +286,59 @@ async function captureFrames(cdp, appUrl) {
   await evaluate(cdp, "localStorage.clear()");
   await cdp.send("Page.reload", { ignoreCache: true });
   await waitForReady(cdp);
-  await pause(400);
-  await screenshot(cdp, "01-scanner-home.png");
+  await pause(500);
+  await screenshot(cdp, "01-title.png");
+  await screenshot(cdp, "03-handheld.png");
 
+  await desktop();
+  await console_();
+  await evaluate(cdp, "document.querySelector('[data-view=\"searchView\"]').click(); document.querySelector('#searchForm').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));");
+  await pause(500);
+  await screenshot(cdp, "02-problem.png");
+
+  await phone();
+  await scanner();
   await click('#startScanButton');
   await type('#driverInput', 'E1001');
-  await pause(200);
-  await screenshot(cdp, "02-driver-entry.png");
+  await pause(300);
+  await screenshot(cdp, "04-driver.png");
 
   await click('#driverNext');
-  await type('#barcodeInput', 'G9001');
-  await pause(200);
-  await screenshot(cdp, "03-unknown-vehicle.png");
+  await type('#barcodeInput', 'G0001');
+  await pause(300);
+  await screenshot(cdp, "05-vehicle.png");
 
   await click('#barcodeNext');
-  await pause(200);
-  await screenshot(cdp, "04-movement-choice.png");
+  await pause(300);
+  await screenshot(cdp, "06-movement.png");
 
   await click('#directionIn');
   await click('#submitTransactionButton');
   await pause(600);
-  await screenshot(cdp, "05-submitted-home.png");
 
   await click('#startScanButton');
   await type('#driverInput', 'E1001');
   await click('#driverNext');
   await type('#barcodeInput', 'G9001');
-  await click('#barcodeNext');
-  await click('#directionOut');
-  await click('#submitTransactionButton');
-  await pause(500);
-  await screenshot(cdp, "06-out-blocked.png");
-
-  await desktop();
-  await cdp.send("Page.navigate", { url: `${appUrl}?shell=console` });
-  await waitForReady(cdp);
-  await pause(500);
-  await screenshot(cdp, "07-console-shell.png");
-
-  await evaluate(cdp, "document.querySelector('[data-view=\"supervisorView\"]').click(); document.querySelector('[data-supervisor-section=\"vehiclesSection\"]').click()");
-  await pause(400);
-  await screenshot(cdp, "08-incomplete-queue.png");
-
-  await evaluate(cdp, `(() => {
-    const btn = [...document.querySelectorAll('[data-vehicle-action="edit"]')].pop();
-    if (btn) btn.click();
-  })()`);
-  await pause(400);
-  await evaluate(cdp, `(() => {
-    const set = (id, v) => { const n = document.querySelector(id); if (n) { n.value = v; n.dispatchEvent(new Event('input', { bubbles: true })); } };
-    set('#vehicleMake', 'Ford'); set('#vehicleModel', 'Transit'); set('#vehicleYear', '2022');
-    set('#vehicleColor', 'White'); set('#vehicleVin', '1FTBW2CM5NKA12345'); set('#vehiclePlate', 'PROV-08');
-  })()`);
   await pause(300);
-  await screenshot(cdp, "09-complete-record.png");
+  await screenshot(cdp, "07-unknown.png");
 
-  await evaluate(cdp, "document.querySelector('#vehicleForm button[type=\"submit\"]').click()");
-  await pause(500);
-
-  await phone();
-  await cdp.send("Page.navigate", { url: `${appUrl}?shell=scanner` });
-  await waitForReady(cdp);
-  await pause(400);
-  await click('#startScanButton');
-  await type('#driverInput', 'E1001');
-  await click('#driverNext');
-  await type('#barcodeInput', 'G9001');
   await click('#barcodeNext');
-  await click('#directionOut');
+  await click('#directionIn');
   await click('#submitTransactionButton');
   await pause(600);
-  await screenshot(cdp, "10-out-allowed.png");
 
+  await click('#startScanButton');
+  await type('#driverInput', 'E1001');
+  await click('#driverNext');
+  await type('#barcodeInput', 'G9001');
+  await click('#barcodeNext');
+  await click('#directionOut');
+  await click('#submitTransactionButton');
+  await pause(500);
+  await screenshot(cdp, "08-blocked.png");
+
+  await scanner();
   await click('#startScanButton');
   await type('#driverInput', 'E1003');
   await click('#driverNext');
@@ -336,11 +351,26 @@ async function captureFrames(cdp, appUrl) {
   await pause(200);
   await evaluate(cdp, "const b=document.querySelector('#approveSupervisorButton'); if(b) b.click();");
   await pause(400);
-  await screenshot(cdp, "11-override-role.png");
+  await screenshot(cdp, "09-override.png");
 
   await desktop();
-  await cdp.send("Page.navigate", { url: `${appUrl}?shell=console` });
-  await waitForReady(cdp);
+  await console_();
+  await evaluate(cdp, `document.querySelector('[data-view="supervisorView"]').click()`);
+  await pause(400);
+  await screenshot(cdp, "10-console.png");
+
+  await evaluate(cdp, "document.querySelector('[data-view=\"supervisorView\"]').click(); document.querySelector('[data-supervisor-section=\"vehiclesSection\"]').click()");
+  await pause(400);
+  await screenshot(cdp, "11-complete.png");
+
+  await evaluate(cdp, "document.querySelector('[data-supervisor-section=\"driversSection\"]').click()");
+  await pause(400);
+  await screenshot(cdp, "12-drivers.png");
+
+  await evaluate(cdp, "document.querySelector('[data-supervisor-section=\"devicesSection\"]').click()");
+  await pause(400);
+  await screenshot(cdp, "13-devices.png");
+
   await evaluate(cdp, `(() => {
     document.querySelector('[data-view="searchView"]').click();
     const d = document.querySelector('#filterDriver');
@@ -348,7 +378,12 @@ async function captureFrames(cdp, appUrl) {
     document.querySelector('#searchForm').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
   })()`);
   await pause(500);
-  await screenshot(cdp, "12-search.png");
+  await screenshot(cdp, "14-search.png");
+
+  await phone();
+  await scanner();
+  await screenshot(cdp, "15-yard.png");
+  await screenshot(cdp, "16-close.png");
 }
 
 function createNarration() {
@@ -369,9 +404,9 @@ $synth.Dispose()
 }
 
 async function createWebm(cdp, appUrl, timelineSlides) {
-  await cdp.send("Page.navigate", { url: `${appUrl}docs/media/verigate-v08-demo.html?record=1` });
+  await cdp.send("Page.navigate", { url: `${appUrl}docs/media/verigate-customer.html?record=1` });
   await waitForReady(cdp);
-  const result = await evaluate(cdp, `recordVeriGateDemo(${JSON.stringify(timelineSlides)})`);
+  const result = await evaluate(cdp, `recordVeriGateCustomer(${JSON.stringify(timelineSlides)})`);
   fs.writeFileSync(videoPath, Buffer.from(result.base64, "base64"));
   return result;
 }
@@ -379,7 +414,7 @@ async function createWebm(cdp, appUrl, timelineSlides) {
 function writeFallbackHtml(timelineSlides) {
   const slidesMarkup = slides.map((slide, index) => `
       <section class="slide">
-        <img src="verigate-v08-demo-frames/${slide.file}" alt="${slide.title}">
+        <img src="verigate-customer-frames/${slide.file}" alt="${slide.title}">
         <div>
           <p class="step">Step ${index + 1} of ${slides.length}</p>
           <h2>${slide.title}</h2>
@@ -387,12 +422,12 @@ function writeFallbackHtml(timelineSlides) {
         </div>
       </section>`).join("\n");
   const recorderScript = `
-    async function recordVeriGateDemo(slides) {
+    async function recordVeriGateCustomer(slides) {
       const canvas = document.createElement('canvas');
       canvas.width = 1280;
       canvas.height = 720;
       const ctx = canvas.getContext('2d');
-      const audio = new Audio('verigate-v08-demo-audio.wav');
+      const audio = new Audio('verigate-customer-audio.wav');
       let stream = canvas.captureStream(30);
       try {
         const audioContext = new AudioContext();
@@ -412,7 +447,7 @@ function writeFallbackHtml(timelineSlides) {
         const image = new Image();
         image.onload = () => resolve(image);
         image.onerror = reject;
-        image.src = 'verigate-v08-demo-frames/' + slide.file;
+        image.src = 'verigate-customer-frames/' + slide.file;
       })));
       const roundRect = (x, y, width, height, radius) => {
         ctx.beginPath();
@@ -447,7 +482,7 @@ function writeFallbackHtml(timelineSlides) {
         ctx.font = '700 30px Arial';
         ctx.fillText('Veri-Gate', 40, 50);
         ctx.font = '18px Arial';
-        ctx.fillText('V0.8 review walkthrough', 980, 49);
+        ctx.fillText('Vehicle movement control', 940, 49);
 
         if (slide.mode === 'phone') {
           const phoneH = 560;
@@ -516,7 +551,7 @@ function writeFallbackHtml(timelineSlides) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Veri-Gate V0.8 Walkthrough</title>
+  <title>Veri-Gate</title>
   <style>
     body { margin: 0; font-family: Arial, sans-serif; color: #10241f; background: #f4f7f4; }
     header { background: #169A5A; color: white; padding: 22px; }
@@ -532,12 +567,12 @@ function writeFallbackHtml(timelineSlides) {
 </head>
 <body>
   <header>
-    <h1>Veri-Gate V0.8 Walkthrough</h1>
+    <h1>Veri-Gate</h1>
   </header>
   <main>
-    <p>This walkthrough shows the scanner flow, temporary authorization, Supervisor pages, Search, Feedback, and prototype boundaries.</p>
-    <video controls src="verigate-v08-demo.webm"></video>
-    <audio controls src="verigate-v08-demo-audio.wav"></audio>
+    <p>Vehicle movement control for gated facilities.</p>
+    <video controls src="verigate-customer.webm"></video>
+    <audio controls src="verigate-customer-audio.wav"></audio>
 ${slidesMarkup}
   </main>
   <script>${recorderScript}</script>
