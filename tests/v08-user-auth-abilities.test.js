@@ -14,10 +14,15 @@ const matches = (source, expression) => () => assert.match(source, expression);
 test("users form captures a username", includes(html, 'id="desktopUserUsername"'));
 test("users form shows demo password but labels it prototype-only", includes(html, 'id="desktopUserPassword"'));
 test("password reset state is represented without email sending", includes(html, "Reset status is local prototype state only; no email is sent."));
-test("role options include scanner through admin", matches(html, /value="Scanner"[\s\S]*value="Fleet Lead"[\s\S]*value="Supervisor"[\s\S]*value="Manager"[\s\S]*value="Admin"/));
+test("role options run scanner through admin with no separate Manager", () => {
+  for (const role of ["Scanner", "Fleet Lead", "Supervisor", "Admin"]) {
+    assert.ok(html.includes(`value="${role}"`), `missing role option ${role}`);
+  }
+  assert.ok(!html.includes('value="Manager"'), "Manager should no longer be a selectable role");
+});
 test("ability levels are exactly the approved labels", includes(app, 'const ABILITY_LEVELS = ["Restricted", "View only", "Assign"]'));
 test("new user abilities default to restricted", includes(app, 'defaultDesktopAbilities()'));
-test("desktop users normalize legacy Owner/System Administrator to Admin", includes(app, 'if (value === "Owner / System Administrator") return "Admin";'));
+test("legacy Owner/System Administrator and Manager both normalize to Admin", includes(app, `if (value === "Owner / System Administrator" || value === "Manager") return "Admin";`));
 test("password value is cleared after save", includes(app, 'el.desktopUserPassword.value = "";'));
 test("password value is not stored in the desktop user object", excludes(app, "password: el.desktopUserPassword.value"));
 test("drivers remain excluded from application login accounts", includes(html, "Drivers are operational records, not application login accounts."));

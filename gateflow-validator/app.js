@@ -107,16 +107,15 @@ const tests = [
   ["Mobile scanner surface is responsive", testMobileSurface],
   ["Drivers, Vehicles, and Devices sections work", testSupervisorSections],
 
-  // CR-V08-BETA-CRITICAL-APP-001 - provisional inbound inventory.
+  // CR-V11 - unknown vehicles are logged, not gated.
   ["Unknown vehicle IN is accepted without interrupting the operator", testUnknownInboundAccepted],
-  ["Unknown vehicle IN creates a provisional record", testProvisionalRecordCreated],
-  ["Repeat unknown scans do not duplicate the record", testProvisionalNoDuplicate],
-  ["Provisional vehicle is blocked for OUT", testProvisionalBlocksOut],
-  ["Authorized driver cannot release a provisional vehicle", testAuthorizedDriverCannotReleaseProvisional],
-  ["Provisional block offers no supervisor override", testProvisionalNoOverridePath],
-  ["Supervisor queue lists incomplete inventory", testIncompleteInventoryQueue],
-  ["Completing the record unblocks OUT", testProvisionalCompletionUnblocksOut],
-  ["Provisional creation is audited with its transaction", testProvisionalAudit],
+  ["Unknown vehicle IN creates an ordinary inventory record", testScanCreatedRecord],
+  ["Repeat unknown scans do not duplicate the record", testScanCreatedNoDuplicate],
+  ["An unknown vehicle can also leave", testUnknownVehicleCanExit],
+  ["A scan-created vehicle is not blocked for OUT", testScanCreatedNotBlocked],
+  ["The gate log lists vehicles added by scan", testScanCreatedLog],
+  ["Scan creation is audited with its transaction", testScanCreatedAudit],
+  ["An existing user can be edited", testEditExistingUser],
 
   // CR-V08-BETA-CRITICAL-APP-002 - override restricted to Fleet Lead and above.
   ["Under-ranked approver cannot approve an override", testUnderRankedApproverDenied],
@@ -291,7 +290,7 @@ async function testBarcodeRules() {
   await waitForStep(1);
   input("#barcodeInput", "G9001");
   key("#barcodeInput", "Enter");
-  expect(/will be added on Vehicle IN/i.test(text("#barcodeStatus")), "Unknown barcode did not explain provisional inbound creation.");
+  expect(/will be added automatically/i.test(text("#barcodeStatus")), "Unknown barcode did not explain that it is added automatically.");
   input("#barcodeInput", "G0001");
   expect(q("#barcodeInput").value === "G0001", "Barcode was not normalized to uppercase.");
   key("#barcodeInput", "Enter");
@@ -767,7 +766,7 @@ async function submitMovement(employeeNumber, barcode, direction) {
   click("#submitTransactionButton");
 }
 
-function provisionalVehicle(barcode) {
+function vehicleByBarcode(barcode) {
   return state().vehicles.find((vehicle) => vehicle.assignedBarcode === barcode);
 }
 
@@ -798,87 +797,76 @@ async function testUnknownInboundAccepted() {
   expect(latestTransaction().vehicleBarcode === "G9001", "Inbound movement did not carry the scanned barcode.");
 }
 
-async function testProvisionalRecordCreated() {
+async function testScanCreatedRecord() {
   await submitMovement("1001", "G9002", "IN");
   await waitForHome();
-  const vehicle = provisionalVehicle("G9002");
-  expect(vehicle, "No inventory record was created for the unknown inbound vehicle.");
-  expect(vehicle.inventoryStatus === "provisional", "Auto-created vehicle is not provisional.");
-  expect(vehicle.createdSource === "inbound_scan", "Auto-created vehicle does not record its inbound origin.");
-  expect(vehicle.needsSupervisorCompletion === true, "Auto-created vehicle is not flagged for supervisor completion.");
+  const vehicle = vehicleByBarcode("G9002");
+  expect(vehicle, "No inventory record was created for the unknown vehicle.");
+  expect(vehicle.inventoryStatus === "complete", "A scan-created vehicle should be ordinary inventory.");
+  expect(vehicle.createdSource === "inbound_scan", "The record should show it was added by a scan.");
+  expect(vehicle.needsSupervisorCompletion === false, "No supervisor completion should be demanded.");
 }
 
-async function testProvisionalNoDuplicate() {
+async function testScanCreatedNoDuplicate() {
   await submitMovement("1001", "G9003", "IN");
   await waitForHome();
   await submitMovement("1002", "G9003", "IN");
   await waitForHome();
   const copies = state().vehicles.filter((vehicle) => vehicle.assignedBarcode === "G9003").length;
-  expect(copies === 1, `Repeat unknown scans created ${copies} records instead of 1.`);
+  expect(copies === 1, `Repeat scans created ${copies} records instead of 1.`);
 }
 
-async function testProvisionalBlocksOut() {
-  await submitMovement("1001", "G9004", "IN");
-  await waitForHome();
+// Patrick, 2026-09-06: exits are "handled just like any other vehicle". A vehicle nobody
+// entered must still be able to leave, and the movement must still be recorded.
+async function testUnknownVehicleCanExit() {
   const before = state().transactions.length;
   await submitMovement("1001", "G9004", "OUT");
-  expect(state().transactions.length === before, "A provisional vehicle was released on OUT.");
-  expect(/incomplete inventory record|not in inventory/i.test(text("#scannerNotice")), "The provisional OUT block was not explained.");
+  await waitForHome();
+  expect(state().transactions.length === before + 1, "An unknown vehicle could not be logged out.");
+  expect(latestTransaction().direction === "OUT", "The movement was not recorded as an exit.");
+  expect(vehicleByBarcode("G9004"), "The exit did not add the vehicle to inventory.");
 }
 
-// The security-critical case: driver authorization must not substitute for a complete record.
-async function testAuthorizedDriverCannotReleaseProvisional() {
-  const driver = authorizedDriverNumber();
-  await submitMovement(driver, "G9005", "IN");
+async function testScanCreatedNotBlocked() {
+  await submitMovement("1001", "G9005", "IN");
   await waitForHome();
   const before = state().transactions.length;
-  await submitMovement(driver, "G9005", "OUT");
-  expect(state().transactions.length === before, "An authorized driver released a provisional vehicle.");
-}
-
-async function testProvisionalNoOverridePath() {
-  await submitMovement("1001", "G9006", "IN");
+  await submitMovement("1001", "G9005", "OUT");
   await waitForHome();
-  await submitMovement("1001", "G9006", "OUT");
-  expect(q("#supervisorPanel").classList.contains("hidden"), "The provisional block offered a supervisor override path.");
+  expect(state().transactions.length === before + 1, "A scan-created vehicle was blocked on the way out.");
 }
 
-async function testIncompleteInventoryQueue() {
+async function testScanCreatedLog() {
   await submitMovement("1001", "G9007", "IN");
   await waitForHome();
   await openVehicles();
-  expect(text("#incompleteInventoryCount") === "1", "The incomplete-inventory queue count is wrong.");
-  expect(text("#incompleteInventoryBody").includes("G9007"), "The provisional vehicle is not listed in the supervisor queue.");
-  expect(/VIN/i.test(text("#incompleteInventoryBody")), "The queue does not list the missing information.");
+  expect(text("#incompleteInventoryBody").includes("G9007"), "The gate log does not list the scanned vehicle.");
+  expect(/record, not a task list/i.test(text("#incompleteInventoryPanel")), "The panel should read as a record rather than a queue.");
 }
 
-async function testProvisionalCompletionUnblocksOut() {
-  const driver = authorizedDriverNumber();
-  await submitMovement(driver, "G9008", "IN");
-  await waitForHome();
-  await openVehicles();
-  const target = provisionalVehicle("G9008").id;
-  const editButton = [...doc().querySelectorAll(`[data-vehicle-action="edit"][data-vehicle-id="${target}"]`)].pop();
-  expect(editButton, "No edit control was rendered for the provisional vehicle.");
-  editButton.click();
-  await waitForVisible("#vehicleModal");
-  input("#vehicleMake", "Ford"); input("#vehicleModel", "Transit"); input("#vehicleYear", "2022");
-  input("#vehicleColor", "White"); input("#vehicleVin", "1FTBW2CM5NKA12345"); input("#vehiclePlate", "PROV-08");
-  click('#vehicleForm button[type="submit"]');
-  const completed = provisionalVehicle("G9008");
-  expect(completed.inventoryStatus === "complete", "Completing the record did not clear provisional state.");
-  const before = state().transactions.length;
-  await submitMovement(driver, "G9008", "OUT");
-  await waitForHome();
-  expect(state().transactions.length === before + 1, "OUT is still blocked after the record was completed.");
-}
-
-async function testProvisionalAudit() {
+async function testScanCreatedAudit() {
   await submitMovement("1001", "G9009", "IN");
   await waitForHome();
-  const event = state().auditEvents.find((item) => item.type === "provisional_vehicle_created");
-  expect(event, "Provisional creation was not audited.");
-  expect(/Transaction tx-/.test(event.description), "The provisional audit entry does not cite its originating transaction.");
+  const event = state().auditEvents.find((item) => item.type === "vehicle_added_by_scan");
+  expect(event, "Adding a vehicle by scan was not audited.");
+  expect(/Transaction tx-/.test(event.description), "The audit entry does not cite its movement.");
+}
+
+// 081526 v7 item #1.
+async function testEditExistingUser() {
+  click(String.raw`[data-view="supervisorView"]`);
+  click(String.raw`[data-supervisor-section="usersSection"]`);
+  await waitFor("#desktopUsersTableBody");
+  const first = state().desktopUsers[0];
+  expect(first, "No desktop users are seeded.");
+  click(`[data-user-action="edit"][data-user-id="${first.id}"]`);
+  await waitForVisible("#desktopUserModal");
+  input("#desktopUserName", "Edited Name");
+  click(String.raw`#desktopUserForm button[type="submit"]`);
+  const after = state().desktopUsers.find((user) => user.id === first.id);
+  expect(after && after.name === "Edited Name", "Editing a user did not save.");
+  expect(state().desktopUsers.length === 1 || state().desktopUsers.filter((u) => u.id === first.id).length === 1,
+    "Editing a user created a duplicate instead of updating it.");
 }
 
 // --- CR-V08-BETA-CRITICAL-APP-002 -----------------------------------------
