@@ -72,11 +72,11 @@ const slides = [
     duration: 26000
   },
   {
-    file: "08-blocked.png",
+    file: "08-exit.png",
     mode: "phone",
-    title: "Leaving Is Different",
-    caption: "The same vehicle is refused on the way out.",
-    narration: "Leaving is different. That same vehicle now tries to go out, and Veri-Gate refuses. Its record is incomplete, so it stays until a supervisor completes it. Look closely: the driver is fully authorised. It does not matter. Being allowed in never means being authorised out. That rule is enforced in the database itself, so it holds even if something goes wrong on the device.",
+    title: "Leaving Is Logged Too",
+    caption: "The exit is recorded against driver, gate and time.",
+    narration: "When it leaves, that is recorded too. The driver, the vehicle, the gate and the exact time. Every movement in and out of the facility becomes one continuous record, which is the whole point.",
     duration: 28000
   },
   {
@@ -98,9 +98,9 @@ const slides = [
   {
     file: "11-complete.png",
     mode: "desktop",
-    title: "Completing The Record",
-    caption: "The supervisor fills in what the gate could not know.",
-    narration: "Every vehicle the gate created automatically appears here, with the missing details listed. The supervisor fills them in, and the vehicle is released for normal use. Nothing was blocked forever. It waited for a person to confirm what it was.",
+    title: "Filling In The Details",
+    caption: "Supervisors can add details whenever they get to it.",
+    narration: "Every vehicle the gate added on its own is listed for a supervisor, with any missing details shown. They can fill those in whenever they get to it. Nothing is held up waiting for them.",
     duration: 20000
   },
   {
@@ -336,7 +336,7 @@ async function captureFrames(cdp, appUrl) {
   await click('#directionOut');
   await click('#submitTransactionButton');
   await pause(500);
-  await screenshot(cdp, "08-blocked.png");
+  await screenshot(cdp, "08-exit.png");
 
   await scanner();
   await click('#startScanButton');

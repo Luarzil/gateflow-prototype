@@ -56,11 +56,11 @@ const slides = [
     duration: 6000
   },
   {
-    file: "06-out-blocked.png",
+    file: "06-unknown-out.png",
     mode: "phone",
-    title: "The Rule That Matters",
-    caption: "The same vehicle is refused on the way OUT.",
-    narration: "Now the same vehicle tries to leave. It is blocked. Being allowed in did not make it authorised to go out. That rule is enforced in the database itself, not just on this screen, so it holds even if something goes wrong in the app.",
+    title: "And It Can Leave Again",
+    caption: "The same vehicle goes back out like any other.",
+    narration: "Now the same vehicle leaves. It goes out like any other vehicle, and the exit is logged against the driver, the gate and the time. The point is the record, not a checkpoint.",
     duration: 7000
   },
   {
@@ -72,34 +72,34 @@ const slides = [
     duration: 5200
   },
   {
-    file: "08-incomplete-queue.png",
+    file: "08-gate-log.png",
     mode: "desktop",
-    title: "Incomplete Inventory",
-    caption: "Vehicles added by an inbound scan appear in a queue for completion.",
-    narration: "Every vehicle the scanner added automatically appears here, with the missing information listed. This is the supervisor work item Patrick asked for.",
+    title: "The Gate Log",
+    caption: "Vehicles that were added by a scan rather than by a person.",
+    narration: "Every vehicle the scanner added automatically is listed here, so a supervisor can see what turned up on its own. Nothing is waiting on them. It is a record, not a task list.",
     duration: 5600
   },
   {
     file: "09-complete-record.png",
     mode: "desktop",
-    title: "Completing the Record",
-    caption: "The supervisor fills in the vehicle details.",
-    narration: "The supervisor completes the record with the vehicle details.",
+    title: "Filling In The Details",
+    caption: "A supervisor can add details whenever they get to it.",
+    narration: "A supervisor can fill in the make, model and plate whenever they get to it. The vehicle works either way.",
     duration: 4200
   },
   {
-    file: "10-out-allowed.png",
+    file: "10-user-edit.png",
     mode: "phone",
-    title: "Released",
-    caption: "With the record complete, the vehicle is allowed OUT.",
-    narration: "With the record complete, the same vehicle is now allowed out. Nothing was blocked permanently. It simply waited for a person to confirm what it was.",
+    title: "Editing Users",
+    caption: "Existing users can now be edited, not just created.",
+    narration: "Users can now be edited after they are created, which was missing before. Roles are Scanner, Fleet Lead, Supervisor and Admin. One admin account is issued, and that admin creates everyone else.",
     duration: 5600
   },
   {
     file: "11-override-role.png",
     mode: "phone",
     title: "Fleet Lead And Above",
-    caption: "An under-ranked approver cannot authorise a blocked OUT.",
+    caption: "An under-ranked approver cannot authorise an override.",
     narration: "When a driver needs an override, only a Fleet Lead or above can approve it. A scanner-level ID is refused and the refusal is recorded. This was checked and confirmed.",
     duration: 6000
   },
@@ -245,6 +245,7 @@ async function captureFrames(cdp, appUrl) {
   const type = (sel, value) => evaluate(cdp, `(() => { const n = document.querySelector('${sel}'); n.value = '${value}'; n.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   const click = (sel) => evaluate(cdp, `document.querySelector('${sel}').click()`);
   const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+  const scannerShell = async () => { await cdp.send("Page.navigate", { url: `${appUrl}?shell=scanner` }); await waitForReady(cdp); await pause(400); };
 
   await phone();
   await cdp.send("Page.navigate", { url: `${appUrl}?shell=scanner&demo=${Date.now()}` });
@@ -282,7 +283,7 @@ async function captureFrames(cdp, appUrl) {
   await click('#directionOut');
   await click('#submitTransactionButton');
   await pause(500);
-  await screenshot(cdp, "06-out-blocked.png");
+  await screenshot(cdp, "06-unknown-out.png");
 
   await desktop();
   await cdp.send("Page.navigate", { url: `${appUrl}?shell=console` });
@@ -292,7 +293,7 @@ async function captureFrames(cdp, appUrl) {
 
   await evaluate(cdp, "document.querySelector('[data-view=\"supervisorView\"]').click(); document.querySelector('[data-supervisor-section=\"vehiclesSection\"]').click()");
   await pause(400);
-  await screenshot(cdp, "08-incomplete-queue.png");
+  await screenshot(cdp, "08-gate-log.png");
 
   await evaluate(cdp, `(() => {
     const btn = [...document.querySelectorAll('[data-vehicle-action="edit"]')].pop();
@@ -310,20 +311,20 @@ async function captureFrames(cdp, appUrl) {
   await evaluate(cdp, "document.querySelector('#vehicleForm button[type=\"submit\"]').click()");
   await pause(500);
 
-  await phone();
-  await cdp.send("Page.navigate", { url: `${appUrl}?shell=scanner` });
-  await waitForReady(cdp);
+  // Slide 10: editing an existing user (081526 v7 item #1).
+  await evaluate(cdp, "document.querySelector('[data-supervisor-section=\"usersSection\"]').click()");
   await pause(400);
-  await click('#startScanButton');
-  await type('#driverInput', 'E1001');
-  await click('#driverNext');
-  await type('#barcodeInput', 'G9001');
-  await click('#barcodeNext');
-  await click('#directionOut');
-  await click('#submitTransactionButton');
-  await pause(600);
-  await screenshot(cdp, "10-out-allowed.png");
+  await evaluate(cdp, `(() => {
+    const btn = document.querySelector('[data-user-action="edit"]');
+    if (btn) btn.click();
+  })()`);
+  await pause(500);
+  await screenshot(cdp, "10-user-edit.png");
+  await evaluate(cdp, "const c=document.querySelector('#cancelDesktopUserButton'); if(c) c.click();");
+  await pause(300);
 
+  await phone();
+  await scannerShell();
   await click('#startScanButton');
   await type('#driverInput', 'E1003');
   await click('#driverNext');

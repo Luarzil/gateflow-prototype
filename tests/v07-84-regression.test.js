@@ -69,7 +69,7 @@ const cases = [
   ["51 valid barcode clears stale scanner feedback", includes(app, 'setNotice("Vehicle found. Choose the movement.", "success")')],
   // CR-V08-BETA-CRITICAL-APP-001 superseded case 52: an unknown barcode is no longer blocked at
   // the barcode step. It is accepted, and OUT is gated on the vehicle record instead.
-  ["52 unknown barcode is gated on the vehicle record, not at the barcode step", includes(app, "blockOutForIncompleteVehicle")],
+  ["52 an unknown barcode is added to inventory rather than gated", includes(app, "createScannedVehicle")],
   ["53 barcode uses canonical lookup", includes(app, "const value = canonicalVehicleBarcode(el.barcodeInput.value)")],
   ["54 supervisor field updates live status", includes(app, 'addEventListener("input", updateSupervisorStatus)')],
   ["55 supervisor valid state is visible", includes(app, "is ready to approve 9 hours")],
@@ -92,7 +92,7 @@ const cases = [
   ["71 feedback is labelled local", includes(html, "Save feedback locally")],
   ["72 Users tab is present", includes(html, 'id="usersSection"')],
   ["73 desktop user directory is stored separately", includes(app, "desktopUsers:")],
-  ["74 Manager is a desktop role", includes(app, 'DESKTOP_USER_ROLES = ["Scanner", "Fleet Lead", "Supervisor", "Manager", "Admin"]')],
+  ["74 desktop roles are Scanner through Admin, with no separate Manager", includes(app, 'DESKTOP_USER_ROLES = ["Scanner", "Fleet Lead", "Supervisor", "Admin"]')],
   ["75 users remain prototype-only", includes(html, "Prototype-only user directory")],
   ["76 users can be added", includes(app, "function saveDesktopUser")],
   ["77 Device setup is Supervisor-only", includes(html, 'id="openDeviceSetupButton"')],
