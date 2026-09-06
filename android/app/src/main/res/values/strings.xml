@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Veri-Gate</string>
+    <string name="title_activity_main">Veri-Gate</string>
+    <string name="package_name">com.verigate.gateops</string>
+    <string name="custom_url_scheme">com.verigate.gateops</string>
+</resources>

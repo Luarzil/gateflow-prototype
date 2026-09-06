@@ -1,0 +1,25 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "verigate-v08",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "tools/dev-server.js",
+        ".",
+        "8800"
+      ],
+      "port": 8800
+    },
+    {
+      "name": "gateflow-stabilization",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "tools/dev-server.js",
+        ".",
+        "8810"
+      ],
+      "port": 8810
+    }
+  ]
+}
