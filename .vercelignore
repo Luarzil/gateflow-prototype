@@ -7,4 +7,5 @@ docs/GATEFLOW_*
 docs/PATRICK_*
 *.md
 !Veri-Gate-V0.8-Operator-Manual.md
+!Veri-Gate-V0.8-Operator-Manual.md
 !docs/media/**

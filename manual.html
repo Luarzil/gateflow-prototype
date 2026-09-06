@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Veri-Gate V0.8 operator manual</title>
+<style>
+  :root { --green:#169A5A; --dark:#004B2E; --line:#cbd9d5; --ink:#17241f; --muted:#5b6f68; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:#eef3f0; color:var(--ink);
+         font:16px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }
+  header { background:var(--dark); color:#fff; padding:26px 20px; }
+  header .wrap { max-width:820px; margin:0 auto; }
+  header h1 { margin:0; font-size:26px; letter-spacing:-.01em; }
+  header p { margin:6px 0 0; opacity:.85; font-size:15px; }
+  main { max-width:820px; margin:0 auto; padding:24px 20px 64px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:20px; margin:0 0 14px; }
+  .card h2 { margin:0 0 6px; font-size:19px; }
+  .card p { margin:0 0 14px; color:var(--muted); font-size:15px; }
+  a.btn { display:inline-block; background:var(--green); color:#fff; text-decoration:none;
+          padding:13px 22px; border-radius:8px; font-weight:700; font-size:16px; }
+  a.btn.alt { background:#fff; color:var(--dark); border:2px solid var(--dark); }
+  .note { background:#fffaf0; border:1px solid #e6d6a8; border-radius:8px; padding:14px 16px;
+          margin:18px 0; font-size:15px; }
+  h1,h2,h3 { line-height:1.25; }
+  h2 { margin:30px 0 10px; font-size:22px; border-bottom:2px solid var(--line); padding-bottom:6px; }
+  h3 { margin:22px 0 8px; font-size:17px; color:var(--dark); }
+  table { border-collapse:collapse; width:100%; margin:14px 0; font-size:15px; }
+  th,td { border:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top; }
+  th { background:#e4ece9; }
+  code { background:#e4ece9; padding:1px 6px; border-radius:4px; font-size:14px; }
+  blockquote { margin:14px 0; padding:10px 16px; border-left:4px solid var(--green);
+               background:#fff; color:var(--muted); }
+  hr { border:0; border-top:1px solid var(--line); margin:28px 0; }
+  ul,ol { padding-left:22px; }
+  .back { display:inline-block; margin-bottom:16px; color:var(--dark); font-weight:700; }
+  @media (max-width:520px){ a.btn{display:block;text-align:center} }
+</style>
+</head>
+<body>
+<header><div class="wrap"><h1>Veri-Gate V0.8 operator manual</h1><p>How the app works, and how to try each rule</p></div></header>
+<main><a class="back" href="review.html">&larr; Back to the review page</a>
+<p><strong>Review build.</strong> Data is stored in the browser or on the phone only. Nothing is shared between</p>
+<p>devices yet, and nothing connects to a server. That comes next.</p>
+<hr>
+<h2>Two ways to open it</h2>
+<p><strong>On a phone or handheld</strong> you get the <strong>scanner only</strong>. No Supervisor, no Search. That is</p>
+<p>deliberate — a gate operator should not be able to wander into the supervisor console mid-shift.</p>
+<p><strong>On a computer</strong> you get the <strong>full console</strong>: Scanner, Supervisor, and Search.</p>
+<p>The app decides from the screen size. You can force it either way by adding to the address:</p>
+<ul>
+<li><code>?shell=scanner</code> — scanner only</li>
+<li><code>?shell=console</code> — everything</li>
+</ul>
+<p>Once opened that way, the device remembers. That is how a handheld gets set up: open the scanner</p>
+<p>link on it once.</p>
+<hr>
+<h2>Test values for review</h2>
+<table><thead><tr><th>Employee</th><th>Name</th><th>State</th></tr></thead><tbody><tr><td><code>E1001</code></td><td>Nina Patel</td><td>Authorized</td></tr><tr><td><code>E1002</code></td><td>Marcus Reed</td><td>Authorized, licence expires within 30 days</td></tr><tr><td><code>E1003</code></td><td>Tyrone Brooks</td><td><strong>Not</strong> authorized — use to see the blocked path</td></tr><tr><td><code>E1004</code></td><td>Maria Torres</td><td>Authorized</td></tr><tr><td><code>E1005</code></td><td>Phil Grant</td><td><strong>Licence expired</strong> — always blocked for OUT</td></tr></tbody></table>
+<table><thead><tr><th>Vehicle barcode</th><th>Vehicle</th></tr></thead><tbody><tr><td><code>G0001</code></td><td>2022 Ford Transit, white, TRK-8877</td></tr><tr><td><code>G0002</code></td><td>2021 Toyota Camry, silver, NJK-2214</td></tr><tr><td><code>G0003</code></td><td>2019 Ford Fusion, blue, YARD-104</td></tr><tr><td><strong>Any unused code</strong> (e.g. <code>G9001</code>)</td><td>Not in inventory — use to see provisional creation</td></tr></tbody></table>
+<table><thead><tr><th>Approver</th><th>Role</th><th>Can approve an override?</th></tr></thead><tbody><tr><td><code>S1001</code> Morgan Lee</td><td>Supervisor</td><td>Yes</td></tr><tr><td><code>S2040</code> Jordan Wells</td><td>Fleet Lead</td><td>Yes</td></tr><tr><td><code>S3090</code> Casey Rowe</td><td>Scanner</td><td><strong>No</strong> — deliberately below the line</td></tr></tbody></table>
+<hr>
+<h2>The scanner, step by step</h2>
+<ol>
+<li><strong>Driver</strong> — scan or type the employee number. Veri-Gate shows the name, licence status and</li>
+</ol>
+<p>   whether they are authorized.</p>
+<ol>
+<li><strong>Vehicle</strong> — scan or type the barcode. Known vehicles show make, model, colour, VIN and plate.</li>
+<li><strong>Direction</strong> — Vehicle IN or Vehicle OUT.</li>
+<li><strong>Review and submit.</strong></li>
+</ol>
+<p>After submitting, the scanner returns <strong>straight to the home screen</strong>. There is no confirmation</p>
+<p>step and no extra tap. This was changed in this release.</p>
+<p>If a scan will not read, <strong>Manual entry</strong> is available at both the driver and vehicle steps. The</p>
+<p>record shows whether each value was scanned or typed.</p>
+<hr>
+<h2>What is new in V0.8</h2>
+<h3>Unknown vehicles arriving are accepted</h3>
+<p>Scan a barcode that is not in inventory, choose <strong>Vehicle IN</strong>, and it goes through. The vehicle</p>
+<p>is created automatically. The operator is not asked to approve anything and is not interrupted.</p>
+<p><em>Try it:</em> driver <code>E1001</code>, barcode <code>G9001</code>, Vehicle IN.</p>
+<h3>The same vehicle cannot leave</h3>
+<p>Try <code>G9001</code> again with <strong>Vehicle OUT</strong>. It is refused:</p>
+<blockquote>Vehicle OUT blocked. Vehicle G9001 has an incomplete inventory record. A supervisor must complete the vehicle record first.</blockquote>
+<p><strong>The driver being authorized does not matter.</strong> Being allowed in never means being authorized</p>
+<p>out. There is no supervisor override for this block, because the missing information is about the</p>
+<p>vehicle, not the driver.</p>
+<h3>Supervisors see what needs completing</h3>
+<p><strong>Supervisor → Vehicles → Vehicles Awaiting Completion.</strong> Every auto-created vehicle is listed</p>
+<p>with what is missing and a <strong>Complete record</strong> action. Fill in the details and the vehicle</p>
+<p>becomes normal inventory — and can then leave.</p>
+<h3>Overrides require Fleet Lead or above</h3>
+<p>When a driver is not authorized, Vehicle OUT is blocked and an approver ID is requested.</p>
+<p><em>Try it:</em> driver <code>E1003</code>, vehicle <code>G0003</code>, Vehicle OUT, then enter <code>S3090</code>. It is refused:</p>
+<blockquote>S3090 / Casey Rowe holds Scanner and cannot approve a Vehicle OUT override. Fleet Lead or above is required.</blockquote>
+<p>Enter <code>S2040</code> instead and it is approved for nine hours. Both the approval and the refusal are</p>
+<p>recorded.</p>
+<h3>Scanner and console are separate</h3>
+<p>Described above. Same application, same data.</p>
+<hr>
+<h2>The supervisor console</h2>
+<p><strong>Drivers</strong> — roster, licence expiry warnings at 30, 15 and 5 days, expired licences, and</p>
+<p>temporary authorizations individually or in bulk. Drivers are records, not logins.</p>
+<p><strong>Vehicles</strong> — the incomplete-inventory queue, then full inventory. Vehicles are removed from</p>
+<p>active use rather than deleted, so history stays intact.</p>
+<p><strong>Devices</strong> — each handheld registered to a gate, or a floater assigned at the start of a shift.</p>
+<p>A device that is not Active cannot scan.</p>
+<p><strong>Users</strong> — staff accounts and what each can do. Separate from drivers.</p>
+<p><strong>Search</strong> — every movement by driver, vehicle, plate, VIN, gate or date range.</p>
+<hr>
+<h2>Known boundaries of this build</h2>
+<p>These are expected, not defects:</p>
+<ul>
+<li><strong>Data lives on the device.</strong> Two phones will not see each other's movements. The shared</li>
+</ul>
+<p>  database exists but the app does not talk to it yet.</p>
+<ul>
+<li><strong>No login.</strong> Anyone opening the app has full access to whatever shell they open. Real</li>
+</ul>
+<p>  authentication is designed but not built.</p>
+<ul>
+<li><strong>Offline behaviour is not implemented yet.</strong> The agreed design — keep working offline, store</li>
+</ul>
+<p>  locally, upload when the signal returns, mark those movements as delayed — is next.</p>
+<ul>
+<li><strong>The Android app is a debug build.</strong> Fine for sideloading and demos, not a Play Store release.</li>
+<li><strong>The scanner trigger is untested on an XCover.</strong> It has been tested on a standard Android</li>
+</ul>
+<p>  phone. The hardware scan button behaves as a keyboard, which should work, but that has not been</p>
+<p>  confirmed on the rugged device.</p>
+<hr>
+<h2>Installing the Android app</h2>
+<ol>
+<li>Download the APK link.</li>
+<li>Open it on the phone. Android will warn about installing from an unknown source — allow it for</li>
+</ol>
+<p>   whichever app you downloaded with. This is normal for any app not from the Play Store.</p>
+<ol>
+<li>Install, then open <strong>Veri-Gate</strong>.</li>
+</ol>
+<p>The app runs entirely on the phone, so it works with no signal.</p></main>
+</body>
+</html>
