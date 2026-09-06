@@ -1,0 +1,21 @@
+{
+  "originals": {
+    "verigate-customer.webm": "6b09de66151f9e05c720a75083a58bdbeee7f685a62e45bf2d160de2a351131c",
+    "verigate-v08-demo.webm": "9b46d6f89383b3b291357d24d5a52cbc3e8dafb294e0ebedea0c3de98526b2e0"
+  },
+  "voice": "en-US-JennyNeural",
+  "reports": [
+    {
+      "file": "verigate-customer-v2.mp4",
+      "seconds": 122.83,
+      "bytes": 7378443,
+      "decoded": true
+    },
+    {
+      "file": "verigate-walkthrough-v2.mp4",
+      "seconds": 126.67,
+      "bytes": 7685466,
+      "decoded": true
+    }
+  ]
+}

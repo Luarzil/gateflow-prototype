@@ -1,0 +1,42 @@
+[
+  {
+    "name": "customer",
+    "viewport": 1440,
+    "overflow": false,
+    "duration": 122.854667,
+    "width": 1920,
+    "height": 1080,
+    "playingConfirmed": true,
+    "audioTracks": true
+  },
+  {
+    "name": "walkthrough",
+    "viewport": 1440,
+    "overflow": false,
+    "duration": 126.687667,
+    "width": 1920,
+    "height": 1080,
+    "playingConfirmed": true,
+    "audioTracks": true
+  },
+  {
+    "name": "customer",
+    "viewport": 390,
+    "overflow": false,
+    "duration": 122.854667,
+    "width": 1920,
+    "height": 1080,
+    "playingConfirmed": true,
+    "audioTracks": true
+  },
+  {
+    "name": "walkthrough",
+    "viewport": 390,
+    "overflow": false,
+    "duration": 126.687667,
+    "width": 1920,
+    "height": 1080,
+    "playingConfirmed": true,
+    "audioTracks": true
+  }
+]

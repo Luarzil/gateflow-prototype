@@ -1,0 +1,106 @@
+{
+  "voice": "en-US-JennyNeural",
+  "duration": 122.83333333333334,
+  "scenes": [
+    {
+      "start": 0,
+      "duration": 11.875,
+      "frame": "c/01-title.png",
+      "title": "Veri-Gate",
+      "takeaway": "A clearer record of every movement.",
+      "narration": "Meet Veri Gate. A practical way to record who is driving, which vehicle is moving, and when it passes through the gate. Let's follow a typical movement.",
+      "chapter": "THE BIG PICTURE",
+      "layout": "phone"
+    },
+    {
+      "start": 11.875,
+      "duration": 11.833333333333334,
+      "frame": "c/04-driver.png",
+      "title": "Start with\nthe driver.",
+      "takeaway": "Scan a badge. Confirm the driver.",
+      "narration": "First, scan the driver's badge, or enter their employee number. The screen brings up the driver and their authorization status, so the operator has the context they need.",
+      "chapter": "AT THE GATE",
+      "layout": "phone"
+    },
+    {
+      "start": 23.708,
+      "duration": 13.75,
+      "frame": "c/05-vehicle.png",
+      "title": "Identify\nthe vehicle.",
+      "takeaway": "One barcode connects the movement.",
+      "narration": "Next, scan the vehicle barcode. For a known vehicle, its details appear on screen. If it is new to inventory, Veri Gate adds a record automatically as the movement is processed.",
+      "chapter": "AT THE GATE",
+      "layout": "phone"
+    },
+    {
+      "start": 37.458,
+      "duration": 14.458333333333334,
+      "frame": "c/06-movement.png",
+      "title": "Choose.\nReview. Record.",
+      "takeaway": "Driver, vehicle, location and time.",
+      "narration": "Choose in or out, review the movement, and submit. The record includes the driver, vehicle, gate, device, and time. The scanner then returns to the start, ready for the next vehicle.",
+      "chapter": "AT THE GATE",
+      "layout": "phone"
+    },
+    {
+      "start": 51.917,
+      "duration": 12.416666666666666,
+      "frame": "c/08-exit.png",
+      "title": "Keep the\nrecord moving.",
+      "takeaway": "New vehicles follow the usual driver checks.",
+      "narration": "A newly added vehicle can leave through the normal process. Missing inventory details do not hold it up. The usual driver authorization and license checks still apply.",
+      "chapter": "A CONTINUOUS RECORD",
+      "layout": "phone"
+    },
+    {
+      "start": 64.333,
+      "duration": 12.0,
+      "frame": "c/09-override.png",
+      "title": "Handle\nexceptions.",
+      "takeaway": "Temporary approval: Fleet Lead or above.",
+      "narration": "When a driver needs temporary authorization, a Fleet Lead or higher role can approve it. The prototype records that decision, keeping the exception connected to the movement.",
+      "chapter": "ACCOUNTABILITY",
+      "layout": "phone"
+    },
+    {
+      "start": 76.333,
+      "duration": 12.125,
+      "frame": "c/10-console.png",
+      "title": "The wider view.",
+      "takeaway": "Drivers, vehicles and devices in one console.",
+      "narration": "The desktop console brings the operational records together. Supervisors can manage drivers, update vehicle details, and review the devices assigned to each location.",
+      "chapter": "IN THE OFFICE",
+      "layout": "desktop"
+    },
+    {
+      "start": 88.458,
+      "duration": 11.291666666666666,
+      "frame": "c/14-search.png",
+      "title": "Find the record.",
+      "takeaway": "Search the history behind a movement.",
+      "narration": "When a question comes up later, search the movement history by driver, vehicle, location, or date. The details captured at the gate are there to review.",
+      "chapter": "IN THE OFFICE",
+      "layout": "desktop"
+    },
+    {
+      "start": 99.75,
+      "duration": 15.708333333333334,
+      "frame": "c/15-yard.png",
+      "title": "Ready for\na closer look.",
+      "takeaway": "Android review build. Local device storage.",
+      "narration": "This review build runs on Android and stores records on the device, including without a signal. Shared cloud data and automatic synchronization are still being developed. For now, it is ready to explore the gate workflow.",
+      "chapter": "CURRENT REVIEW BUILD",
+      "layout": "phone"
+    },
+    {
+      "start": 115.458,
+      "duration": 7.375,
+      "frame": "c/16-close.png",
+      "title": "Veri-Gate",
+      "takeaway": "Every movement starts with a clear record.",
+      "narration": "Veri Gate. A focused workflow at the gate, and a clearer record to work from afterward.",
+      "chapter": "LET'S TAKE A LOOK",
+      "layout": "phone"
+    }
+  ]
+}
