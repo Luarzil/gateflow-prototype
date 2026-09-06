@@ -22,6 +22,8 @@ const TYPES = {
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".jpg": "image/jpeg",
+  ".mp4": "video/mp4",
+  ".vtt": "text/vtt; charset=utf-8",
   ".webm": "video/webm",
   ".wav": "audio/wav",
   ".md": "text/markdown; charset=utf-8",

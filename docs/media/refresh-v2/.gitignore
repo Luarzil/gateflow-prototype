@@ -1,0 +1,12 @@
+# Reproducible per-scene audio and encoding intermediates.
+customer/*.mp3
+customer/*.mp4
+customer/*.json
+customer/concat.txt
+walkthrough/*.mp3
+walkthrough/*.mp4
+walkthrough/*.json
+walkthrough/concat.txt
+original-*.jpg
+review-*.png
+voice-preview.mp3
