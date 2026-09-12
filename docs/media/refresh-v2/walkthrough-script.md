@@ -1,6 +1,6 @@
 ## The updated workflow.
 
-Patrick, this walkthrough shows the current vehicle first workflow and the latest barcode integrity changes. We will also check the console updates and one remaining record control issue.
+Patrick, this walkthrough shows the current vehicle first workflow and the latest barcode integrity changes. We will also check the console updates and record controls.
 
 ## Vehicle first.
 
@@ -56,7 +56,7 @@ This is the desktop supervisor console, showing vehicle inventory. Records open 
 
 ## Open the vehicle record.
 
-A vehicle opens from its V I N, or Add V I N when missing. There is one remaining discrepancy: the intended removal button is still hidden inside this record in the current build. That control needs correction before we can demonstrate removal.
+A vehicle opens from its V I N, or Add V I N when missing. The removal control is available in the vehicle record, so supervisors can remove a vehicle from active inventory without deleting its history.
 
 ## Add with only a VIN.
 

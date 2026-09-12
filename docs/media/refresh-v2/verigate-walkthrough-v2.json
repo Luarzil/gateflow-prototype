@@ -1,19 +1,19 @@
 {
   "voice": "en-US-JennyNeural",
-  "duration": 277.16666666666663,
+  "duration": 273.625,
   "scenes": [
     {
       "start": 0,
-      "duration": 12.583333333333334,
+      "duration": 11.666666666666666,
       "frame": "d/01-scanner-home.png",
       "title": "The updated workflow.",
       "takeaway": "CR-V13, CR-V14 and CR-V15.",
-      "narration": "Patrick, this walkthrough shows the current vehicle first workflow and the latest barcode integrity changes. We will also check the console updates and one remaining record control issue.",
+      "narration": "Patrick, this walkthrough shows the current vehicle first workflow and the latest barcode integrity changes. We will also check the console updates and record controls.",
       "chapter": "PATRICK / REVIEW",
       "layout": "phone"
     },
     {
-      "start": 12.583,
+      "start": 11.667,
       "duration": 15.291666666666666,
       "frame": "d/02-vehicle-entry.png",
       "title": "Vehicle first.",
@@ -23,7 +23,7 @@
       "layout": "phone"
     },
     {
-      "start": 27.875,
+      "start": 26.958,
       "duration": 11.583333333333334,
       "frame": "d/03-driver-entry.png",
       "title": "Driver second.",
@@ -33,7 +33,7 @@
       "layout": "phone"
     },
     {
-      "start": 39.458,
+      "start": 38.542,
       "duration": 18.916666666666668,
       "frame": "d/alphanumeric-driver.png",
       "title": "Letters are supported.",
@@ -43,7 +43,7 @@
       "layout": "phone"
     },
     {
-      "start": 58.375,
+      "start": 57.458,
       "duration": 8.333333333333334,
       "frame": "d/04-movement-choice.png",
       "title": "Choose the direction.",
@@ -53,7 +53,7 @@
       "layout": "phone"
     },
     {
-      "start": 66.708,
+      "start": 65.792,
       "duration": 8.541666666666666,
       "frame": "d/review.png",
       "title": "Review, then submit.",
@@ -63,7 +63,7 @@
       "layout": "phone"
     },
     {
-      "start": 75.25,
+      "start": 74.333,
       "duration": 15.875,
       "frame": "d/03-unknown-vehicle.png",
       "title": "Unknown, scanned.",
@@ -73,7 +73,7 @@
       "layout": "phone"
     },
     {
-      "start": 91.125,
+      "start": 90.208,
       "duration": 14.583333333333334,
       "frame": "d/typed-partial.png",
       "title": "Complete the barcode.",
@@ -83,7 +83,7 @@
       "layout": "phone"
     },
     {
-      "start": 105.708,
+      "start": 104.792,
       "duration": 13.958333333333334,
       "frame": "d/typed-unknown.png",
       "title": "Check a typed barcode.",
@@ -93,7 +93,7 @@
       "layout": "phone"
     },
     {
-      "start": 119.667,
+      "start": 118.75,
       "duration": 14.375,
       "frame": "d/flagged-vehicle.png",
       "title": "Visible for review.",
@@ -103,7 +103,7 @@
       "layout": "desktop"
     },
     {
-      "start": 134.042,
+      "start": 133.125,
       "duration": 12.708333333333334,
       "frame": "d/06-unknown-out.png",
       "title": "Review the exit.",
@@ -113,7 +113,7 @@
       "layout": "phone"
     },
     {
-      "start": 146.75,
+      "start": 145.833,
       "duration": 16.0,
       "frame": "d/11-override-role.png",
       "title": "Role refusal verified.",
@@ -123,7 +123,7 @@
       "layout": "phone"
     },
     {
-      "start": 162.75,
+      "start": 161.833,
       "duration": 13.416666666666666,
       "frame": "d/durations.png",
       "title": "Choose the duration.",
@@ -133,7 +133,7 @@
       "layout": "phone"
     },
     {
-      "start": 176.167,
+      "start": 175.25,
       "duration": 10.708333333333334,
       "frame": "d/07-console-shell.png",
       "title": "Supervisor Console.",
@@ -143,17 +143,17 @@
       "layout": "desktop"
     },
     {
-      "start": 186.875,
-      "duration": 17.0,
+      "start": 185.958,
+      "duration": 14.375,
       "frame": "d/vehicle-record.png",
       "title": "Open the vehicle record.",
-      "takeaway": "VIN opens the record. Removal control needs attention.",
-      "narration": "A vehicle opens from its V I N, or Add V I N when missing. There is one remaining discrepancy: the intended removal button is still hidden inside this record in the current build. That control needs correction before we can demonstrate removal.",
+      "takeaway": "VIN opens the record. Removal stays with the vehicle.",
+      "narration": "A vehicle opens from its V I N, or Add V I N when missing. The removal control is available in the vehicle record, so supervisors can remove a vehicle from active inventory without deleting its history.",
       "chapter": "RECORD MANAGEMENT",
       "layout": "desktop"
     },
     {
-      "start": 203.875,
+      "start": 200.333,
       "duration": 10.25,
       "frame": "d/vin-only.png",
       "title": "Add with only a VIN.",
@@ -163,7 +163,7 @@
       "layout": "desktop"
     },
     {
-      "start": 214.125,
+      "start": 210.583,
       "duration": 10.708333333333334,
       "frame": "d/auto-barcode.png",
       "title": "Barcode assigned.",
@@ -173,7 +173,7 @@
       "layout": "desktop"
     },
     {
-      "start": 224.833,
+      "start": 221.292,
       "duration": 9.666666666666666,
       "frame": "d/user-identifiers.png",
       "title": "Open by user identity.",
@@ -183,7 +183,7 @@
       "layout": "desktop"
     },
     {
-      "start": 234.5,
+      "start": 230.958,
       "duration": 13.25,
       "frame": "d/10-user-edit.png",
       "title": "Edit the existing user.",
@@ -193,7 +193,7 @@
       "layout": "desktop"
     },
     {
-      "start": 247.75,
+      "start": 244.208,
       "duration": 8.041666666666666,
       "frame": "d/device-identifiers.png",
       "title": "Open by Device ID.",
@@ -203,7 +203,7 @@
       "layout": "desktop"
     },
     {
-      "start": 255.792,
+      "start": 252.25,
       "duration": 6.416666666666667,
       "frame": "d/device-record.png",
       "title": "Device record.",
@@ -213,7 +213,7 @@
       "layout": "desktop"
     },
     {
-      "start": 262.208,
+      "start": 258.667,
       "duration": 14.958333333333334,
       "frame": "d/12-search.png",
       "title": "Review the history.",
