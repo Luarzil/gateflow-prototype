@@ -28,4 +28,7 @@ test("password value is not stored in the desktop user object", excludes(app, "p
 test("drivers remain excluded from application login accounts", includes(html, "Drivers are operational records, not application login accounts."));
 test("ability matrix does not assign permissions to driver records", excludes(app, 'id: "drivers"'));
 test("driver profile management is named separately from driver accounts", includes(app, 'id: "driverProfiles"'));
-test("manual entry opener controls are visible", matches(html, /id="openManualEmployeeButton"[\s\S]*id="openManualBarcodeButton"/));
+test("manual entry opener controls are visible", () => {
+  assert.ok(html.includes('id="openManualBarcodeButton"'), "missing vehicle manual entry control");
+  assert.ok(html.includes('id="openManualEmployeeButton"'), "missing driver manual entry control");
+});

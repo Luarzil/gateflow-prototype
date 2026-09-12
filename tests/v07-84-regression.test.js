@@ -17,7 +17,7 @@ const matches = (source, expression) => () => assert.match(source, expression);
 
 const cases = [
   ["01 scanner has four numbered steps", matches(html, /data-step="0"[\s\S]*data-step="3"/)],
-  ["02 scanner starts on driver entry", includes(html, 'id="driverInput"')],
+  ["02 scanner starts on vehicle entry", matches(html, /data-step="0"[\s\S]*id="barcodeInput"/)],
   ["03 scanner accepts employee example E1003", includes(html, "e.g. E1003")],
   ["04 scanner accepts vehicle example G0001", includes(html, 'placeholder="G0001"')],
   ["05 scanner has an OUT action", includes(html, 'id="directionOut"')],
@@ -65,8 +65,8 @@ const cases = [
   ["47 legacy removed-yard records are filtered", includes(app, 'transaction.location !== "Enterprise Repair Facility"')],
   ["48 pre-call migration data is backed up", includes(app, "PRE_CALL_MIGRATION_BACKUP_KEY")],
   ["49 migration stores its backup before conversion", includes(app, "localStorage.getItem(PRE_CALL_MIGRATION_BACKUP_KEY)")],
-  ["50 valid driver clears stale scanner feedback", includes(app, 'setNotice("Driver found. Continue to the vehicle barcode.", "success")')],
-  ["51 valid barcode clears stale scanner feedback", includes(app, 'setNotice("Vehicle found. Choose the movement.", "success")')],
+  ["50 valid driver clears stale scanner feedback", includes(app, 'setNotice("Driver found. Choose the movement.", "success")')],
+  ["51 valid barcode clears stale scanner feedback", includes(app, 'setNotice("Vehicle found. Continue to driver.", "success")')],
   // CR-V08-BETA-CRITICAL-APP-001 superseded case 52: an unknown barcode is no longer blocked at
   // the barcode step. It is accepted, and OUT is gated on the vehicle record instead.
   ["52 an unknown barcode is added to inventory rather than gated", includes(app, "createScannedVehicle")],

@@ -65,7 +65,8 @@ const tests = [
   ["Legacy EMP- employee values still resolve", () => testEmployeeVariant("EMP-1002")],
   ["Manual barcode control is visible", testManualBarcodeSurface],
   ["Valid manual barcode works", testManualBarcode],
-  ["Unknown manual barcode is rejected", testManualBarcodeReject],
+  ["Blank manual barcode is rejected", testManualBarcodeReject],
+  ["Unknown manual barcode is accepted and added", testManualBarcodeUnknownAccepted],
   ["Manual and scanned barcode paths match", testBarcodePathMatch],
   ["Barcode entry method is stored", testBarcodeEntryMethod],
   ["Success flow is shortened", testShortFlow],
@@ -204,20 +205,27 @@ async function testSurface() {
 }
 
 async function testEmployeeVariant(value) {
-  click("#startScanButton"); input("#driverInput", value); key("#driverInput", "Enter"); await waitForStep(1);
+  click("#startScanButton"); input("#barcodeInput", "G0001"); key("#barcodeInput", "Enter"); await waitForStep(1); input("#driverInput", value); key("#driverInput", "Enter"); await waitForStep(2);
   const expectedName = /1002/i.test(value) ? "Marcus Reed" : "Nina Patel";
   expect(text("#driverStatus").includes(expectedName), `Employee variant ${value} did not resolve to ${expectedName}.`);
 }
 
-async function testManualBarcodeSurface() { click("#startScanButton"); input("#driverInput", "1001"); key("#driverInput", "Enter"); await waitForStep(1); click("#openManualBarcodeButton"); await waitForVisible("#manualBarcodeModal"); expect(/same exact-match/i.test(text("#manualBarcodeStatus")), "Manual barcode dialog does not describe exact matching."); }
+async function testManualBarcodeSurface() { click("#startScanButton"); click("#openManualBarcodeButton"); await waitForVisible("#manualBarcodeModal"); expect(/same exact-match/i.test(text("#manualBarcodeStatus")), "Manual barcode dialog does not describe exact matching."); }
 
-async function testManualBarcode() { click("#startScanButton"); input("#driverInput", "1001"); key("#driverInput", "Enter"); await waitForStep(1); click("#openManualBarcodeButton"); input("#manualBarcodeInput", "g0001"); click("#submitManualBarcodeButton"); await waitForStep(2); expect(q("#barcodeInput").value === "G0001", "Manual barcode was not normalized or accepted."); }
+async function testManualBarcode() { click("#startScanButton"); click("#openManualBarcodeButton"); input("#manualBarcodeInput", "g0001"); click("#submitManualBarcodeButton"); await waitForStep(1); expect(q("#barcodeInput").value === "G0001", "Manual barcode was not normalized or accepted."); }
 
-async function testManualBarcodeReject() { click("#startScanButton"); input("#driverInput", "1001"); key("#driverInput", "Enter"); await waitForStep(1); click("#openManualBarcodeButton"); input("#manualBarcodeInput", "G00"); click("#submitManualBarcodeButton"); expect(/not found|exact/i.test(text("#manualBarcodeStatus")), "Partial or unknown manual barcode was accepted."); }
+async function testManualBarcodeReject() { click("#startScanButton"); click("#openManualBarcodeButton"); input("#manualBarcodeInput", ""); click("#submitManualBarcodeButton"); expect(/required/i.test(text("#manualBarcodeStatus")), "Blank manual barcode was accepted."); }
 
-async function testBarcodePathMatch() { await beginScan("1001", "G0001"); const scanned = text("#barcodeStatus"); click("#flowCancel"); click("#startScanButton"); input("#driverInput", "1001"); key("#driverInput", "Enter"); await waitForStep(1); click("#openManualBarcodeButton"); input("#manualBarcodeInput", "G0001"); click("#submitManualBarcodeButton"); expect(text("#barcodeStatus") === scanned, "Manual barcode lookup does not match the scanned lookup result."); }
+// CR-V11 made an unknown barcode ordinary inventory rather than an error, which is what Patrick
+// asked for. The check that used to live here asserted the opposite, so it is replaced rather
+// than dropped: the rule is still worth pinning down, it just changed direction.
+async function testManualBarcodeUnknownAccepted() { click("#startScanButton"); click("#openManualBarcodeButton"); input("#manualBarcodeInput", "G9001"); click("#submitManualBarcodeButton"); await waitForStep(1); expect(q("#barcodeInput").value === "G9001", "Unknown manual barcode was not accepted."); expect(/added automatically/i.test(text("#barcodeStatus")), "Unknown manual barcode did not explain that it will be added."); }
 
-async function testBarcodeEntryMethod() { await testManualBarcode(); click("#directionIn"); click("#submitTransactionButton"); await waitForHome(); expect(latestTransaction().barcodeEntryMethod === "manual", "Manual barcode entry method was not saved."); }
+async function testBarcodePathMatch() { await beginScan("1001", "G0001"); const scanned = text("#barcodeStatus"); click("#flowCancel"); click("#startScanButton"); click("#openManualBarcodeButton"); input("#manualBarcodeInput", "G0001"); click("#submitManualBarcodeButton"); expect(text("#barcodeStatus") === scanned, "Manual barcode lookup does not match the scanned lookup result."); }
+
+// CR-V13-SCANNER-ORDER-001: manual barcode entry now lands on the driver step, not the movement
+// choice, so the driver has to be entered before a direction can be picked.
+async function testBarcodeEntryMethod() { await testManualBarcode(); input("#driverInput", "1001"); key("#driverInput", "Enter"); await waitForStep(2); click("#directionIn"); click("#submitTransactionButton"); await waitForHome(); expect(latestTransaction().barcodeEntryMethod === "manual", "Manual barcode entry method was not saved."); }
 
 async function testShortFlow() { await beginScan("1001", "G0001"); expect(doc().querySelectorAll(".wizard-step").length === 4 && text(".wizard-step[data-step=\"2\"] .screen-subtitle").includes("Step 3 of 4"), "Scanner still exposes a redundant step count."); }
 
@@ -227,10 +235,10 @@ async function testDriverChangeClearsState() {
   await beginScan("1001", "G0001");
   click("#directionIn");
   input("#driverInput", "1002");
-  expect(q("#barcodeInput").value === "", "Changing driver retained the previous vehicle barcode.");
+  expect(q("#barcodeInput").value === "G0001", "Changing driver cleared the vehicle scanned first.");
   expect(q("#transactionNote").value === "", "Changing driver retained the previous transaction note.");
-  expect(!q('.wizard-step[data-step="0"]').classList.contains("hidden"), "Changing driver did not return to driver validation.");
-  expect(/previous vehicle.*cleared/i.test(text("#scannerNotice")), "Changing driver did not explain that derived scan state was cleared.");
+  expect(!q('.wizard-step[data-step="1"]').classList.contains("hidden"), "Changing driver did not return to driver validation.");
+  expect(/authorization review.*cleared/i.test(text("#scannerNotice")), "Changing driver did not explain that derived scan state was cleared.");
 }
 
 async function testDriverChangeClearsOverride() {
@@ -262,9 +270,12 @@ async function testLocationPersistence() {
 
 async function testScannerCancel() {
   click("#startScanButton");
+  input("#barcodeInput", "G0001");
+  key("#barcodeInput", "Enter");
+  await waitForStep(1);
   input("#driverInput", "E1001");
   key("#driverInput", "Enter");
-  await waitForStep(1);
+  await waitForStep(2);
   click("#flowCancel");
   expect(!q("#startScanButton").classList.contains("hidden"), "Back to home did not return the Scanner to its ready state.");
   expect(q("#scanWizard").classList.contains("hidden"), "Back to home left the Scanner wizard visible.");
@@ -273,28 +284,28 @@ async function testScannerCancel() {
 
 async function testInvalidDriver() {
   click("#startScanButton");
+  input("#barcodeInput", "G0001");
+  key("#barcodeInput", "Enter");
+  await waitForStep(1);
   input("#driverInput", "EMP-NOT-REAL");
   key("#driverInput", "Enter");
   expect(/valid active Driver Employee/i.test(text("#scannerNotice")), "Unknown driver advanced past validation.");
-  expect(q('.wizard-step[data-step="1"]').classList.contains("hidden"), "Unknown driver reached VIN step.");
+  expect(q('.wizard-step[data-step="2"]').classList.contains("hidden"), "Unknown driver reached movement choice.");
   input("#driverInput", "E1006");
   key("#driverInput", "Enter");
   expect(/valid active Driver Employee/i.test(text("#scannerNotice")), "Inactive driver advanced past validation.");
-  expect(q('.wizard-step[data-step="1"]').classList.contains("hidden"), "Inactive driver reached VIN step.");
+  expect(q('.wizard-step[data-step="2"]').classList.contains("hidden"), "Inactive driver reached movement choice.");
 }
 
 async function testBarcodeRules() {
   click("#startScanButton");
-  input("#driverInput", "E1001");
-  key("#driverInput", "Enter");
-  await waitForStep(1);
   input("#barcodeInput", "G9001");
   key("#barcodeInput", "Enter");
   expect(/will be added automatically/i.test(text("#barcodeStatus")), "Unknown barcode did not explain that it is added automatically.");
   input("#barcodeInput", "G0001");
   expect(q("#barcodeInput").value === "G0001", "Barcode was not normalized to uppercase.");
   key("#barcodeInput", "Enter");
-  await waitForStep(2);
+  await waitForStep(1);
 }
 
 async function testAuthorizedOut() {
@@ -542,10 +553,9 @@ async function testRemovedVehicleScanBlock() {
   click(`[data-vehicle-action="remove"][data-vehicle-id="${vehicle.id}"]`);
   click('[data-view="scannerView"]');
   click("#startScanButton");
-  input("#driverInput", "E1001"); key("#driverInput", "Enter"); await waitForStep(1);
   input("#barcodeInput", "G0002"); key("#barcodeInput", "Enter");
   expect(/inactive/i.test(text("#scannerNotice")), "Removed vehicle barcode advanced to movement selection.");
-  expect(q('.wizard-step[data-step="2"]').classList.contains("hidden"), "Removed vehicle reached movement direction step.");
+  expect(q('.wizard-step[data-step="1"]').classList.contains("hidden"), "Removed vehicle reached driver step.");
 }
 
 async function testDurationCalculations() {
@@ -615,12 +625,12 @@ async function testEnterpriseActiveAbsent() { expect(![...q("#scannerLocation").
 async function testEnterpriseHistory() { click('[data-view="searchView"]'); select(q("#filterLocation"), "Enterprise Repair Facility"); click('#searchForm button[type="submit"]'); expect(text("#searchResultsBody").includes("Enterprise Repair Facility"), "Enterprise historical movements are not searchable."); }
 async function testFixedLocationLocked() { expect(q("#scannerLocation").disabled, "Fixed device did not lock the scanner location."); expect(q("#scannerLocation").value === "Division Street", "Fixed device location did not supply Division Street."); }
 async function testFixedReassignment() { click('[data-view="supervisorView"]'); click('[data-supervisor-section="devicesSection"]'); click('[data-device-action="edit"][data-device-id="D0001"]'); select(q("#deviceLocationInput"), "North Ave"); targetConfirmResponse = false; click('#deviceForm button[type="submit"]'); expect(state().devices.find((device) => device.id === "D0001").assignedLocation === "Division Street", "Cancelled fixed reassignment changed location."); targetConfirmResponse = true; click('#deviceForm button[type="submit"]'); expect(state().devices.find((device) => device.id === "D0001").assignedLocation === "North Ave", "Confirmed fixed reassignment did not save."); expect(state().workingLocation === "North Ave" && q("#scannerLocation").value === "North Ave", "Current fixed-device reassignment did not immediately update working location."); }
-async function testFixedSwitchConfirmation() { click("#startScanButton"); input("#driverInput", "1001"); key("#driverInput", "Enter"); await waitForStep(1); click("#openDeviceSetupButton"); select(q("#currentDeviceSelect"), "D0002"); targetConfirmResponse = false; click("#confirmDeviceLocationButton"); expect(state().currentDeviceId === "D0001" && q("#driverInput").value === "1001", "Cancelled fixed-device switch changed device or scan state."); targetConfirmResponse = true; click("#confirmDeviceLocationButton"); expect(state().currentDeviceId === "D0002" && q("#driverInput").value === "", "Confirmed fixed-device switch did not reset the unfinished scan."); }
+async function testFixedSwitchConfirmation() { click("#startScanButton"); input("#barcodeInput", "G0001"); key("#barcodeInput", "Enter"); await waitForStep(1); click("#openDeviceSetupButton"); select(q("#currentDeviceSelect"), "D0002"); targetConfirmResponse = false; click("#confirmDeviceLocationButton"); expect(state().currentDeviceId === "D0001" && q("#barcodeInput").value === "G0001", "Cancelled fixed-device switch changed device or scan state."); targetConfirmResponse = true; click("#confirmDeviceLocationButton"); expect(state().currentDeviceId === "D0002" && q("#barcodeInput").value === "", "Confirmed fixed-device switch did not reset the unfinished scan."); }
 async function selectFloater() { click("#openDeviceSetupButton"); await waitForVisible("#deviceSetupModal"); select(q("#currentDeviceSelect"), "D0005"); }
 async function testFloaterRequiresLocation() { await selectFloater(); click("#confirmDeviceLocationButton"); expect(/Choose an active location/i.test(text("#deviceSetupStatus")), "Floater was accepted without a location."); }
 async function testFloaterRequiresConfirmation() { await selectFloater(); select(q("#floaterLocationSelect"), "EWR North"); targetConfirmResponse = false; click("#confirmDeviceLocationButton"); expect(state().currentDeviceId !== "D0005" || state().floaterLocationConfirmed === false, "Floater location was committed without confirmation."); }
 async function testFloaterLocationLock() { await selectFloater(); select(q("#floaterLocationSelect"), "EWR North"); click("#confirmDeviceLocationButton"); expect(state().currentDeviceId === "D0005" && state().floaterLocationConfirmed && q("#scannerLocation").disabled, "Confirmed floater location was not locked."); }
-async function testFloaterChangeReset() { await testFloaterLocationLock(); click("#startScanButton"); input("#driverInput", "1001"); key("#driverInput", "Enter"); await waitForStep(1); click("#openDeviceSetupButton"); click("#changeFloaterLocationButton"); expect(q("#driverInput").value === "" && state().floaterLocationConfirmed === false, "Floater location change did not reset incomplete scan state."); }
+async function testFloaterChangeReset() { await testFloaterLocationLock(); click("#startScanButton"); input("#barcodeInput", "G0001"); key("#barcodeInput", "Enter"); await waitForStep(1); click("#openDeviceSetupButton"); click("#changeFloaterLocationButton"); expect(q("#barcodeInput").value === "" && state().floaterLocationConfirmed === false, "Floater location change did not reset incomplete scan state."); }
 async function testFloaterNoEnterprise() { await selectFloater(); expect(![...q("#floaterLocationSelect").options].some((option) => option.value === "Enterprise Repair Facility"), "Floater can select Enterprise."); }
 async function openDevices() { click(String.raw`[data-view="supervisorView"]`); click(String.raw`[data-supervisor-section="devicesSection"]`); await waitFor("#addDeviceButton"); }
 async function openVehicles() { click(String.raw`[data-view="supervisorView"]`); click(String.raw`[data-supervisor-section="vehiclesSection"]`); await waitFor("#addVehicleButton"); }
@@ -673,12 +683,12 @@ async function testV06Migration() {
 
 async function beginScan(employeeNumber, barcode) {
   click("#startScanButton");
-  await waitFor("#driverInput");
-  input("#driverInput", employeeNumber);
-  key("#driverInput", "Enter");
   await waitFor("#barcodeInput");
   input("#barcodeInput", barcode);
   key("#barcodeInput", "Enter");
+  await waitFor("#driverInput");
+  input("#driverInput", employeeNumber);
+  key("#driverInput", "Enter");
   await waitFor("#directionOut");
 }
 

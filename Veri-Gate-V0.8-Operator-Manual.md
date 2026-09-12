@@ -49,9 +49,9 @@ link on it once.
 
 ## The scanner, step by step
 
-1. **Driver** — scan or type the employee number. Veri-Gate shows the name, licence status and
+1. **Vehicle** — scan or type the barcode. Known vehicles show make, model, colour, VIN and plate.
+2. **Driver** — scan or type the employee number. Veri-Gate shows the name, licence status and
    whether they are authorized.
-2. **Vehicle** — scan or type the barcode. Known vehicles show make, model, colour, VIN and plate.
 3. **Direction** — Vehicle IN or Vehicle OUT.
 4. **Review and submit.**
 

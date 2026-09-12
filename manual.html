@@ -63,11 +63,8 @@
 <hr>
 <h2>The scanner, step by step</h2>
 <ol>
-<li><strong>Driver</strong> — scan or type the employee number. Veri-Gate shows the name, licence status and</li>
-</ol>
-<p>   whether they are authorized.</p>
-<ol>
 <li><strong>Vehicle</strong> — scan or type the barcode. Known vehicles show make, model, colour, VIN and plate.</li>
+<li><strong>Driver</strong> — scan or type the employee number. Veri-Gate shows the name, licence status and whether they are authorized.</li>
 <li><strong>Direction</strong> — Vehicle IN or Vehicle OUT.</li>
 <li><strong>Review and submit.</strong></li>
 </ol>
@@ -121,31 +118,17 @@
 <h2>Known boundaries of this build</h2>
 <p>These are expected, not defects:</p>
 <ul>
-<li><strong>Data lives on the device.</strong> Two phones will not see each other's movements. The shared</li>
-</ul>
-<p>  database exists but the app does not talk to it yet.</p>
-<ul>
-<li><strong>No login.</strong> Anyone opening the app has full access to whatever shell they open. Real</li>
-</ul>
-<p>  authentication is designed but not built.</p>
-<ul>
-<li><strong>Offline behaviour is not implemented yet.</strong> The agreed design — keep working offline, store</li>
-</ul>
-<p>  locally, upload when the signal returns, mark those movements as delayed — is next.</p>
-<ul>
+<li><strong>Data lives on the device.</strong> Two phones will not see each other's movements. The shared database exists but the app does not talk to it yet.</li>
+<li><strong>No login.</strong> Anyone opening the app has full access to whatever shell they open. Real authentication is designed but not built.</li>
+<li><strong>Offline behaviour is not implemented yet.</strong> The agreed design — keep working offline, store locally, upload when the signal returns, mark those movements as delayed — is next.</li>
 <li><strong>The Android app is a debug build.</strong> Fine for sideloading and demos, not a Play Store release.</li>
-<li><strong>The scanner trigger is untested on an XCover.</strong> It has been tested on a standard Android</li>
+<li><strong>The scanner trigger is untested on an XCover.</strong> It has been tested on a standard Android phone. The hardware scan button behaves as a keyboard, which should work, but that has not been confirmed on the rugged device.</li>
 </ul>
-<p>  phone. The hardware scan button behaves as a keyboard, which should work, but that has not been</p>
-<p>  confirmed on the rugged device.</p>
 <hr>
 <h2>Installing the Android app</h2>
 <ol>
 <li>Download the APK link.</li>
-<li>Open it on the phone. Android will warn about installing from an unknown source — allow it for</li>
-</ol>
-<p>   whichever app you downloaded with. This is normal for any app not from the Play Store.</p>
-<ol>
+<li>Open it on the phone. Android will warn about installing from an unknown source — allow it for whichever app you downloaded with. This is normal for any app not from the Play Store.</li>
 <li>Install, then open <strong>Veri-Gate</strong>.</li>
 </ol>
 <p>The app runs entirely on the phone, so it works with no signal.</p></main>
