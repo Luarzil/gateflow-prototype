@@ -74,15 +74,15 @@ async function reload(cdp) {
 
 async function performMovement(cdp, driverMethod, vehicleMethod, sequence) {
   await evaluate(cdp, "document.querySelector('#startScanButton').click()");
-  if (driverMethod === "manual") {
-    await evaluate(cdp, `(() => { document.querySelector('#openManualEmployeeButton').click(); const input=document.querySelector('#manualEmployeeInput'); input.value='1001'; document.querySelector('#submitManualEmployeeButton').click(); })()`);
-  } else {
-    await evaluate(cdp, `(() => { const input=document.querySelector('#driverInput'); input.value='1001'; input.dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('#driverNext').click(); })()`);
-  }
   if (vehicleMethod === "manual") {
     await evaluate(cdp, `(() => { document.querySelector('#openManualBarcodeButton').click(); const input=document.querySelector('#manualBarcodeInput'); input.value='GFV-0001'; document.querySelector('#submitManualBarcodeButton').click(); })()`);
   } else {
     await evaluate(cdp, `(() => { const input=document.querySelector('#barcodeInput'); input.value='GFV-0001'; input.dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('#barcodeNext').click(); })()`);
+  }
+  if (driverMethod === "manual") {
+    await evaluate(cdp, `(() => { document.querySelector('#openManualEmployeeButton').click(); const input=document.querySelector('#manualEmployeeInput'); input.value='1001'; document.querySelector('#submitManualEmployeeButton').click(); })()`);
+  } else {
+    await evaluate(cdp, `(() => { const input=document.querySelector('#driverInput'); input.value='1001'; input.dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('#driverNext').click(); })()`);
   }
   const direction = sequence % 2 === 0 ? "OUT" : "IN";
   await evaluate(cdp, `document.querySelector(${JSON.stringify(sequence % 2 === 0 ? "#directionOut" : "#directionIn")}).click()`);

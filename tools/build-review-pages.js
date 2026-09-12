@@ -12,7 +12,16 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const manualSource = path.join(root, "Veri-Gate-V0.8-Operator-Manual.md");
 
-const SHELL = (title, subtitle, body) => `<!doctype html>
+// The two pages do not want identical styling: the review page carries inline video players and
+// needs the extra width and the player rules, the manual does not. Passing the difference in keeps
+// one shell without either page inheriting rules it has no use for.
+const SHELL = (title, subtitle, body, options = {}) => {
+  const {
+    mainWidth = "820px",
+    extraCss = "",
+    mobileCss = "a.btn{display:block;text-align:center}",
+  } = options;
+  return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -27,14 +36,14 @@ const SHELL = (title, subtitle, body) => `<!doctype html>
   header .wrap { max-width:820px; margin:0 auto; }
   header h1 { margin:0; font-size:26px; letter-spacing:-.01em; }
   header p { margin:6px 0 0; opacity:.85; font-size:15px; }
-  main { max-width:820px; margin:0 auto; padding:24px 20px 64px; }
+  main { max-width:${mainWidth}; margin:0 auto; padding:24px 20px 64px; }
   .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:20px; margin:0 0 14px; }
   .card h2 { margin:0 0 6px; font-size:19px; }
   .card p { margin:0 0 14px; color:var(--muted); font-size:15px; }
   a.btn { display:inline-block; background:var(--green); color:#fff; text-decoration:none;
           padding:13px 22px; border-radius:8px; font-weight:700; font-size:16px; }
   a.btn.alt { background:#fff; color:var(--dark); border:2px solid var(--dark); }
-  .note { background:#fffaf0; border:1px solid #e6d6a8; border-radius:8px; padding:14px 16px;
+${extraCss}  .note { background:#fffaf0; border:1px solid #e6d6a8; border-radius:8px; padding:14px 16px;
           margin:18px 0; font-size:15px; }
   h1,h2,h3 { line-height:1.25; }
   h2 { margin:30px 0 10px; font-size:22px; border-bottom:2px solid var(--line); padding-bottom:6px; }
@@ -48,16 +57,40 @@ const SHELL = (title, subtitle, body) => `<!doctype html>
   hr { border:0; border-top:1px solid var(--line); margin:28px 0; }
   ul,ol { padding-left:22px; }
   .back { display:inline-block; margin-bottom:16px; color:var(--dark); font-weight:700; }
-  @media (max-width:520px){ a.btn{display:block;text-align:center} }
+  @media (max-width:520px){ ${mobileCss} }
 </style>
 </head>
 <body>
 <header><div class="wrap"><h1>${title}</h1><p>${subtitle}</p></div></header>
 <main>${body}</main>
 </body>
-</html>`;
+</html>
+`;
+};
 
 // --- review landing page --------------------------------------------------
+
+const REVIEW_CSS = `  video { display:block; width:100%; aspect-ratio:16/9; margin:14px 0;
+          background:#10241f; border-radius:6px; }
+  .links { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+  .text-link { color:var(--dark); font-weight:700; text-underline-offset:3px; }
+  details { margin-top:14px; }
+  summary { color:var(--dark); font-weight:700; cursor:pointer; }
+`;
+
+const REVIEW_MOBILE_CSS =
+  "a.btn{display:block;text-align:center;width:100%}.links{display:block}.text-link{display:block;margin-top:12px}";
+
+// The videos play inline on the page. Patrick had trouble with the earlier autoplaying HTML
+// slideshows, so each one also gets a plain "open" link and a download, and the captions track
+// means the narration is readable with the sound off.
+const video = (slug, folder, poster) => `
+    <video controls preload="metadata" playsinline poster="docs/media/refresh-v2/${folder}/${poster}">
+      <source src="docs/media/refresh-v2/${slug}.mp4" type="video/mp4">
+      <track kind="captions" src="docs/media/refresh-v2/${slug}.vtt" srclang="en" label="English">
+      Your browser cannot play this video. Use the download link below.
+    </video>
+    <div class="links"><a class="btn alt" href="docs/media/refresh-v2/${slug}.mp4">Open the video</a><a class="text-link" href="docs/media/refresh-v2/${slug}.mp4" download>Download MP4</a></div>`;
 
 const review = `
   <div class="note">
@@ -74,16 +107,14 @@ const review = `
   </div>
 
   <div class="card">
-    <h2>2. Watch the short video</h2>
-    <p>About two minutes. Covers the changes you asked for and shows them working.</p>
-    <a class="btn alt" href="docs/media/verigate-v08-demo.html">Watch — changes review</a>
+    <h2>2. Watch the customer introduction</h2>
+    <p>About two minutes. A modern overview of the gate workflow with new female narration.</p>${video("verigate-customer-v2", "customer", "01.png")}
   </div>
 
   <div class="card">
-    <h2>3. Watch the longer video</h2>
-    <p>About four minutes. Made for Verizon and the client — explains what the product does, with no
-    mention of versions or changes.</p>
-    <a class="btn alt" href="docs/media/verigate-customer.html">Watch — customer version</a>
+    <h2>3. Watch the latest changes walkthrough</h2>
+    <p>About two minutes. Shows unknown-vehicle handling, user editing, the single Admin role, and the movement history.</p>${video("verigate-walkthrough-v2", "walkthrough", "01.png")}
+    <details><summary>Earlier video editions</summary><p><a class="text-link" href="docs/media/verigate-v08-demo.html">Original changes review</a><br><a class="text-link" href="docs/media/verigate-customer.html">Original customer presentation</a></p></details>
   </div>
 
   <div class="card">
@@ -164,6 +195,14 @@ function mdToHtml(md) {
       out.push(`<li>${inline(ul[1])}</li>`); i++; continue;
     }
 
+    // A wrapped line inside a list belongs to the item above it. Without this the manual's
+    // numbered steps restart at 1 after every wrapped line, so "The scanner, step by step"
+    // rendered as 1, 2 and then 1, 2 again.
+    if (listOpen && /^\s+\S/.test(line)) {
+      out[out.length - 1] = out[out.length - 1].replace(/<\/li>$/, ` ${inline(line.trim())}</li>`);
+      i++; continue;
+    }
+
     closeList();
     out.push(`<p>${inline(line)}</p>`);
     i++;
@@ -176,7 +215,11 @@ const manualMd = fs.readFileSync(manualSource, "utf8").replace(/^# .*\n/, "");
 const manualBody = `<a class="back" href="review.html">&larr; Back to the review page</a>\n` + mdToHtml(manualMd);
 
 fs.writeFileSync(path.join(root, "review.html"),
-  SHELL("Veri-Gate V0.8 review", "Everything in one place", review));
+  SHELL("Veri-Gate V0.8 review", "Everything in one place", review, {
+    mainWidth: "920px",
+    extraCss: REVIEW_CSS,
+    mobileCss: REVIEW_MOBILE_CSS,
+  }));
 fs.writeFileSync(path.join(root, "manual.html"),
   SHELL("Veri-Gate V0.8 operator manual", "How the app works, and how to try each rule", manualBody));
 
