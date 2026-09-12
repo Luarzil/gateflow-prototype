@@ -577,7 +577,9 @@ async function testBulkDeauthorize() {
 // The VIN cell is the only way into a vehicle now, so every removal and restore goes through it.
 function removeVehicleThroughVin(vehicleId) {
   click(`[data-vehicle-action="edit"][data-vehicle-id="${vehicleId}"]`);
-  expect(!q("#vehicleInventoryToggle").hidden, "Vehicle modal must offer the inventory control.");
+  const toggle = q("#vehicleInventoryToggle");
+  expect(!toggle.classList.contains("hidden"), "Vehicle modal must offer the inventory control.");
+  expect(toggle.offsetParent !== null, "The inventory control must actually be visible, not merely present.");
   click("#vehicleInventoryToggle");
 }
 

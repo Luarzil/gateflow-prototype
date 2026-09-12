@@ -81,3 +81,11 @@ test("editing the record also settles the review", includes(app, '"typed_barcode
 // The added-by-scan panel carries data-vehicle-action buttons but had no click listener, so its
 // Edit button was inert from the day the panel was built.
 test("the added-by-scan panel is wired to the vehicle actions", includes(app, 'el.incompleteInventoryBody.addEventListener("click", handleVehicleTableAction);'));
+
+// The removal control carries the "hidden" CSS class in the markup, and .hidden is
+// display:none !important. Setting the hidden *property* clears the attribute and leaves the
+// class, so the button stayed invisible while every property-based check passed.
+test("the vehicle removal control is toggled by class, not by the hidden property", () => {
+  assert.ok(app.includes('el.vehicleInventoryToggle.classList.toggle("hidden", !vehicle)'), "must toggle the class");
+  assert.ok(!app.includes("el.vehicleInventoryToggle.hidden ="), "must not set the hidden property");
+});

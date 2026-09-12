@@ -1703,7 +1703,11 @@ function openVehicleModal(vehicle = null) {
   document.getElementById("vehicleModalHeading").textContent = vehicle ? "Edit Vehicle" : "Add Vehicle";
   // CR-V14 item 9: removal moved off the table row and into here, because the VIN is now the only
   // way in. There is nothing to remove on a vehicle that does not exist yet.
-  el.vehicleInventoryToggle.hidden = !vehicle;
+  // The button carries the "hidden" CSS class in the markup, and .hidden { display: none !important }
+  // beats the hidden property. Setting the property cleared the attribute and left the class, so the
+  // control was invisible from the day CR-V14 added it: you could open a vehicle from its VIN but
+  // never remove it. Toggle the class, which is what actually governs the display.
+  el.vehicleInventoryToggle.classList.toggle("hidden", !vehicle);
   if (vehicle) el.vehicleInventoryToggle.textContent = vehicle.active ? "Remove from Inventory" : "Restore to Inventory";
   el.vehicleModal.classList.remove("hidden");
   window.setTimeout(() => el.vehicleVin.focus(), 20);
