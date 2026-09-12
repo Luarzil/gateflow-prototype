@@ -78,24 +78,22 @@
 
                 <div class="wizard-step" data-step="0">
                   <p class="screen-title">Vehicle Barcode</p>
-                  <p class="screen-subtitle">Step 1 of 4. Scan the assigned vehicle barcode or enter it manually.</p>
+                  <p class="screen-subtitle">Step 1 of 4. Scan the assigned vehicle barcode, or tap the field to type it.</p>
                   <div class="scan-group">
                     <label for="barcodeInput">Vehicle Barcode</label>
-                    <div class="scan-input single"><input id="barcodeInput" name="barcodeInput" autocomplete="off" inputmode="text" placeholder="Scan assigned vehicle barcode"></div>
+                    <div class="scan-input single"><input id="barcodeInput" name="barcodeInput" autocomplete="off" inputmode="none" placeholder="Scan assigned vehicle barcode"></div>
                     <p class="field-status" id="barcodeStatus">Awaiting vehicle barcode scan.</p>
-                    <button class="button secondary compact" id="openManualBarcodeButton" type="button">Manual entry</button>
                   </div>
                   <div class="wizard-actions"><button class="button primary full" id="barcodeNext" type="button">Continue to driver</button></div>
                 </div>
 
                 <div class="wizard-step hidden" data-step="1">
                   <p class="screen-title">Driver Employee #</p>
-                  <p class="screen-subtitle">Step 2 of 4. Scan or enter the driver employee number, for example E1003.</p>
+                  <p class="screen-subtitle">Step 2 of 4. Scan the driver employee #, or tap the field to type it. For example E1003.</p>
                   <div class="scan-group">
                     <label for="driverInput">Driver Employee #</label>
-                    <div class="scan-input single"><input id="driverInput" name="driverInput" autocomplete="off" inputmode="text" placeholder="Scan or enter employee #, e.g. E1003"></div>
+                    <div class="scan-input single"><input id="driverInput" name="driverInput" autocomplete="off" inputmode="none" placeholder="Scan or enter employee #, e.g. E1003"></div>
                     <p class="field-status" id="driverStatus">Awaiting employee number scan.</p>
-                    <button class="button secondary compact" id="openManualEmployeeButton" type="button">Manual entry</button>
                   </div>
                   <div class="button-row"><button class="button secondary" id="barcodeBack" type="button">Back to vehicle</button><button class="button primary" id="driverNext" type="button">Choose movement</button></div>
                 </div>
@@ -122,10 +120,17 @@
                   <h2 id="supervisorHeading">Vehicle OUT blocked</h2>
                   <p id="supervisorReason">This driver is not authorized for this movement.</p>
                   <label for="supervisorInput">Approver ID (Fleet Lead or above)</label>
-                  <div class="scan-input single"><input id="supervisorInput" name="supervisorInput" autocomplete="off" inputmode="text" placeholder="Scan or enter Fleet Lead or above ID"></div>
+                  <div class="scan-input single"><input id="supervisorInput" name="supervisorInput" autocomplete="off" inputmode="none" placeholder="Scan or enter Fleet Lead or above ID"></div>
                   <p class="field-status" id="supervisorStatus">Awaiting a valid Fleet Lead or above ID.</p>
                   <label for="supervisorDuration">Temporary authorization</label>
-                  <input id="supervisorDuration" type="hidden" value="9_hours"><p class="field-status">Fleet Lead authorization is fixed at 9 hours.</p>
+                  <select id="supervisorDuration" name="supervisorDuration">
+                    <option value="9_hours" selected>9 Hours</option>
+                    <option value="12_hours">12 Hours</option>
+                    <option value="today">Today</option>
+                    <option value="48_hours">48 Hours</option>
+                    <option value="3_days">3 Days</option>
+                  </select>
+                  <p class="field-status">Defaults to 9 hours. Choose a longer period if the driver needs one.</p>
                   <div class="button-row"><button class="button secondary" id="cancelSupervisorButton" type="button">Cancel OUT</button><button class="button warning" id="approveSupervisorButton" type="button">Approve temporary authorization</button></div>
                 </div>
               </section>
@@ -161,22 +166,22 @@
               </div>
               <div class="bulk-toolbar" aria-label="Bulk driver authorization controls">
                 <div><label for="driverRosterSearch">Search drivers</label><input id="driverRosterSearch" type="search" placeholder="Name or employee #"></div>
-                <div><label for="authorizationDuration">Authorization duration</label><input id="authorizationDuration" type="hidden" value="9_hours"><p class="field-status">Fleet Lead authorization is fixed at 9 hours.</p></div>
+                <div><label for="authorizationDuration">Auth duration</label><select id="authorizationDuration" name="authorizationDuration"><option value="9_hours" selected>9 Hours</option><option value="12_hours">12 Hours</option><option value="today">Today</option><option value="48_hours">48 Hours</option><option value="3_days">3 Days</option></select></div>
                 <button class="button primary" id="bulkAuthorizeButton" type="button">Authorize selected</button>
               </div>
               <p class="field-status" id="bulkActionStatus">No bulk action yet.</p>
-              <div class="table-wrap"><table><thead><tr><th><span class="sr-only">Select</span></th><th>Employee #</th><th>Driver</th><th>Status</th><th>License</th><th>License expiration</th><th>Authorization</th><th>Duration</th><th>Authorization expiration</th><th>Actions</th></tr></thead><tbody id="driversTableBody"></tbody></table></div>
+              <div class="table-wrap"><table><thead><tr><th><span class="sr-only">Select</span></th><th>Emp #</th><th>Driver</th><th>Status</th><th>Lic</th><th>Lic Exp</th><th>Auth</th><th>Dur</th><th>Auth Exp</th><th>Actions</th></tr></thead><tbody id="driversTableBody"></tbody></table></div>
             </section>
             <aside class="supervisor-side-stack">
               <section class="panel compact-panel">
                 <div class="panel-heading"><div><p class="eyebrow">Today</p><h2>Active Driver Authorizations</h2></div><strong class="number-badge" id="adminAuthorizedCount">0</strong></div>
                 <button class="button danger compact" id="deauthorizeAllButton" type="button">Deauthorize all</button>
-                <div class="table-wrap"><table><thead><tr><th>Employee #</th><th>Driver</th><th>Duration</th><th>Scope</th><th>Expires</th><th></th></tr></thead><tbody id="authorizedDriversBody"></tbody></table></div>
+                <div class="table-wrap"><table><thead><tr><th>Emp #</th><th>Driver</th><th>Dur</th><th>Scope</th><th>Expires</th><th></th></tr></thead><tbody id="authorizedDriversBody"></tbody></table></div>
               </section>
               <section class="panel compact-panel">
                 <div class="panel-heading"><div><p class="eyebrow">License review</p><h2>Licenses Approaching Expiration</h2></div></div>
                 <div class="license-summary" aria-label="Driver license warning counts"><div><span>30 days</span><strong id="license30Count">0</strong></div><div><span>15 days</span><strong id="license15Count">0</strong></div><div><span>5 days</span><strong id="license5Count">0</strong></div><div><span>Expired</span><strong id="licenseExpiredCount">0</strong></div></div>
-                <div class="table-wrap"><table><thead><tr><th>Employee #</th><th>Driver</th><th>Expiration</th><th>Warning</th><th>Status</th></tr></thead><tbody id="licenseWarningBody"></tbody></table></div>
+                <div class="table-wrap"><table><thead><tr><th>Emp #</th><th>Driver</th><th>Lic Exp</th><th>Warning</th><th>Status</th></tr></thead><tbody id="licenseWarningBody"></tbody></table></div>
               </section>
             </aside>
           </div>
@@ -186,12 +191,12 @@
           <section class="panel" id="incompleteInventoryPanel">
             <div class="panel-heading"><div><p class="eyebrow">Gate log</p><h2>Vehicles Added By Scan</h2></div><span class="status-badge provisional" id="incompleteInventoryCount">0</span></div>
             <p class="field-status">These vehicles were added to inventory automatically when they were scanned at the gate, rather than being entered by a person. They behave like any other vehicle. This list is a record, not a task list.</p>
-            <div class="table-wrap"><table><thead><tr><th>Assigned Barcode</th><th>Added</th><th>Details still blank</th><th>Actions</th></tr></thead><tbody id="incompleteInventoryBody"></tbody></table></div>
+            <div class="table-wrap"><table><thead><tr><th>Barcode</th><th>Added</th><th>Still blank</th><th>Actions</th></tr></thead><tbody id="incompleteInventoryBody"></tbody></table></div>
           </section>
           <section class="panel">
             <div class="panel-heading"><div><p class="eyebrow">Vehicle inventory</p><h2>Active fleet vehicles</h2></div><button class="button secondary" id="addVehicleButton" type="button">Add Vehicle</button></div>
             <div class="bulk-toolbar vehicle-toolbar"><div><label for="vehicleSearch">Search vehicles</label><input id="vehicleSearch" type="search" placeholder="Barcode, VIN, plate, make, model, year, or color"></div><div><label for="vehicleStatusFilter">Inventory status</label><select id="vehicleStatusFilter"><option value="active">Active</option><option value="inactive">Inactive</option><option value="all">All</option></select></div></div>
-            <div class="table-wrap"><table><thead><tr><th>Assigned Barcode</th><th>Year</th><th>Make</th><th>Model</th><th>Color</th><th>VIN</th><th>Plate</th><th>Status</th><th>Actions</th></tr></thead><tbody id="vehiclesTableBody"></tbody></table></div>
+            <div class="table-wrap"><table><thead><tr><th>Barcode</th><th>Year</th><th>Make</th><th>Model</th><th>Color</th><th>VIN</th><th>Plate</th><th>Status</th></tr></thead><tbody id="vehiclesTableBody"></tbody></table></div>
           </section>
         </section>
 
@@ -199,7 +204,7 @@
           <section class="panel">
             <div class="panel-heading"><div><p class="eyebrow">Device control center</p><h2>Gate scanner devices</h2></div><div class="button-row"><button class="button secondary" id="openDeviceSetupButton" type="button">Set current scanner</button><button class="button secondary" id="addDeviceButton" type="button">Add Device</button></div></div>
             <p class="field-status" id="deviceActionStatus">Choose the simulated current scanner here, outside the scan workflow.</p>
-            <div class="table-wrap"><table><thead><tr><th>Device ID</th><th>Friendly name</th><th>IMEI</th><th>Type</th><th>Assigned location</th><th>Status</th><th>Last used</th><th>Last transaction location</th><th>Actions</th></tr></thead><tbody id="devicesTableBody"></tbody></table></div>
+            <div class="table-wrap"><table><thead><tr><th>Device ID</th><th>Name</th><th>IMEI</th><th>Type</th><th>Location</th><th>Status</th><th>Last used</th><th>Last movement</th><th>Actions</th></tr></thead><tbody id="devicesTableBody"></tbody></table></div>
             <section class="panel compact-panel device-history-panel"><div class="panel-heading"><div><p class="eyebrow">History</p><h2>Recent device changes</h2></div></div><div id="deviceHistoryList" class="audit-list"></div></section>
           </section>
 
@@ -252,7 +257,7 @@
           </div>
           <div class="table-wrap">
             <table class="results-table">
-              <thead><tr><th>Timestamp</th><th>IN / OUT</th><th>Employee #</th><th>Driver</th><th>Driver entry path</th><th>Barcode</th><th>Vehicle entry path</th><th>VIN</th><th>Plate</th><th>Location</th><th>Authorization</th><th>Notes</th><th>Submitted by</th></tr></thead>
+              <thead><tr><th>Timestamp</th><th>IN/OUT</th><th>Emp #</th><th>Driver</th><th>Dr entry</th><th>Barcode</th><th>Veh entry</th><th>VIN</th><th>Plate</th><th>Location</th><th>Auth</th><th>Notes</th><th>By</th></tr></thead>
               <tbody id="searchResultsBody"></tbody>
             </table>
           </div>
@@ -260,26 +265,6 @@
       </section>
 
     </main>
-  </div>
-  <div class="modal-backdrop hidden" id="manualEmployeeModal" role="dialog" aria-modal="true" aria-labelledby="manualEmployeeHeading">
-    <section class="modal-panel">
-      <div class="panel-heading tight">
-        <div><p class="eyebrow">Manual entry</p><h2 id="manualEmployeeHeading">Enter Employee Number</h2></div>
-        <button class="button ghost compact" id="closeManualEmployeeButton" type="button" aria-label="Close manual employee entry">Close</button>
-      </div>
-      <label for="manualEmployeeInput">Driver Employee #</label>
-      <input id="manualEmployeeInput" autocomplete="off" inputmode="text" placeholder="E1001">
-      <p class="field-status" id="manualEmployeeStatus">Manual entries follow the same validation as scans.</p>
-      <div class="button-row"><button class="button secondary" id="cancelManualEmployeeButton" type="button">Cancel</button><button class="button primary" id="submitManualEmployeeButton" type="button">Use employee #</button></div>
-    </section>
-  </div>
-  <div class="modal-backdrop hidden" id="manualBarcodeModal" role="dialog" aria-modal="true" aria-labelledby="manualBarcodeHeading">
-    <section class="modal-panel">
-      <div class="panel-heading tight"><div><p class="eyebrow">Manual entry</p><h2 id="manualBarcodeHeading">Enter Vehicle Barcode</h2></div><button class="button ghost compact" id="closeManualBarcodeButton" type="button" aria-label="Close manual barcode entry">Close</button></div>
-      <label for="manualBarcodeInput">Assigned Vehicle Barcode</label><input id="manualBarcodeInput" autocomplete="off" placeholder="G0001">
-      <p class="field-status" id="manualBarcodeStatus">Manual barcode entries use the same exact-match checks as scans.</p>
-      <div class="button-row"><button class="button secondary" id="cancelManualBarcodeButton" type="button">Cancel</button><button class="button primary" id="submitManualBarcodeButton" type="button">Use Barcode</button></div>
-    </section>
   </div>
   <div class="modal-backdrop hidden" id="driverModal" role="dialog" aria-modal="true" aria-labelledby="driverModalHeading">
     <section class="modal-panel" role="document">
@@ -300,17 +285,17 @@
       <form id="vehicleForm" novalidate>
         <input id="vehicleEditId" type="hidden">
         <div class="modal-form-grid">
-          <div class="form-row"><label for="vehicleMake">Make</label><input id="vehicleMake" required><p class="field-status" id="vehicleMakeError"></p></div>
-          <div class="form-row"><label for="vehicleModel">Model</label><input id="vehicleModel" required><p class="field-status" id="vehicleModelError"></p></div>
-          <div class="form-row"><label for="vehicleYear">Year</label><input id="vehicleYear" required inputmode="numeric" placeholder="2024"><p class="field-status" id="vehicleYearError"></p></div>
-          <div class="form-row"><label for="vehicleColor">Color</label><input id="vehicleColor" required><p class="field-status" id="vehicleColorError"></p></div>
           <div class="form-row"><label for="vehicleVin">VIN</label><input id="vehicleVin" required autocomplete="off"><p class="field-status" id="vehicleVinError"></p></div>
-          <div class="form-row"><label for="vehicleBarcode">Assigned Barcode</label><input id="vehicleBarcode" required autocomplete="off" placeholder="G0006"><p class="field-status" id="vehicleBarcodeError"></p></div>
+          <div class="form-row"><label for="vehicleBarcode">Assigned Barcode (optional)</label><input id="vehicleBarcode" autocomplete="off" placeholder="Assigned automatically if left blank"><p class="field-status" id="vehicleBarcodeError"></p></div>
+          <div class="form-row"><label for="vehicleMake">Make (optional)</label><input id="vehicleMake"><p class="field-status" id="vehicleMakeError"></p></div>
+          <div class="form-row"><label for="vehicleModel">Model (optional)</label><input id="vehicleModel"><p class="field-status" id="vehicleModelError"></p></div>
+          <div class="form-row"><label for="vehicleYear">Year (optional)</label><input id="vehicleYear" inputmode="numeric" placeholder="2024"><p class="field-status" id="vehicleYearError"></p></div>
+          <div class="form-row"><label for="vehicleColor">Color (optional)</label><input id="vehicleColor"><p class="field-status" id="vehicleColorError"></p></div>
           <div class="form-row"><label for="vehiclePlate">Plate (optional)</label><input id="vehiclePlate" autocomplete="off"></div>
           <div class="form-row"><label for="vehicleActive">Inventory status</label><select id="vehicleActive"><option value="true">Active</option><option value="false">Inactive</option></select></div>
         </div>
         <p class="field-status" id="vehicleFormStatus"></p>
-        <div class="button-row"><button class="button secondary" id="cancelVehicleButton" type="button">Cancel</button><button class="button primary" type="submit">Save Vehicle</button></div>
+        <div class="button-row"><button class="button secondary" id="cancelVehicleButton" type="button">Cancel</button><button class="button danger hidden" id="vehicleInventoryToggle" type="button">Remove from Inventory</button><button class="button primary" type="submit">Save Vehicle</button></div>
       </form>
     </section>
   </div>

@@ -18,7 +18,7 @@ Open `http://127.0.0.1:8800/`.
 
 1. Work at one configured gate: Division Street, North Ave, EWR North, or Linden.
 2. Scan the assigned Vehicle Barcode, such as `G0001`.
-3. Scan or enter Driver Employee #, such as `E1003`.
+3. Scan the Driver Employee #, such as `E1003`. Employee numbers may contain letters.
 4. GateFlow resolves the active vehicle profile.
 5. Select IN or OUT and submit.
 

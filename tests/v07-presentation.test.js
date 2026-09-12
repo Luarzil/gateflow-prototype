@@ -9,7 +9,7 @@ const app = fs.readFileSync(path.join(root, "app.js"), "utf8");
 
 assert.equal((html.match(/class="wizard-step(?: hidden)?" data-step="[0-3]"/g) || []).length, 4, "scanner must have four steps");
 assert.match(html, /example E1003/, "employee example must use E####");
-assert.match(html, /placeholder="G0001"/, "vehicle example must use G####");
+assert.match(html, /Scan the assigned vehicle barcode/, "vehicle step must prompt for the assigned barcode");
 assert.match(html, /id="openScannerFeedbackButton"/, "scanner feedback must be available");
 assert.match(html, /id="usersSection"/, "desktop Users tab must be present");
 assert.match(html, /id="openDeviceSetupButton"/, "device setup must be in Supervisor controls");
