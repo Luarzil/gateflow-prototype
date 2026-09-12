@@ -19,7 +19,12 @@ const PRE_CALL_MIGRATION_BACKUP_KEY = "lot-watch.gateflow.v0.7.pre-call-migratio
 const V06_STORAGE_KEY = "lot-watch.gateflow.v0.6.state";
 const V05_STORAGE_KEY = "lot-watch.gateflow.v0.5.state";
 const LEGACY_STORAGE_KEY = "lot-watch.gateflow.v0.4.state";
+// CR-V14 item 4, Patrick 2026-09-12: "Currently there is no way to authorize personnel for more
+// then 9 hours." expirationForDuration always supported these; the interface pinned them to nine
+// hours with a hidden input. This must stay declared up here with the other load-time constants:
+// normalizeV07State reads it, and loadState() runs while the script is still evaluating.
 const TEMP_AUTHORIZATION_DURATION = "9_hours";
+const AUTHORIZATION_DURATIONS = ["9_hours", "12_hours", "today", "48_hours", "3_days"];
 const VIEWS = ["scannerView", "supervisorView", "searchView"];
 
 // CR-V09-ROLE-SHELLS-001 - one codebase, two shells.
@@ -167,9 +172,6 @@ function cacheElements() {
     "flowCancel", "wizardDots", "scannerLocation", "driverInput", "driverStatus", "driverNext", "barcodeInput",
     "barcodeStatus", "barcodeBack", "barcodeNext", "transactionNote", "reviewStepTitle", "reviewBack",
     "scanSummary", "submitTransactionButton", "supervisorReason", "supervisorInput",
-    "openManualEmployeeButton", "openManualBarcodeButton",
-    "manualEmployeeModal", "manualEmployeeInput", "manualEmployeeStatus", "closeManualEmployeeButton", "cancelManualEmployeeButton", "submitManualEmployeeButton",
-    "manualBarcodeModal", "manualBarcodeInput", "manualBarcodeStatus", "closeManualBarcodeButton", "cancelManualBarcodeButton", "submitManualBarcodeButton",
     "supervisorStatus", "cancelSupervisorButton", "approveSupervisorButton",
     "incompleteInventoryPanel", "incompleteInventoryBody", "incompleteInventoryCount",
     "gateMiniFeed", "todayOutCount", "todayInCount", "todayBlockCount",
@@ -186,7 +188,7 @@ function cacheElements() {
     "addVehicleButton", "vehicleSearch", "vehicleStatusFilter", "vehiclesTableBody", "vehicleModal", "vehicleForm",
     "vehicleEditId", "vehicleMake", "vehicleModel", "vehicleYear", "vehicleColor", "vehicleVin", "vehicleBarcode",
     "vehiclePlate", "vehicleActive", "vehicleMakeError", "vehicleModelError", "vehicleYearError", "vehicleColorError",
-    "vehicleVinError", "vehicleBarcodeError", "vehicleFormStatus", "closeVehicleModalButton", "cancelVehicleButton",
+    "vehicleVinError", "vehicleBarcodeError", "vehicleFormStatus", "closeVehicleModalButton", "cancelVehicleButton", "vehicleInventoryToggle",
     "openDeviceSetupButton", "deviceSetupModal", "closeDeviceSetupButton", "currentDeviceSelect", "floaterLocationFields", "floaterLocationSelect", "deviceSetupStatus", "confirmDeviceLocationButton", "changeFloaterLocationButton",
     "devicesTableBody", "deviceHistoryList", "addDeviceButton", "deviceModal", "deviceForm", "closeDeviceModalButton", "cancelDeviceButton", "deviceEditId", "deviceIdInput", "deviceNameInput", "deviceImeiInput", "deviceTypeInput", "deviceLocationInput", "deviceStatusInput", "devicePhoneInput", "deviceNotesInput", "deviceIdError", "deviceNameError", "deviceImeiError", "deviceLocationError", "deviceActionStatus",
     "driverProfileModal", "closeDriverProfileButton", "driverProfileHeading", "driverProfileBody", "profileEditDriverButton", "profileToggleDriverButton",
@@ -223,14 +225,6 @@ function bindEvents() {
   el.driverInput.addEventListener("input", () => handleScanInput("driverInput"));
   el.barcodeInput.addEventListener("input", () => handleScanInput("barcodeInput"));
   el.supervisorInput.addEventListener("input", updateSupervisorStatus);
-  el.openManualEmployeeButton.addEventListener("click", openManualEmployeeModal);
-  el.openManualBarcodeButton.addEventListener("click", openManualBarcodeModal);
-  el.closeManualEmployeeButton.addEventListener("click", closeManualEmployeeModal);
-  el.cancelManualEmployeeButton.addEventListener("click", closeManualEmployeeModal);
-  el.submitManualEmployeeButton.addEventListener("click", submitManualEmployee);
-  el.closeManualBarcodeButton.addEventListener("click", closeManualBarcodeModal);
-  el.cancelManualBarcodeButton.addEventListener("click", closeManualBarcodeModal);
-  el.submitManualBarcodeButton.addEventListener("click", submitManualBarcode);
 
   document.querySelectorAll("[data-demo-field]").forEach((button) => {
     button.addEventListener("click", () => setScannerValue(button.dataset.demoField, button.dataset.demoValue));
@@ -262,6 +256,13 @@ function bindEvents() {
   el.addVehicleButton.addEventListener("click", () => openVehicleModal());
   el.closeVehicleModalButton.addEventListener("click", closeVehicleModal);
   el.cancelVehicleButton.addEventListener("click", closeVehicleModal);
+  // CR-V14 item 1: a scan field must not raise the soft keyboard just because the step opened.
+  // inputmode="none" keeps focus (so a hardware wedge scan still lands in the field) while
+  // telling Android not to show a keyboard. Tapping the field opts into typing.
+  [el.barcodeInput, el.driverInput, el.supervisorInput].forEach((input) => {
+    input.addEventListener("pointerdown", () => enableTypingOn(input));
+  });
+  el.vehicleInventoryToggle.addEventListener("click", toggleVehicleInventoryFromModal);
   el.vehicleForm.addEventListener("submit", saveVehicleForm);
   el.vehicleSearch.addEventListener("input", renderVehicles);
   el.vehicleStatusFilter.addEventListener("change", renderVehicles);
@@ -289,8 +290,8 @@ function bindEvents() {
   el.cancelDesktopUserButton.addEventListener("click", closeDesktopUserModal);
   el.desktopUserForm.addEventListener("submit", saveDesktopUser);
   el.desktopUsersTableBody.addEventListener("click", handleDesktopUserAction);
-  [el.manualEmployeeModal, el.manualBarcodeModal, el.driverModal, el.vehicleModal, el.deviceModal, el.deviceSetupModal, el.driverProfileModal, el.feedbackModal, el.desktopUserModal].forEach((modal) => modal.addEventListener("click", (event) => { if (event.target === modal) closeManagedModal(modal); }));
-  document.addEventListener("keydown", (event) => { if (event.key === "Escape") { [el.manualEmployeeModal, el.manualBarcodeModal, el.driverModal, el.vehicleModal, el.deviceModal, el.deviceSetupModal, el.driverProfileModal, el.feedbackModal, el.desktopUserModal].forEach(closeManagedModal); } });
+  [el.driverModal, el.vehicleModal, el.deviceModal, el.deviceSetupModal, el.driverProfileModal, el.feedbackModal, el.desktopUserModal].forEach((modal) => modal.addEventListener("click", (event) => { if (event.target === modal) closeManagedModal(modal); }));
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") { [el.driverModal, el.vehicleModal, el.deviceModal, el.deviceSetupModal, el.driverProfileModal, el.feedbackModal, el.desktopUserModal].forEach(closeManagedModal); } });
 
   el.searchForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -502,7 +503,12 @@ function normalizeV07State(saved) {
   normalized.authorizations = (normalized.authorizations || []).map((authorization) => {
     const authorizedAt = new Date(authorization.authorizedAt || authorization.validFrom || Date.now());
     const normalizedAuthorization = { ...authorization, driverEmployee: canonicalEmployeeId(authorization.driverEmployee), actionLocation: normalizeLocationName(authorization.actionLocation || authorization.location), location: normalizeLocationName(authorization.location) };
-    return authorization.status === "active" ? { ...normalizedAuthorization, type: TEMP_AUTHORIZATION_DURATION, expiresAt: expirationForDuration(TEMP_AUTHORIZATION_DURATION, authorizedAt).toISOString() } : normalizedAuthorization;
+    // CR-V14 item 4: this used to force every active authorization to 9_hours on load, which
+    // would have quietly shortened any longer grant on the next refresh. A recognised duration
+    // is kept as it was issued; only an unrecognised one falls back.
+    if (authorization.status !== "active") return normalizedAuthorization;
+    const type = AUTHORIZATION_DURATIONS.includes(authorization.type) ? authorization.type : TEMP_AUTHORIZATION_DURATION;
+    return { ...normalizedAuthorization, type, expiresAt: expirationForDuration(type, authorizedAt).toISOString() };
   });
   normalized.devices = (originalDevices.length ? originalDevices : createSeedState().devices).map(normalizeDevice);
   const currentDeviceIndex = originalDevices.findIndex((device) => normalize(device.id) === originalCurrentDeviceId);
@@ -820,6 +826,9 @@ function showWizardStep(step) {
     if (isActive) animateIn(panel);
   });
   updateWizardDots();
+  // CR-V14 item 1: every step opens scan-ready. The operator has to tap a field to get a keyboard,
+  // and that choice does not carry over to the next step.
+  resetScanInputModes();
   if (step === 3) renderScanSummary();
   if (step === 0) {
     el.barcodeInput.focus({ preventScroll: true });
@@ -881,97 +890,53 @@ function handleScanInput(fieldId) {
   const input = el[fieldId];
   const rawValue = input.value;
   recordScannerInput(fieldId, rawValue, "Input");
-  if (fieldId === "barcodeInput") { input.value = canonicalVehicleBarcode(rawValue); ui.vehicleEntryMethod = null; }
+  // CR-V14 item 2: these two lines used to clear the entry method on every keystroke, which was
+  // right while a dialog set it to "manual" afterwards. Now the tap comes first, so clearing here
+  // would erase it before the value is even typed and every movement would look scanned. resetFlow
+  // clears both at the start of a movement, which is the only point they should be forgotten.
+  if (fieldId === "barcodeInput") input.value = canonicalVehicleBarcode(rawValue);
   // The cleared-state warning must survive: updateDriverStatus would otherwise overwrite it with
   // its success notice on the very next line, and the operator would never learn that the
   // previous authorization review and pending approval were discarded.
-  if (fieldId === "driverInput") { ui.driverEntryMethod = null; const cleared = clearDriverDerivedStateIfChanged(rawValue); updateDriverStatus({ preserveNotice: cleared }); }
+  if (fieldId === "driverInput") { const cleared = clearDriverDerivedStateIfChanged(rawValue); updateDriverStatus({ preserveNotice: cleared }); }
   if (fieldId === "barcodeInput") updateBarcodeStatus();
+}
+
+// CR-V14 items 1 and 2: tapping a scan field is what "manual entry" means now, which is why the
+// separate dialog could go. The tap both raises the keyboard and records the entry path, so the
+// audit trail still distinguishes a typed movement from a scanned one.
+function enableTypingOn(input) {
+  if (input.getAttribute("inputmode") !== "none") return;
+  input.setAttribute("inputmode", "text");
+  if (input === el.driverInput) ui.driverEntryMethod = "manual";
+  if (input === el.barcodeInput) ui.vehicleEntryMethod = "manual";
+  if (input === el.driverInput || input === el.barcodeInput) {
+    addAudit("manual_entry_opened", `Manual entry opened for ${input === el.driverInput ? "the driver employee #" : "the vehicle barcode"}.`, currentStationIdentity(), el.scannerLocation.value);
+    saveState();
+  }
+  // Android only re-reads inputmode when the field regains focus.
+  input.blur();
+  input.focus({ preventScroll: true });
+}
+
+// Back to scan-first for the next step or the next movement. The field the operator is currently
+// typing in is left alone: changing a validated driver sends the wizard back to that step, and
+// resetting the mode underneath them would shut the keyboard mid-word.
+function resetScanInputModes() {
+  [el.barcodeInput, el.driverInput, el.supervisorInput]
+    .filter((input) => input !== document.activeElement)
+    .forEach((input) => input.setAttribute("inputmode", "none"));
 }
 
 function recordScannerInput(fieldId, rawValue, terminator) {
   const labels = {
     driverInput: "Driver Employee #",
     barcodeInput: "Vehicle Barcode",
-    manualBarcodeInput: "Manual Vehicle Barcode",
-    supervisorInput: "Approver ID",
-    manualEmployeeInput: "Manual Employee #"
+    supervisorInput: "Approver ID"
   };
   ui.lastRawScan = rawValue || "No scan received";
   ui.lastScanField = labels[fieldId] || fieldId;
   ui.scanTerminator = terminator === "Enter" || terminator === "Tab" ? `${terminator} detected` : terminator;
-}
-
-function openManualEmployeeModal() {
-  addAudit("manual_employee_attempted", "Manual employee-number entry attempted.", currentStationIdentity(), el.scannerLocation.value);
-  saveState();
-  el.manualEmployeeInput.value = el.driverInput.value;
-  el.manualEmployeeStatus.textContent = "Manual entries follow the same validation as scans.";
-  el.manualEmployeeModal.classList.remove("hidden");
-  window.setTimeout(() => el.manualEmployeeInput.focus(), 30);
-}
-
-function closeManualEmployeeModal() {
-  el.manualEmployeeModal.classList.add("hidden");
-  el.driverInput.focus();
-}
-
-function submitManualEmployee() {
-  const employeeNumber = normalizeEmployee(el.manualEmployeeInput.value);
-  recordScannerInput("manualEmployeeInput", employeeNumber, "Enter");
-  if (!employeeNumber) {
-    el.manualEmployeeStatus.textContent = "Employee number is required.";
-    addAudit("manual_employee_rejected", "Manual employee-number entry rejected: empty value.", currentStationIdentity(), el.scannerLocation.value);
-    saveState();
-    shake(el.manualEmployeeInput);
-    return;
-  }
-  const driver = findDriver(employeeNumber);
-  if (!driver) {
-    el.manualEmployeeStatus.textContent = "Employee number was not found in the active driver roster.";
-    addAudit("manual_employee_rejected", `Manual employee-number entry rejected for ${employeeNumber}.`, currentStationIdentity(), el.scannerLocation.value);
-    saveState();
-    shake(el.manualEmployeeInput);
-    return;
-  }
-  el.driverInput.value = employeeNumber;
-  clearDriverDerivedStateIfChanged(employeeNumber);
-  ui.validatedDriverEmployee = employeeNumber;
-  ui.driverEntryMethod = "manual";
-  addAudit("manual_employee_accepted", `Manual employee-number entry accepted for ${employeeNumber}.`, currentStationIdentity(), el.scannerLocation.value);
-  saveState();
-  closeManualEmployeeModal();
-  updateDriverStatus();
-  setNotice("Manual employee number accepted. Choose the vehicle movement.", "success");
-  showWizardStep(2);
-}
-
-function openManualBarcodeModal() {
-  ui.modalTrigger = document.activeElement;
-  el.manualBarcodeInput.value = el.barcodeInput.value;
-  el.manualBarcodeStatus.textContent = "Manual barcode entries use the same exact-match checks as scans.";
-  el.manualBarcodeModal.classList.remove("hidden");
-  window.setTimeout(() => el.manualBarcodeInput.focus(), 20);
-}
-
-function closeManualBarcodeModal() { closeManagedModal(el.manualBarcodeModal); }
-
-function submitManualBarcode() {
-  const barcode = normalize(el.manualBarcodeInput.value);
-  recordScannerInput("manualBarcodeInput", barcode, "Enter");
-  if (!barcode) { el.manualBarcodeStatus.textContent = "Vehicle barcode is required."; shake(el.manualBarcodeInput); return; }
-  const vehicle = findVehicleByBarcode(barcode);
-  // CR-V08-BETA-CRITICAL-APP-001: manual entry follows the same rule as scanning. An unknown
-  // barcode is accepted here and resolved by direction in startTransaction.
-  if (vehicle && !vehicle.active) { el.manualBarcodeStatus.textContent = "Vehicle is inactive and cannot be used for a new movement."; shake(el.manualBarcodeInput); return; }
-  el.barcodeInput.value = barcode;
-  ui.vehicleEntryMethod = "manual";
-  addAudit("manual_barcode_accepted", `Manual vehicle barcode entry accepted for ${barcode}.`, currentStationIdentity(), state.workingLocation);
-  saveState();
-  closeManualBarcodeModal();
-  updateBarcodeStatus();
-  setNotice("Manual barcode accepted. Continue to driver.", "success");
-  showWizardStep(1);
 }
 
 function updateDriverStatus(options = {}) {
@@ -987,6 +952,15 @@ function updateDriverStatus(options = {}) {
   }
 }
 
+// A vehicle may legitimately have no make, model, year or colour: CR-V11 creates them from a
+// gate scan and CR-V14 item 10 lets a supervisor add one with only a VIN. Joining the blanks
+// naively produced "G0006:   , ." on the scanner.
+function vehicleDescription(vehicle) {
+  const words = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ");
+  const parts = [words, vehicle.color].filter(Boolean);
+  return parts.length ? parts.join(", ") : "No details recorded";
+}
+
 function updateBarcodeStatus() {
   const value = canonicalVehicleBarcode(el.barcodeInput.value);
   const vehicle = findVehicleByBarcode(value);
@@ -999,8 +973,8 @@ function updateBarcodeStatus() {
   } else if (!vehicle.active) {
     el.barcodeStatus.textContent = "Vehicle is inactive and cannot be used for a new movement.";
   } else {
-    const vinWarning = vehicle.vin.length === 17 ? "VIN is 17 characters." : `VIN warning: ${vehicle.vin.length} characters.`;
-    el.barcodeStatus.textContent = `${vehicle.assignedBarcode}: ${vehicle.year} ${vehicle.make} ${vehicle.model}, ${vehicle.color}. VIN ${vehicle.vin}; ${vehicle.plate || "No plate"}. ${vinWarning}`;
+    const vinWarning = !vehicle.vin ? "VIN not recorded yet." : vehicle.vin.length === 17 ? "VIN is 17 characters." : `VIN warning: ${vehicle.vin.length} characters.`;
+    el.barcodeStatus.textContent = `${vehicle.assignedBarcode}: ${vehicleDescription(vehicle)}. VIN ${vehicle.vin || "none recorded"}; ${vehicle.plate || "No plate"}. ${vinWarning}`;
     setNotice("Vehicle found. Continue to driver.", "success");
   }
 }
@@ -1141,7 +1115,7 @@ function approveSupervisorOverride() {
     return;
   }
   const driver = findDriver(ui.pendingOverride.driverEmployee);
-  const duration = TEMP_AUTHORIZATION_DURATION;
+  const duration = selectedDuration(el.supervisorDuration);
   const result = authorizeDriver(driver, duration, `${supervisor.id} / ${supervisor.name}`, ui.pendingOverride.location, "supervisor");
   if (!result.ok) {
     el.supervisorStatus.textContent = result.reason;
@@ -1300,6 +1274,13 @@ function createAuthorization(id, employeeNumber, type, actor, location, now = ne
   };
 }
 
+// Reading the select through here keeps an unexpected value from becoming an authorization of
+// unknown length.
+function selectedDuration(element) {
+  const value = element && element.value;
+  return AUTHORIZATION_DURATIONS.includes(value) ? value : TEMP_AUTHORIZATION_DURATION;
+}
+
 function authorizeDriver(driver, type, actor, location, source) {
   if (!driver) return { ok: false, reason: "Driver was not found." };
   if (!driver.active) return { ok: false, reason: "Driver is inactive." };
@@ -1367,11 +1348,15 @@ function licenseStatus(driver) {
   const now = new Date();
   const expirationBoundary = licenseExpirationBoundary(driver.licenseExpires);
   const days = Math.floor((startOfLocalDay(new Date(driver.licenseExpires)) - startOfLocalDay(now)) / 86400000);
-  if (now >= expirationBoundary) return { label: "Expired - authorization blocked", tone: "expired", days };
-  if (days <= 5) return { label: "Expires within 5 days", tone: "warning5", days };
-  if (days <= 15) return { label: "Expires within 15 days", tone: "warning15", days };
-  if (days <= 30) return { label: "Expires within 30 days", tone: "warning30", days };
-  return { label: "License current", tone: "current", days };
+  // CR-V14 item 6, Patrick 2026-09-12: "Within the Driver Roster section change Expired
+  // -Authorization Blocked to Exp". The short form is for the roster table, where the column only
+  // has to be scannable. The long label stays on the scanner, where an operator refused at the gate
+  // needs to read why rather than decode an abbreviation.
+  if (now >= expirationBoundary) return { label: "Expired - authorization blocked", short: "Exp", tone: "expired", days };
+  if (days <= 5) return { label: "Expires within 5 days", short: "5d", tone: "warning5", days };
+  if (days <= 15) return { label: "Expires within 15 days", short: "15d", tone: "warning15", days };
+  if (days <= 30) return { label: "Expires within 30 days", short: "30d", tone: "warning30", days };
+  return { label: "License current", short: "Current", tone: "current", days };
 }
 
 function licenseExpirationBoundary(licenseExpires) {
@@ -1398,7 +1383,7 @@ function handleDriverTableAction(event) {
   const driver = findDriverAny(employeeNumber);
   if (!driver) return;
   if (button.dataset.driverAction === "authorize") {
-    const result = authorizeDriver(driver, TEMP_AUTHORIZATION_DURATION, "Supervisor Console", "", "user action");
+    const result = authorizeDriver(driver, selectedDuration(el.authorizationDuration), "Supervisor Console", "", "user action");
     el.bulkActionStatus.textContent = result.ok ? `Authorized ${employeeNumber}.` : result.reason;
   }
   if (button.dataset.driverAction === "deauthorize") {
@@ -1439,13 +1424,14 @@ function bulkAuthorizeDrivers() {
     el.bulkActionStatus.textContent = "Select at least one eligible driver first.";
     return;
   }
-  const ok = typeof confirm === "function" ? confirm(`Authorize ${selected.length} selected drivers for ${humanDuration(TEMP_AUTHORIZATION_DURATION)}?`) : true;
+  const bulkDuration = selectedDuration(el.authorizationDuration);
+  const ok = typeof confirm === "function" ? confirm(`Authorize ${selected.length} selected drivers for ${humanDuration(bulkDuration)}?`) : true;
   if (!ok) return;
   let successful = 0;
   const blocked = [];
   selected.forEach((checkbox) => {
     const driver = findDriverAny(checkbox.value);
-    const result = authorizeDriver(driver, TEMP_AUTHORIZATION_DURATION, "Supervisor Console", "", "bulk action");
+    const result = authorizeDriver(driver, bulkDuration, "Supervisor Console", "", "bulk action");
     if (result.ok) successful += 1;
     else blocked.push(`${checkbox.value}: ${result.reason}`);
   });
@@ -1679,19 +1665,46 @@ function openVehicleModal(vehicle = null) {
   [[el.vehicleMake, "make"], [el.vehicleModel, "model"], [el.vehicleYear, "year"], [el.vehicleColor, "color"], [el.vehicleVin, "vin"], [el.vehicleBarcode, "assignedBarcode"], [el.vehiclePlate, "plate"]].forEach(([input, key]) => { input.value = vehicle ? vehicle[key] || "" : ""; });
   el.vehicleActive.value = vehicle && !vehicle.active ? "false" : "true";
   document.getElementById("vehicleModalHeading").textContent = vehicle ? "Edit Vehicle" : "Add Vehicle";
+  // CR-V14 item 9: removal moved off the table row and into here, because the VIN is now the only
+  // way in. There is nothing to remove on a vehicle that does not exist yet.
+  el.vehicleInventoryToggle.hidden = !vehicle;
+  if (vehicle) el.vehicleInventoryToggle.textContent = vehicle.active ? "Remove from Inventory" : "Restore to Inventory";
   el.vehicleModal.classList.remove("hidden");
-  window.setTimeout(() => el.vehicleMake.focus(), 20);
+  window.setTimeout(() => el.vehicleVin.focus(), 20);
 }
 
 function closeVehicleModal() { closeManagedModal(el.vehicleModal); }
 
+function toggleVehicleInventoryFromModal() {
+  const vehicle = state.vehicles.find((item) => item.id === el.vehicleEditId.value);
+  if (!vehicle) return;
+  if (!setVehicleInventoryState(vehicle, !vehicle.active)) return;
+  saveState(); closeVehicleModal(); renderAll();
+}
+
+// A vehicle with no barcode is invisible to the scanner, so a blank one is filled in with the
+// next free G number rather than rejected. Uniqueness is still enforced for anything typed in.
+function nextAvailableBarcode() {
+  const used = new Set(state.vehicles.map((vehicle) => vehicle.assignedBarcode));
+  for (let n = 1; n <= 9999; n += 1) {
+    const candidate = `G${String(n).padStart(4, "0")}`;
+    if (!used.has(candidate)) return candidate;
+  }
+  return `G${Date.now().toString().slice(-4)}`;
+}
+
 function saveVehicleForm(event) {
   event.preventDefault(); clearVehicleErrors();
   const vehicleId = el.vehicleEditId.value;
-  const fields = { make: el.vehicleMake.value.trim(), model: el.vehicleModel.value.trim(), year: Number(el.vehicleYear.value.trim()), color: el.vehicleColor.value.trim(), vin: normalize(el.vehicleVin.value), assignedBarcode: canonicalVehicleBarcode(el.vehicleBarcode.value), plate: normalize(el.vehiclePlate.value), active: el.vehicleActive.value === "true" };
+  const enteredBarcode = canonicalVehicleBarcode(el.vehicleBarcode.value);
+  const fields = { make: el.vehicleMake.value.trim(), model: el.vehicleModel.value.trim(), year: el.vehicleYear.value.trim() ? Number(el.vehicleYear.value.trim()) : "", color: el.vehicleColor.value.trim(), vin: normalize(el.vehicleVin.value), assignedBarcode: enteredBarcode || nextAvailableBarcode(), plate: normalize(el.vehiclePlate.value), active: el.vehicleActive.value === "true" };
   let invalid = false;
-  [["make", el.vehicleMakeError, "Make is required."], ["model", el.vehicleModelError, "Model is required."], ["color", el.vehicleColorError, "Color is required."], ["vin", el.vehicleVinError, "VIN is required."], ["assignedBarcode", el.vehicleBarcodeError, "Assigned Barcode is required."]].forEach(([key, node, message]) => { if (!fields[key]) { node.textContent = message; invalid = true; } });
-  if (!Number.isInteger(fields.year) || fields.year < 1900 || fields.year > new Date().getFullYear() + 2) { el.vehicleYearError.textContent = "Year must be a reasonable four-digit value."; invalid = true; }
+  // CR-V14 item 10, Patrick 2026-09-12: "When adding a vehicle nothing is required other then
+  // the VIN under this section." Make, model, year, colour and plate are all optional now, and a
+  // blank barcode is assigned rather than refused, because a vehicle with no barcode could never
+  // be found at the gate.
+  if (!fields.vin) { el.vehicleVinError.textContent = "VIN is required."; invalid = true; }
+  if (el.vehicleYear.value.trim() && (!Number.isInteger(fields.year) || fields.year < 1900 || fields.year > new Date().getFullYear() + 2)) { el.vehicleYearError.textContent = "Year must be a reasonable four-digit value."; invalid = true; }
   if (state.vehicles.some((vehicle) => vehicle.id !== vehicleId && vehicle.vin === fields.vin)) { el.vehicleVinError.textContent = "VIN must be unique."; invalid = true; }
   if (state.vehicles.some((vehicle) => vehicle.id !== vehicleId && vehicle.assignedBarcode === fields.assignedBarcode)) { el.vehicleBarcodeError.textContent = "Assigned Barcode must be unique and is never reused."; invalid = true; }
   if (invalid) return;
@@ -1718,14 +1731,20 @@ function handleVehicleTableAction(event) {
   const vehicle = state.vehicles.find((item) => item.id === button.dataset.vehicleId);
   if (!vehicle) return;
   if (button.dataset.vehicleAction === "edit") { openVehicleModal(vehicle); return; }
-  const restoring = button.dataset.vehicleAction === "restore";
+  if (!setVehicleInventoryState(vehicle, button.dataset.vehicleAction === "restore")) return;
+  saveState(); renderAll();
+}
+
+// Shared by the modal control and any remaining row action so the confirmation prompt and the
+// audit entry cannot drift apart between the two routes.
+function setVehicleInventoryState(vehicle, restoring) {
   const prompt = restoring ? `Restore ${vehicle.assignedBarcode} to active inventory?` : `Remove ${vehicle.assignedBarcode} from inventory? It will remain searchable but cannot be scanned for new movements.`;
-  if (typeof confirm === "function" && !confirm(prompt)) return;
+  if (typeof confirm === "function" && !confirm(prompt)) return false;
   vehicle.active = restoring;
   vehicle.updatedAt = new Date().toISOString(); vehicle.updatedBy = "Supervisor Console";
   if (restoring) { vehicle.reactivatedAt = vehicle.updatedAt; addAudit("vehicle_restored", `Vehicle ${vehicle.assignedBarcode} restored to inventory.`, "Supervisor Console", ""); }
   else { vehicle.removedAt = vehicle.updatedAt; vehicle.removedBy = "Supervisor Console"; addAudit("vehicle_removed_from_inventory", `Vehicle ${vehicle.assignedBarcode} removed from inventory.`, "Supervisor Console", ""); }
-  saveState(); renderAll();
+  return true;
 }
 
 // CR-V08-BETA-CRITICAL-APP-001: the supervisor work queue for auto-created inbound vehicles.
@@ -1753,7 +1772,7 @@ function renderVehicles() {
     const haystack = [vehicle.assignedBarcode, vehicle.vin, vehicle.plate, vehicle.make, vehicle.model, vehicle.year, vehicle.color].join(" ").toUpperCase();
     return matchesStatus && (!needle || haystack.includes(needle));
   });
-  el.vehiclesTableBody.innerHTML = vehicles.length ? vehicles.map((vehicle) => `<tr><td class="mono">${escapeHtml(vehicle.assignedBarcode)}</td><td>${escapeHtml(vehicle.year)}</td><td>${escapeHtml(vehicle.make)}</td><td>${escapeHtml(vehicle.model)}</td><td>${escapeHtml(vehicle.color)}</td><td class="mono">${escapeHtml(vehicle.vin)}</td><td>${escapeHtml(vehicle.plate || "-")}</td><td><span class="status-badge ${vehicle.active ? "authorized" : "inactive"}">${vehicle.active ? "Active" : "Inactive"}</span>${isScannerAddedVehicle(vehicle) ? ` <span class="status-badge provisional" title="This vehicle was added automatically when it was scanned at the gate, rather than being entered by a person.">Added by scan</span>` : ""}</td><td class="action-stack"><button class="table-action" type="button" data-vehicle-action="edit" data-vehicle-id="${escapeHtml(vehicle.id)}">Edit</button><button class="table-action ${vehicle.active ? "danger-text" : "success-text"}" type="button" data-vehicle-action="${vehicle.active ? "remove" : "restore"}" data-vehicle-id="${escapeHtml(vehicle.id)}">${vehicle.active ? "Remove from Inventory" : "Restore to Inventory"}</button></td></tr>`).join("") : `<tr><td colspan="9" class="empty-cell">No vehicles match this inventory view.</td></tr>`;
+  el.vehiclesTableBody.innerHTML = vehicles.length ? vehicles.map((vehicle) => `<tr><td class="mono">${escapeHtml(vehicle.assignedBarcode)}</td><td>${escapeHtml(vehicle.year)}</td><td>${escapeHtml(vehicle.make)}</td><td>${escapeHtml(vehicle.model)}</td><td>${escapeHtml(vehicle.color)}</td><td><button class="table-action mono" type="button" data-vehicle-action="edit" data-vehicle-id="${escapeHtml(vehicle.id)}" aria-label="Open ${escapeHtml(vehicle.assignedBarcode)} to edit or remove it">${escapeHtml(vehicle.vin || "Add VIN")}</button></td><td>${escapeHtml(vehicle.plate || "-")}</td><td><span class="status-badge ${vehicle.active ? "authorized" : "inactive"}">${vehicle.active ? "Active" : "Inactive"}</span>${isScannerAddedVehicle(vehicle) ? ` <span class="status-badge provisional" title="This vehicle was added automatically when it was scanned at the gate, rather than being entered by a person.">Added by scan</span>` : ""}</td></tr>`).join("") : `<tr><td colspan="8" class="empty-cell">No vehicles match this inventory view.</td></tr>`;
 }
 
 function openDriverProfile(driver) {
@@ -1889,7 +1908,7 @@ function handleDeviceTableAction(event) {
 function renderDevices() {
   if (!el.devicesTableBody) return;
   const devices = state.devices || [];
-  el.devicesTableBody.innerHTML = devices.map((device) => `<tr><td class="mono">${escapeHtml(device.id)}</td><td>${escapeHtml(device.name)}</td><td class="mono">${escapeHtml(device.imei)}</td><td>${escapeHtml(device.type)}</td><td>${escapeHtml(device.assignedLocation || "Floater")}</td><td><span class="status-badge ${device.active ? "authorized" : "inactive"}">${escapeHtml(device.status)}</span></td><td>${device.lastUsedAt ? escapeHtml(formatTimestamp(device.lastUsedAt)) : "-"}</td><td>${escapeHtml(device.lastTransactionLocation || "-")}</td><td class="action-stack"><button class="table-action" type="button" data-device-action="edit" data-device-id="${escapeHtml(device.id)}">Edit</button><button class="table-action" type="button" data-device-action="history" data-device-id="${escapeHtml(device.id)}">History</button><button class="table-action ${device.active ? "danger-text" : "success-text"}" type="button" data-device-action="${device.active ? "inactive" : "reactivate"}" data-device-id="${escapeHtml(device.id)}">${device.active ? "Mark inactive" : "Reactivate"}</button></td></tr>`).join("") || `<tr><td colspan="9" class="empty-cell">No devices configured.</td></tr>`;
+  el.devicesTableBody.innerHTML = devices.map((device) => `<tr><td><button class="table-action mono" type="button" data-device-action="edit" data-device-id="${escapeHtml(device.id)}" aria-label="Open ${escapeHtml(device.id)} to edit">${escapeHtml(device.id)}</button></td><td>${escapeHtml(device.name)}</td><td class="mono">${escapeHtml(device.imei)}</td><td>${escapeHtml(device.type)}</td><td>${escapeHtml(device.assignedLocation || "Floater")}</td><td><span class="status-badge ${device.active ? "authorized" : "inactive"}">${escapeHtml(device.status)}</span></td><td>${device.lastUsedAt ? escapeHtml(formatTimestamp(device.lastUsedAt)) : "-"}</td><td>${escapeHtml(device.lastTransactionLocation || "-")}</td><td class="action-stack"><button class="table-action" type="button" data-device-action="history" data-device-id="${escapeHtml(device.id)}">History</button><button class="table-action ${device.active ? "danger-text" : "success-text"}" type="button" data-device-action="${device.active ? "inactive" : "reactivate"}" data-device-id="${escapeHtml(device.id)}">${device.active ? "Mark inactive" : "Reactivate"}</button></td></tr>`).join("") || `<tr><td colspan="9" class="empty-cell">No devices configured.</td></tr>`;
   const deviceEvents = state.auditEvents.filter((event) => event.type.includes("device") || event.type.includes("floater")).slice(0, 5);
   el.deviceHistoryList.innerHTML = deviceEvents.length ? deviceEvents.map((event) => `<article class="audit-event muted"><div class="audit-type">${escapeHtml(event.type.replaceAll("_", " "))}</div><div><h2>${escapeHtml(event.description)}</h2><p>${escapeHtml(event.actor)}</p></div><time>${escapeHtml(formatTimestamp(event.timestamp))}</time></article>`).join("") : `<p class="empty-state">No device changes recorded.</p>`;
 }
@@ -1934,7 +1953,7 @@ function renderScanSummary() {
     ["Movement", `Vehicle ${ui.direction}`],
     ["Location", el.scannerLocation.value],
     ["Driver", driver ? `${driver.employeeNumber} - ${driver.name}` : "Awaiting employee #"],
-    ["Vehicle", vehicle ? `${vehicle.assignedBarcode} - ${vehicle.year} ${vehicle.make} ${vehicle.model}` : "Awaiting barcode"],
+    ["Vehicle", vehicle ? `${vehicle.assignedBarcode} - ${vehicleDescription(vehicle)}` : "Awaiting barcode"],
     ["Authorization", authorization]
   ]);
 }
@@ -1986,7 +2005,7 @@ function renderDesktopUsers() {
   const users = state.desktopUsers || [];
   el.desktopUsersTableBody.innerHTML = users.length ? users.map((user) => {
     const normalizedUser = normalizeDesktopUser(user);
-    return `<tr><td class="mono">${escapeHtml(normalizedUser.id)}</td><td>${escapeHtml(normalizedUser.name)}</td><td class="mono">${escapeHtml(normalizedUser.username)}</td><td>${escapeHtml(normalizedUser.role)}</td><td><span class="status-badge ${normalizedUser.active ? "authorized" : "inactive"}">${normalizedUser.active ? "Active" : "Inactive"}</span></td><td>${escapeHtml(normalizedUser.scope)}</td><td>${escapeHtml(credentialStatusLabel(normalizedUser))}</td><td>${abilitySummary(normalizedUser.abilities)}</td><td class="action-stack"><button class="table-action" type="button" data-user-action="edit" data-user-id="${escapeHtml(normalizedUser.id)}">Edit</button><button class="table-action" type="button" data-user-action="reset" data-user-id="${escapeHtml(normalizedUser.id)}">Mark reset</button></td></tr>`;
+    return `<tr><td><button class="table-action mono" type="button" data-user-action="edit" data-user-id="${escapeHtml(normalizedUser.id)}" aria-label="Open ${escapeHtml(normalizedUser.name)} to edit">${escapeHtml(normalizedUser.id)}</button></td><td><button class="table-action" type="button" data-user-action="edit" data-user-id="${escapeHtml(normalizedUser.id)}">${escapeHtml(normalizedUser.name)}</button></td><td class="mono">${escapeHtml(normalizedUser.username)}</td><td>${escapeHtml(normalizedUser.role)}</td><td><span class="status-badge ${normalizedUser.active ? "authorized" : "inactive"}">${normalizedUser.active ? "Active" : "Inactive"}</span></td><td>${escapeHtml(normalizedUser.scope)}</td><td>${escapeHtml(credentialStatusLabel(normalizedUser))}</td><td>${abilitySummary(normalizedUser.abilities)}</td><td class="action-stack"><button class="table-action" type="button" data-user-action="reset" data-user-id="${escapeHtml(normalizedUser.id)}">Mark reset</button></td></tr>`;
   }).join("") : `<tr><td colspan="9" class="empty-cell">No desktop users configured.</td></tr>`;
 }
 
@@ -2032,9 +2051,9 @@ function renderDriverRow(driver) {
     <td>${escapeHtml(driver.employeeNumber)}</td>
     <td><button class="table-action" type="button" data-driver-action="profile" data-driver-employee="${escapeHtml(driver.employeeNumber)}" aria-label="View profile for ${escapeHtml(driver.name)}">${escapeHtml(driver.name)}</button></td>
     <td><span class="status-badge ${driver.active ? "authorized" : "inactive"}">${driver.active ? "Active" : "Inactive"}</span></td>
-    <td><span class="status-badge ${statusClass}">${escapeHtml(license.label)}</span></td>
+    <td><span class="status-badge ${statusClass}" title="${escapeHtml(license.label)}">${escapeHtml(license.short)}</span></td>
     <td>${escapeHtml(formatDate(driver.licenseExpires))}</td>
-    <td><span class="status-badge ${auth ? "authorized" : "unauthorized"}">${auth ? "Authorized" : "Not authorized"}</span></td>
+    <td><span class="status-badge ${auth ? "authorized" : "unauthorized"}">${auth ? "Auth" : "No auth"}</span></td>
     <td>${auth ? escapeHtml(humanDuration(auth.type)) : "-"}</td>
     <td>${auth ? escapeHtml(formatTimestamp(auth.expiresAt)) : "-"}</td>
     <td class="action-stack"><button class="table-action" type="button" data-driver-action="edit" data-driver-employee="${escapeHtml(driver.employeeNumber)}">Edit</button><button class="table-action" type="button" data-driver-action="toggle" data-driver-employee="${escapeHtml(driver.employeeNumber)}">${driver.active ? "Mark inactive" : "Reactivate"}</button>${auth ? `<button class="table-action danger-text" type="button" data-driver-action="deauthorize" data-driver-employee="${escapeHtml(driver.employeeNumber)}">Revoke</button>` : `<button class="table-action success-text" type="button" data-driver-action="authorize" data-driver-employee="${escapeHtml(driver.employeeNumber)}" ${eligible ? "" : "disabled"}>Authorize</button>`}</td>
@@ -2130,12 +2149,22 @@ function normalize(value) {
 }
 
 function normalizeEmployee(value) {
-  return canonicalEmployeeId(value).replace(/^E/, "");
+  return canonicalEmployeeId(value);
 }
 
+// CR-V14 item 3, Patrick 2026-09-12: "Employee numbers must be allowed to contain letters."
+// This used to strip every non-digit and re-apply an "E", so AB123 silently became E123 and two
+// different people could collapse onto one record. Letters and digits are both kept now.
+//
+// The legacy folding is kept for numeric IDs only: EMP-1003, E-1003 and 1003 all still mean E1003,
+// because that is how existing records, the seed data and Patrick's test values are written. It is
+// deliberately not applied when anything non-numeric follows, so AB123 stays AB123 and is never
+// mistaken for a prefixed number.
 function canonicalEmployeeId(value) {
-  const digits = normalize(value).replace(/^EMP-?/, "").replace(/^E-?/, "").replace(/\D/g, "");
-  return digits ? `E${digits}` : "";
+  const source = normalize(value).replace(/[^A-Z0-9]/g, "");
+  if (!source) return "";
+  const legacyNumeric = source.match(/^(?:EMP|E)?(\d+)$/);
+  return legacyNumeric ? `E${legacyNumeric[1]}` : source;
 }
 
 function canonicalVehicleBarcode(value, index) {

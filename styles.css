@@ -178,8 +178,22 @@ textarea { resize: vertical; min-height: 68px; }
 .simple-list span { color: var(--muted); font-size: 12px; font-weight: 500; }
 
 .table-wrap { min-width: 0; max-width: 100%; overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-th, td { padding: 10px; border-bottom: 1px solid #e3e8e4; text-align: left; vertical-align: top; white-space: nowrap; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: auto; }
+/* CR-V14 item 5, Patrick 2026-09-12: "the size of the panel is too wide. Goal should be to limit
+   the width so that a slide bar is not needed to view all of the section's data." Abbreviating the
+   headers got most of the way; the rest comes from tighter cells and letting text wrap instead of
+   forcing every column onto one line. Identifiers keep nowrap, because a VIN or a barcode broken
+   across two lines is harder to read than a slightly taller row. */
+th, td { padding: 6px 7px; border-bottom: 1px solid #e3e8e4; text-align: left; vertical-align: top; }
+/* Headers stay on one line now that they are abbreviated; breaking "CREDENTIAL" across two lines
+   costs more width than it saves. Cell text wraps at spaces only, never mid-word. */
+th { white-space: nowrap; }
+td { white-space: normal; overflow-wrap: normal; word-break: normal; }
+td.mono { white-space: nowrap; }
+/* The movement history carries thirteen columns, so it gets a slightly smaller face to fit a
+   laptop screen without a horizontal bar. Everything else stays at 13px. */
+#searchView table { font-size: 12px; }
+#searchView th, #searchView td { padding: 5px 6px; }
 th { color: var(--muted); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
 tbody tr:last-child td { border-bottom: 0; }
 .table-action { padding: 0; border: 0; color: var(--green); background: transparent; font-size: 12px; font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }

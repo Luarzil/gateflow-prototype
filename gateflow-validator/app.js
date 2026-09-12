@@ -63,11 +63,11 @@ const tests = [
   ["Lowercase employee prefix works", () => testEmployeeVariant("emp-1001")],
   ["Employee spaces trim correctly", () => testEmployeeVariant("  1001  ")],
   ["Legacy EMP- employee values still resolve", () => testEmployeeVariant("EMP-1002")],
-  ["Manual barcode control is visible", testManualBarcodeSurface],
-  ["Valid manual barcode works", testManualBarcode],
-  ["Blank manual barcode is rejected", testManualBarcodeReject],
-  ["Unknown manual barcode is accepted and added", testManualBarcodeUnknownAccepted],
-  ["Manual and scanned barcode paths match", testBarcodePathMatch],
+  ["Scan fields open without a keyboard", testScanFieldsOpenScanReady],
+  ["Typed barcode works after tapping the field", testManualBarcode],
+  ["Blank barcode is rejected", testManualBarcodeReject],
+  ["Unknown typed barcode is accepted and added", testManualBarcodeUnknownAccepted],
+  ["Typed and scanned barcode paths match", testBarcodePathMatch],
   ["Barcode entry method is stored", testBarcodeEntryMethod],
   ["Success flow is shortened", testShortFlow],
   ["Submission returns straight to the scanner home", testImmediateReturnHome],
@@ -198,8 +198,10 @@ async function testSurface() {
   expect(q('[data-view="supervisorView"]'), "Supervisor navigation is missing.");
   expect(!doc().querySelector('[data-view="auditView"]'), "Audit navigation is still visible.");
   expect(!doc().querySelector("#auditView"), "Audit view is still visible.");
-  expect(q("#openManualEmployeeButton"), "Manual employee entry control is missing.");
-  expect(q("#openManualBarcodeButton"), "Manual barcode entry control is missing.");
+  expect(!doc().querySelector("#openManualEmployeeButton"), "Manual employee entry button should have been removed.");
+  expect(!doc().querySelector("#openManualBarcodeButton"), "Manual barcode entry button should have been removed.");
+  expect(!doc().querySelector("#manualEmployeeModal"), "Manual employee dialog should have been removed.");
+  expect(!doc().querySelector("#manualBarcodeModal"), "Manual barcode dialog should have been removed.");
   expect(q('[data-supervisor-section="devicesSection"]'), "Devices Supervisor section is missing.");
   expect(![...doc().querySelectorAll("button")].some((button) => /sim scan/i.test(button.textContent)), "A SIM Scan control is visible.");
 }
@@ -210,22 +212,31 @@ async function testEmployeeVariant(value) {
   expect(text("#driverStatus").includes(expectedName), `Employee variant ${value} did not resolve to ${expectedName}.`);
 }
 
-async function testManualBarcodeSurface() { click("#startScanButton"); click("#openManualBarcodeButton"); await waitForVisible("#manualBarcodeModal"); expect(/same exact-match/i.test(text("#manualBarcodeStatus")), "Manual barcode dialog does not describe exact matching."); }
+async function testScanFieldsOpenScanReady() {
+  click("#startScanButton");
+  await waitForStep(0);
+  expect(q("#barcodeInput").getAttribute("inputmode") === "none", "Barcode field must open without raising the keyboard.");
+  tap("#barcodeInput");
+  expect(q("#barcodeInput").getAttribute("inputmode") === "text", "Tapping the barcode field must allow typing.");
+  input("#barcodeInput", "G0001"); key("#barcodeInput", "Enter");
+  await waitForStep(1);
+  expect(q("#driverInput").getAttribute("inputmode") === "none", "The next step must open scan-ready again.");
+}
 
-async function testManualBarcode() { click("#startScanButton"); click("#openManualBarcodeButton"); input("#manualBarcodeInput", "g0001"); click("#submitManualBarcodeButton"); await waitForStep(1); expect(q("#barcodeInput").value === "G0001", "Manual barcode was not normalized or accepted."); }
+async function testManualBarcode() { click("#startScanButton"); tap("#barcodeInput"); input("#barcodeInput", "g0001"); key("#barcodeInput", "Enter"); await waitForStep(1); expect(q("#barcodeInput").value === "G0001", "Typed barcode was not normalized or accepted."); }
 
-async function testManualBarcodeReject() { click("#startScanButton"); click("#openManualBarcodeButton"); input("#manualBarcodeInput", ""); click("#submitManualBarcodeButton"); expect(/required/i.test(text("#manualBarcodeStatus")), "Blank manual barcode was accepted."); }
+async function testManualBarcodeReject() { click("#startScanButton"); tap("#barcodeInput"); input("#barcodeInput", ""); click("#barcodeNext"); expect(!q('.wizard-step[data-step="1"]') || q('.wizard-step[data-step="1"]').classList.contains("hidden"), "Blank barcode advanced past the vehicle step."); }
 
 // CR-V11 made an unknown barcode ordinary inventory rather than an error, which is what Patrick
 // asked for. The check that used to live here asserted the opposite, so it is replaced rather
 // than dropped: the rule is still worth pinning down, it just changed direction.
-async function testManualBarcodeUnknownAccepted() { click("#startScanButton"); click("#openManualBarcodeButton"); input("#manualBarcodeInput", "G9001"); click("#submitManualBarcodeButton"); await waitForStep(1); expect(q("#barcodeInput").value === "G9001", "Unknown manual barcode was not accepted."); expect(/added automatically/i.test(text("#barcodeStatus")), "Unknown manual barcode did not explain that it will be added."); }
+async function testManualBarcodeUnknownAccepted() { click("#startScanButton"); tap("#barcodeInput"); input("#barcodeInput", "G9001"); key("#barcodeInput", "Enter"); await waitForStep(1); expect(q("#barcodeInput").value === "G9001", "Unknown typed barcode was not accepted."); }
 
-async function testBarcodePathMatch() { await beginScan("1001", "G0001"); const scanned = text("#barcodeStatus"); click("#flowCancel"); click("#startScanButton"); click("#openManualBarcodeButton"); input("#manualBarcodeInput", "G0001"); click("#submitManualBarcodeButton"); expect(text("#barcodeStatus") === scanned, "Manual barcode lookup does not match the scanned lookup result."); }
+async function testBarcodePathMatch() { await beginScan("1001", "G0001"); const scanned = text("#barcodeStatus"); click("#flowCancel"); click("#startScanButton"); tap("#barcodeInput"); input("#barcodeInput", "G0001"); key("#barcodeInput", "Enter"); expect(text("#barcodeStatus") === scanned, "Typed barcode lookup does not match the scanned lookup result."); }
 
 // CR-V13-SCANNER-ORDER-001: manual barcode entry now lands on the driver step, not the movement
 // choice, so the driver has to be entered before a direction can be picked.
-async function testBarcodeEntryMethod() { await testManualBarcode(); input("#driverInput", "1001"); key("#driverInput", "Enter"); await waitForStep(2); click("#directionIn"); click("#submitTransactionButton"); await waitForHome(); expect(latestTransaction().barcodeEntryMethod === "manual", "Manual barcode entry method was not saved."); }
+async function testBarcodeEntryMethod() { await testManualBarcode(); input("#driverInput", "1001"); key("#driverInput", "Enter"); await waitForStep(2); click("#directionIn"); click("#submitTransactionButton"); await waitForHome(); expect(latestTransaction().barcodeEntryMethod === "manual", "Tapping the field must record the barcode as manually entered."); }
 
 async function testShortFlow() { await beginScan("1001", "G0001"); expect(doc().querySelectorAll(".wizard-step").length === 4 && text(".wizard-step[data-step=\"2\"] .screen-subtitle").includes("Step 3 of 4"), "Scanner still exposes a redundant step count."); }
 
@@ -386,22 +397,26 @@ async function testExpiredLicenseBlock() {
 
 async function testManualEntry() {
   click("#startScanButton");
-  await waitFor("#openManualEmployeeButton");
-  click("#openManualEmployeeButton");
-  await waitFor("#manualEmployeeInput");
-  input("#manualEmployeeInput", "E9999");
-  click("#submitManualEmployeeButton");
-  expect(/not found/i.test(text("#manualEmployeeStatus")), "Invalid manual entry was not rejected in the UI.");
-  expect(events().some((event) => event.type === "manual_employee_attempted"), "Manual entry attempt event is missing.");
-  expect(events().some((event) => event.type === "manual_employee_rejected"), "Manual entry rejection event is missing.");
+  await waitForStep(0);
+  input("#barcodeInput", "G0001"); key("#barcodeInput", "Enter");
+  await waitForStep(1);
+  tap("#driverInput");
+  input("#driverInput", "E9999"); key("#driverInput", "Enter");
+  expect(/not found/i.test(text("#driverStatus")), "Invalid typed employee number was not rejected.");
+  expect(events().some((event) => event.type === "manual_entry_opened"), "Tapping the field must be recorded in the audit trail.");
+  expect(state().transactions.every((transaction) => transaction.driverEmployee !== "E9999"), "An unknown driver must not produce a movement.");
 }
 
 async function testSupervisor() {
   click('[data-view="supervisorView"]');
   await waitFor("#authorizationDuration");
-  expect(q("#authorizationDuration").type === "hidden" && q("#authorizationDuration").value === "9_hours", "Fleet Lead duration is not fixed to 9 hours.");
-  expect(q("#supervisorDuration").type === "hidden" && q("#supervisorDuration").value === "9_hours", "Supervisor override duration is not fixed to 9 hours.");
-  expect(!doc().querySelector("#authorizationDuration option") && !doc().querySelector("#supervisorDuration option"), "A duration chooser is still visible.");
+  // CR-V14 item 4: "Currently there is no way to authorize personnel for more then 9 hours."
+  // Both controls are now selects that still default to nine hours.
+  expect(q("#authorizationDuration").tagName === "SELECT", "Roster authorization duration must be selectable.");
+  expect(q("#authorizationDuration").value === "9_hours", "Roster authorization must still default to 9 hours.");
+  expect(q("#supervisorDuration").tagName === "SELECT", "Override duration must be selectable.");
+  expect(q("#supervisorDuration").value === "9_hours", "Override duration must still default to 9 hours.");
+  expect([...q("#supervisorDuration").options].some((option) => option.value === "3_days"), "A duration longer than 9 hours must be offered.");
   expect(doc().body.textContent.includes("All current locations"), "Global authorization scope is not visible in Admin.");
   expect(q("#license30Count") && q("#license15Count") && q("#license5Count") && q("#licenseExpiredCount"), "License warning controls are incomplete.");
   expect(doc().body.textContent.includes("Drivers are operational records, not application login accounts."), "The driver-versus-user rule is not explained in the Supervisor console.");
@@ -491,16 +506,29 @@ async function testBulkDeauthorize() {
   expect(events().filter((event) => event.type === "driver_deauthorized").length >= 1, "Bulk deauthorization audit history is missing.");
 }
 
+// The VIN cell is the only way into a vehicle now, so every removal and restore goes through it.
+function removeVehicleThroughVin(vehicleId) {
+  click(`[data-vehicle-action="edit"][data-vehicle-id="${vehicleId}"]`);
+  expect(!q("#vehicleInventoryToggle").hidden, "Vehicle modal must offer the inventory control.");
+  click("#vehicleInventoryToggle");
+}
+
 async function testVehicleRequiredValidation() {
   click('[data-view="supervisorView"]');
   click('[data-supervisor-section="vehiclesSection"]');
   click("#addVehicleButton");
   click('#vehicleForm button[type="submit"]');
-  expect(/required/i.test(text("#vehicleMakeError")), "Blank vehicle make was accepted.");
-  expect(/reasonable four-digit/i.test(text("#vehicleYearError")), "Blank vehicle year was accepted.");
+  // CR-V14 item 10: "When adding a vehicle nothing is required other then the VIN under this
+  // section." Only the VIN is refused when blank; a missing barcode is assigned instead.
   expect(/required/i.test(text("#vehicleVinError")), "Blank VIN was accepted.");
-  expect(/required/i.test(text("#vehicleBarcodeError")), "Blank barcode was accepted.");
-  click("#cancelVehicleButton");
+  expect(!/required/i.test(text("#vehicleMakeError")), "Make must be optional.");
+  expect(!/required/i.test(text("#vehicleBarcodeError")), "Barcode must be optional.");
+  expect(!/reasonable four-digit/i.test(text("#vehicleYearError")), "A blank year must be accepted.");
+  input("#vehicleVin", "VINONLYTEST123456");
+  click('#vehicleForm button[type="submit"]');
+  const vinOnly = state().vehicles.find((item) => item.vin === "VINONLYTEST123456");
+  expect(vinOnly, "A vehicle with only a VIN was not saved.");
+  expect(/^G\d{4}$/.test(vinOnly.assignedBarcode), "A vehicle saved without a barcode must be assigned one.");
 }
 
 async function testVehicleInventory() {
@@ -517,11 +545,13 @@ async function testVehicleInventory() {
   expect(/unique/i.test(text("#vehicleBarcodeError")), "Duplicate barcode was accepted.");
   click("#cancelVehicleButton");
   const vehicle = state().vehicles.find((item) => item.assignedBarcode === "G0999");
-  click(`[data-vehicle-action="remove"][data-vehicle-id="${vehicle.id}"]`);
+  // CR-V14 item 9: "Remove the Edit and Remove from Inventory actions. The user will be able to
+  // edit and remove from inventor by accessing the VIN data by clicking on VIN."
+  removeVehicleThroughVin(vehicle.id);
   expect(state().vehicles.find((item) => item.id === vehicle.id).active === false, "Vehicle was not removed from inventory.");
   select(q("#vehicleStatusFilter"), "all");
   expect(text("#vehiclesTableBody").includes("G0999"), "Inactive vehicle is not searchable in inventory.");
-  click(`[data-vehicle-action="restore"][data-vehicle-id="${vehicle.id}"]`);
+  removeVehicleThroughVin(vehicle.id);
   expect(state().vehicles.find((item) => item.id === vehicle.id).active === true, "Vehicle was not restored to inventory.");
 }
 
@@ -550,7 +580,7 @@ async function testRemovedVehicleScanBlock() {
   click('[data-view="supervisorView"]');
   click('[data-supervisor-section="vehiclesSection"]');
   const vehicle = state().vehicles.find((item) => item.assignedBarcode === "G0002");
-  click(`[data-vehicle-action="remove"][data-vehicle-id="${vehicle.id}"]`);
+  removeVehicleThroughVin(vehicle.id);
   click('[data-view="scannerView"]');
   click("#startScanButton");
   input("#barcodeInput", "G0002"); key("#barcodeInput", "Enter");
@@ -563,10 +593,13 @@ async function testDurationCalculations() {
   await waitForVisible("#supervisorView");
   click('[data-driver-action="authorize"][data-driver-employee="E1003"]');
   const authorization = state().authorizations.find((item) => item.driverEmployee === "E1003" && item.status === "active");
-  expect(authorization && authorization.type === "9_hours", "Authorization did not use the fixed 9-hour duration.");
+  expect(authorization && authorization.type === "9_hours", "Authorization did not use the default 9-hour duration.");
   const elapsed = new Date(authorization.expiresAt).getTime() - new Date(authorization.authorizedAt).getTime();
   expect(elapsed === 9 * 60 * 60 * 1000, "9-hour expiration is not exact.");
-  expect(!doc().querySelector("#authorizationDuration option"), "A selectable or permanent authorization duration is available.");
+  // CR-V14 item 4: longer durations are offered now, but nothing permanent. An authorization
+  // that never expires would defeat the point of a temporary override.
+  expect(doc().querySelector("#authorizationDuration option"), "Longer authorization durations must be offered.");
+  expect(![...q("#authorizationDuration").options].some((option) => /permanent|never/i.test(option.textContent)), "A permanent authorization duration must not be offered.");
 }
 
 async function testRevocation() {
@@ -740,6 +773,8 @@ function q(selector) { const node = doc().querySelector(selector); expect(node, 
 function text(selector) { return q(selector).textContent.trim(); }
 function click(selector) { q(selector).click(); }
 function input(selector, value) { const node = q(selector); const win = targetWindow(); node.value = value; node.dispatchEvent(new win.Event("input", { bubbles: true })); }
+// CR-V14 item 1: tapping a scan field is what opens the keyboard and marks the entry as manual.
+function tap(selector) { const win = targetWindow(); q(selector).dispatchEvent(new win.PointerEvent("pointerdown", { bubbles: true })); }
 function key(selector, keyName) { const win = targetWindow(); q(selector).dispatchEvent(new win.KeyboardEvent("keydown", { key: keyName, bubbles: true })); }
 function select(node, value) { const win = targetWindow(); node.value = value; node.dispatchEvent(new win.Event("change", { bubbles: true })); }
 function state() { const raw = targetWindow().localStorage.getItem(STATE_KEY); expect(raw, "Target state was not saved."); return JSON.parse(raw); }

@@ -58,8 +58,11 @@ link on it once.
 After submitting, the scanner returns **straight to the home screen**. There is no confirmation
 step and no extra tap. This was changed in this release.
 
-If a scan will not read, **Manual entry** is available at both the driver and vehicle steps. The
-record shows whether each value was scanned or typed.
+If a scan will not read, **tap the field** and the keyboard appears. There is no separate manual
+entry button any more: the field is the manual path. The keyboard stays out of the way until you
+ask for it, so the scanner trigger works the moment a step opens.
+
+The record still shows whether each value was scanned or typed.
 
 ---
 
@@ -106,8 +109,35 @@ about the **driver**, not the vehicle.
 > S3090 / Casey Rowe holds Scanner and cannot approve a Vehicle OUT override. Fleet Lead or above
 > is required.
 
-Enter `S2040` instead and it is approved for nine hours. Both the approval and the refusal are
+Enter `S2040` instead and it is approved. Both the approval and the refusal are
 recorded.
+
+### Employee numbers can contain letters
+
+`AB123` and `J5000` are accepted and kept exactly as entered. Purely numeric numbers still
+resolve the way they always did, so `1003`, `E1003` and `EMP-1003` all mean the same driver.
+
+### Authorizations can run longer than nine hours
+
+Both the gate override and **Supervisor -> Drivers** now offer 9 Hours, 12 Hours, Today, 48 Hours
+and 3 Days. Nine hours is still the default, so nothing changes unless you choose otherwise.
+
+### Records open from their own identifier
+
+Click a **VIN** to open a vehicle, a **User ID** or name to open a user, a **Device ID** to open a
+device, a **driver name** to open a driver. Editing and removing happen inside that record rather
+than from buttons on the row, so the tables are narrower and there is one way in instead of two.
+
+### Adding a vehicle needs only a VIN
+
+Make, model, year, colour, plate and barcode are all optional. If you leave the barcode blank,
+Veri-Gate assigns the next free one, because a vehicle with no barcode could never be found at
+the gate. This does not change what happens when an unknown vehicle is scanned in at a gate.
+
+### Supervisor tables fit the screen
+
+Column headings are abbreviated -- Emp #, Lic Exp, Auth, Auth Exp -- and the tables no longer
+need a horizontal scrollbar to read.
 
 ### Scanner and console are separate
 
