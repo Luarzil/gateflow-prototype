@@ -112,6 +112,29 @@ about the **driver**, not the vehicle.
 Enter `S2040` instead and it is approved. Both the approval and the refusal are
 recorded.
 
+### Typed barcodes are checked, scanned ones are not
+
+A vehicle arriving that nobody has seen before is ordinary traffic. Scan it and it goes through
+with no interruption, exactly as before.
+
+Typing a barcode by hand is the one case that gets checked, because that is the only place a
+digit can be mistyped:
+
+- **A part-typed barcode is refused.** `G00` is not a vehicle, it is half a barcode. Veri-Gate
+  asks for all four digits rather than quietly filling in the rest. It used to turn `G00` into
+  `G0000` and create a vehicle under a barcode nobody had entered.
+- **A complete typed barcode that is not in inventory shows a caution.** *Check this barcode.
+  G0044 is not in inventory. Continue if it is right.* It does **not** stop you. If the vehicle
+  really is new, carry on; the operator is the only person who still remembers what they typed.
+
+### Supervisors see typed barcodes that were never verified
+
+**Supervisor -> Vehicles -> Vehicles Added By Scan.** A vehicle created from a typed barcode is
+marked **Check barcode** and offers **Barcode is correct**. Confirming it, or opening the record
+and correcting the barcode, clears the mark. Both are recorded.
+
+Vehicles added by an actual scan are not marked. Nothing is waiting on a supervisor for those.
+
 ### Employee numbers can contain letters
 
 `AB123` and `J5000` are accepted and kept exactly as entered. Purely numeric numbers still

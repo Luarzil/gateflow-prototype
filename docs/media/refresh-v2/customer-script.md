@@ -1,39 +1,75 @@
 ## Veri-Gate
 
-Meet Veri Gate. A practical way to record who is driving, which vehicle is moving, and when it passes through the gate. Let's follow a typical movement.
+Meet Veri Gate. Record which vehicle is moving, who is driving, and when it passes through the gate. Here is the current review workflow.
 
-## Start with the driver.
+## Start with the vehicle.
 
-First, scan the driver's badge, or enter their employee number. The screen brings up the driver and their authorization status, so the operator has the context they need.
+Start by scanning the vehicle barcode. The field opens scan ready, with keyboard input suppressed. When typing is needed, tap the field. The tap marks that entry as manual.
 
-## Identify the vehicle.
+## Then the driver.
 
-Next, scan the vehicle barcode. For a known vehicle, its details appear on screen. If it is new to inventory, Veri Gate adds a record automatically as the movement is processed.
+Next, scan the driver employee number. Confirm the driver before choosing the movement direction.
 
-## Choose. Review. Record.
+## Flexible employee IDs.
 
-Choose in or out, review the movement, and submit. The record includes the driver, vehicle, gate, device, and time. The scanner then returns to the start, ready for the next vehicle.
+Employee numbers can include letters, as this demonstration record shows. Numeric forms such as one zero zero three and E M P dash one zero zero three still resolve to E one zero zero three.
 
-## Keep the record moving.
+## Choose IN or OUT.
 
-A newly added vehicle can leave through the normal process. Missing inventory details do not hold it up. The usual driver authorization and license checks still apply.
+Choose whether the vehicle is entering or leaving. Then continue to the review screen.
 
-## Handle exceptions.
+## Review, then submit.
 
-When a driver needs temporary authorization, a Fleet Lead or higher role can approve it. The prototype records that decision, keeping the exception connected to the movement.
+Choose the direction, then review the movement before submitting. The scanner returns to the start after recording it.
 
-## The wider view.
+## A new scanned vehicle.
 
-The desktop console brings the operational records together. Supervisors can manage drivers, update vehicle details, and review the devices assigned to each location.
+An unknown scanned barcode continues without a barcode warning. Its vehicle record is created when the movement is submitted, without a Check barcode flag. Normal driver checks still apply.
 
-## Find the record.
+## Complete the barcode.
 
-When a question comes up later, search the movement history by driver, vehicle, location, or date. The details captured at the gate are there to review.
+When typing is needed, tap the barcode field. That tap enables typing and records manual entry. A partial barcode such as G zero zero is refused. Enter all four digits.
 
-## Ready for a closer look.
+## Check a typed barcode.
 
-This review build runs on Android and stores records on the device, including without a signal. Shared cloud data and automatic synchronization are still being developed. For now, it is ready to explore the gate workflow.
+A complete typed barcode that is not in inventory warns: Check this barcode. Continue if it is right. The movement can proceed, and the vehicle is marked Check barcode for supervisor review.
+
+## A supervisor can review.
+
+In the console, the vehicle created from the typed unknown barcode is marked Check barcode, making it visible for supervisor review.
+
+## Controlled exceptions.
+
+For a driver who needs temporary authorization, approval requires a Fleet Lead or higher role. Here, an approver with the Scanner role is refused.
+
+## Select the duration.
+
+Choose nine hours, twelve hours, today, forty eight hours, or three days. Nine hours is the default selection.
+
+## The Supervisor Console.
+
+The desktop console brings vehicle inventory and operational records together for supervisors.
+
+## Start with a VIN.
+
+To add a vehicle, enter its V I N. Other details can be completed later. Leave the barcode blank to assign the next free G barcode automatically.
+
+## Saved to inventory.
+
+The saved vehicle now appears in inventory with its automatically assigned barcode. Select its V I N to open the record.
+
+## Open the right record.
+
+User records open from their User I D or name, keeping the record directly accessible from the list.
+
+## Devices and locations.
+
+Select a Device I D to open that device. Supervisors can review the location and device details associated with gate operations.
+
+## Find the movement.
+
+Search movement history by driver, vehicle, location, or date. The information captured at the gate remains available to review.
 
 ## Veri-Gate
 
-Veri Gate. A focused workflow at the gate, and a clearer record to work from afterward.
+This Android review build stores records on the device. Shared cloud data and automatic synchronization are still being developed. Veri Gate brings a focused workflow to the gate and a clearer record afterward.

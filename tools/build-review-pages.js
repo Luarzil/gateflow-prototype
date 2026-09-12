@@ -108,12 +108,12 @@ const review = `
 
   <div class="card">
     <h2>2. Watch the customer introduction</h2>
-    <p>About two minutes. A modern overview of the gate workflow with new female narration.</p>${video("verigate-customer-v2", "customer", "01.png")}
+    <p>About three and a half minutes. An overview of the gate workflow, made for Verizon and the client.</p>${video("verigate-customer-v2", "customer", "01.png")}
   </div>
 
   <div class="card">
     <h2>3. Watch the latest changes walkthrough</h2>
-    <p>About two minutes. Shows unknown-vehicle handling, user editing, the single Admin role, and the movement history.</p>${video("verigate-walkthrough-v2", "walkthrough", "01.png")}
+    <p>About four and a half minutes. Walks through your latest list: vehicle-first scanning, the scan-ready keyboard, letters in employee numbers, longer authorizations, the barcode checks, and the updated supervisor console.</p>${video("verigate-walkthrough-v2", "walkthrough", "01.png")}
     <details><summary>Earlier video editions</summary><p><a class="text-link" href="docs/media/verigate-v08-demo.html">Original changes review</a><br><a class="text-link" href="docs/media/verigate-customer.html">Original customer presentation</a></p></details>
   </div>
 

@@ -40,19 +40,19 @@ const slides = [
     duration: 20000
   },
   {
-    file: "04-driver.png",
+    file: "04-vehicle.png",
     mode: "phone",
-    title: "Start With The Driver",
-    caption: "Scan the badge, or type the number if it is damaged.",
-    narration: "A movement starts with the driver. The operator scans the employee badge, or types the number if a badge is damaged. Veri-Gate shows who they are and whether their licence and authorisation are current, before the vehicle is even involved.",
+    title: "Start With The Vehicle",
+    caption: "Scan the vehicle barcode first.",
+    narration: "Start with the vehicle barcode. The field opens scan ready. Tap it to type when needed; that tap marks the entry as manual.",
     duration: 18000
   },
   {
-    file: "05-vehicle.png",
+    file: "05-driver.png",
     mode: "phone",
-    title: "Then The Vehicle",
-    caption: "Make, model, colour and plate come straight back.",
-    narration: "Then the vehicle. Scan the barcode on the windscreen and the make, model, colour and plate come straight back, so the operator can confirm the vehicle in front of them is the vehicle on the screen.",
+    title: "Then The Driver",
+    caption: "Scan or enter the employee number.",
+    narration: "Next, scan the driver employee number. Letters are supported, including A B one two three. Numeric forms such as one zero zero three and E M P one zero zero three resolve to E one zero zero three.",
     duration: 16000
   },
   {
@@ -60,7 +60,7 @@ const slides = [
     mode: "phone",
     title: "In Or Out. One Tap.",
     caption: "Recorded with driver, vehicle, gate, device and exact time.",
-    narration: "In or out. One tap. The movement is recorded with the driver, the vehicle, the gate, the device, the exact time, and whether the barcode was scanned or entered by hand. Then the scanner returns straight to the start, ready for the next vehicle. At a busy gate, seconds matter.",
+    narration: "Choose in or out, then review and submit. The movement is recorded with the driver, vehicle, gate, device, time, and whether the barcode was scanned or entered by hand. The scanner then returns to the start.",
     duration: 20000
   },
   {
@@ -68,7 +68,7 @@ const slides = [
     mode: "phone",
     title: "A Vehicle Nobody Expected",
     caption: "Accepted, recorded, and created automatically.",
-    narration: "Vehicles arrive that are not on any list. A transfer nobody logged, a new unit, a contractor truck. Veri-Gate accepts it, records the arrival, and creates the vehicle automatically. The operator is not stopped and not asked to make a decision. A vehicle arriving is rarely the risk.",
+    narration: "An unknown scanned vehicle continues without a barcode warning or review flag. A complete unknown barcode typed by hand warns the operator and flags the vehicle for a supervisor. A partial typed barcode must be completed.",
     duration: 26000
   },
   {
@@ -108,7 +108,7 @@ const slides = [
     mode: "desktop",
     title: "Drivers And Authorisation",
     caption: "Roster, licence expiry, and temporary authorisations.",
-    narration: "Supervisors manage the driver roster, licence expiry, and temporary authorisations, individually or in groups. Drivers are records, never logins. Only staff have accounts, and what each account can do is set per person.",
+    narration: "Supervisors manage the driver roster, licence expiry, and temporary authorisations. Choose nine hours, twelve hours, today, forty eight hours, or three days. Nine hours is the default. Drivers are records, never logins.",
     duration: 22000
   },
   {
@@ -132,7 +132,7 @@ const slides = [
     mode: "phone",
     title: "Built For The Yard",
     caption: "A standard Android app that keeps working without a signal.",
-    narration: "Veri-Gate installs as a standard Android application. It runs on the handheld itself, so it keeps working when the signal does not. Movements are stored on the device and upload automatically when the connection returns, marked as delayed so nothing is silently lost. No cabling, no gate hardware, no site works.",
+    narration: "This Android review build stores movements locally on the device. Shared cloud data and automatic synchronization are still being developed.",
     duration: 22000
   },
   {
@@ -272,118 +272,7 @@ async function screenshot(cdp, filename) {
 }
 
 async function captureFrames(cdp, appUrl) {
-  const phone = () => setViewport(cdp, 390, 844, true);
-  const desktop = () => setViewport(cdp, 1280, 860, false);
-  const type = (sel, value) => evaluate(cdp, `(() => { const n = document.querySelector('${sel}'); n.value = '${value}'; n.dispatchEvent(new Event('input', { bubbles: true })); })()`);
-  const click = (sel) => evaluate(cdp, `document.querySelector('${sel}').click()`);
-  const pause = (ms) => new Promise((r) => setTimeout(r, ms));
-  const scanner = async () => { await cdp.send("Page.navigate", { url: `${appUrl}?shell=scanner` }); await waitForReady(cdp); await pause(400); };
-  const console_ = async () => { await cdp.send("Page.navigate", { url: `${appUrl}?shell=console` }); await waitForReady(cdp); await pause(500); };
-
-  await phone();
-  await cdp.send("Page.navigate", { url: `${appUrl}?shell=scanner&demo=${Date.now()}` });
-  await waitForReady(cdp);
-  await evaluate(cdp, "localStorage.clear()");
-  await cdp.send("Page.reload", { ignoreCache: true });
-  await waitForReady(cdp);
-  await pause(500);
-  await screenshot(cdp, "01-title.png");
-  await screenshot(cdp, "03-handheld.png");
-
-  await desktop();
-  await console_();
-  await evaluate(cdp, "document.querySelector('[data-view=\"searchView\"]').click(); document.querySelector('#searchForm').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));");
-  await pause(500);
-  await screenshot(cdp, "02-problem.png");
-
-  await phone();
-  await scanner();
-  await click('#startScanButton');
-  await type('#driverInput', 'E1001');
-  await pause(300);
-  await screenshot(cdp, "04-driver.png");
-
-  await click('#driverNext');
-  await type('#barcodeInput', 'G0001');
-  await pause(300);
-  await screenshot(cdp, "05-vehicle.png");
-
-  await click('#barcodeNext');
-  await pause(300);
-  await screenshot(cdp, "06-movement.png");
-
-  await click('#directionIn');
-  await click('#submitTransactionButton');
-  await pause(600);
-
-  await click('#startScanButton');
-  await type('#driverInput', 'E1001');
-  await click('#driverNext');
-  await type('#barcodeInput', 'G9001');
-  await pause(300);
-  await screenshot(cdp, "07-unknown.png");
-
-  await click('#barcodeNext');
-  await click('#directionIn');
-  await click('#submitTransactionButton');
-  await pause(600);
-
-  await click('#startScanButton');
-  await type('#driverInput', 'E1001');
-  await click('#driverNext');
-  await type('#barcodeInput', 'G9001');
-  await click('#barcodeNext');
-  await click('#directionOut');
-  await click('#submitTransactionButton');
-  await pause(500);
-  await screenshot(cdp, "08-exit.png");
-
-  await scanner();
-  await click('#startScanButton');
-  await type('#driverInput', 'E1003');
-  await click('#driverNext');
-  await type('#barcodeInput', 'G0003');
-  await click('#barcodeNext');
-  await click('#directionOut');
-  await click('#submitTransactionButton');
-  await pause(500);
-  await type('#supervisorInput', 'S3090');
-  await pause(200);
-  await evaluate(cdp, "const b=document.querySelector('#approveSupervisorButton'); if(b) b.click();");
-  await pause(400);
-  await screenshot(cdp, "09-override.png");
-
-  await desktop();
-  await console_();
-  await evaluate(cdp, `document.querySelector('[data-view="supervisorView"]').click()`);
-  await pause(400);
-  await screenshot(cdp, "10-console.png");
-
-  await evaluate(cdp, "document.querySelector('[data-view=\"supervisorView\"]').click(); document.querySelector('[data-supervisor-section=\"vehiclesSection\"]').click()");
-  await pause(400);
-  await screenshot(cdp, "11-complete.png");
-
-  await evaluate(cdp, "document.querySelector('[data-supervisor-section=\"driversSection\"]').click()");
-  await pause(400);
-  await screenshot(cdp, "12-drivers.png");
-
-  await evaluate(cdp, "document.querySelector('[data-supervisor-section=\"devicesSection\"]').click()");
-  await pause(400);
-  await screenshot(cdp, "13-devices.png");
-
-  await evaluate(cdp, `(() => {
-    document.querySelector('[data-view="searchView"]').click();
-    const d = document.querySelector('#filterDriver');
-    if (d) { d.value = 'E1001'; d.dispatchEvent(new Event('input', { bubbles: true })); }
-    document.querySelector('#searchForm').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-  })()`);
-  await pause(500);
-  await screenshot(cdp, "14-search.png");
-
-  await phone();
-  await scanner();
-  await screenshot(cdp, "15-yard.png");
-  await screenshot(cdp, "16-close.png");
+  await require("./capture-video-frames")({ cdp, appUrl, evaluate, setViewport, waitForReady, screenshot, customer: true });
 }
 
 function createNarration() {
@@ -585,11 +474,10 @@ ${slidesMarkup}
 async function main() {
   if (!fs.existsSync(chromePath)) throw new Error(`Chrome is required: ${chromePath}`);
   fs.mkdirSync(frameDir, { recursive: true });
-  for (const file of fs.readdirSync(frameDir)) fs.rmSync(path.join(frameDir, file), { force: true });
-  createNarration();
-  const audioMs = wavDurationMs(audioPath);
+  if (!process.argv.includes("--frames-only")) createNarration();
+  const audioMs = process.argv.includes("--frames-only") ? 0 : wavDurationMs(audioPath);
   const timelineSlides = fitSlidesToAudio(slides, audioMs);
-  writeFallbackHtml(timelineSlides);
+  if (!process.argv.includes("--frames-only")) writeFallbackHtml(timelineSlides);
 
   const webPort = await freePort();
   const debugPort = await freePort();
@@ -615,6 +503,7 @@ async function main() {
     await cdp.send("Runtime.enable");
     const appUrl = `http://127.0.0.1:${webPort}/`;
     await captureFrames(cdp, appUrl);
+    if (process.argv.includes("--frames-only")) { console.log("Verified current workflow frames captured."); return; }
     const video = await createWebm(cdp, appUrl, timelineSlides);
     console.log(JSON.stringify({
       audio: audioPath,

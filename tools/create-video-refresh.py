@@ -1,4 +1,4 @@
-"""CR-V12: additive, audio-timed video editions using existing V11 captures."""
+"""Audio-timed Jenny video editions using asserted current-workflow captures."""
 import asyncio
 import hashlib
 import html
@@ -6,6 +6,7 @@ import json
 import math
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 import edge_tts
@@ -26,28 +27,49 @@ def scene(frame, title, takeaway, narration, chapter, layout='phone'):
 
 VIDEOS = {
  'customer': [
-  scene('c/01-title.png', 'Veri-Gate', 'A clearer record of every movement.', 'Meet Veri Gate. A practical way to record who is driving, which vehicle is moving, and when it passes through the gate. Let\'s follow a typical movement.', 'THE BIG PICTURE'),
-  scene('c/04-driver.png', 'Start with\nthe driver.', 'Scan a badge. Confirm the driver.', 'First, scan the driver\'s badge, or enter their employee number. The screen brings up the driver and their authorization status, so the operator has the context they need.', 'AT THE GATE'),
-  scene('c/05-vehicle.png', 'Identify\nthe vehicle.', 'One barcode connects the movement.', 'Next, scan the vehicle barcode. For a known vehicle, its details appear on screen. If it is new to inventory, Veri Gate adds a record automatically as the movement is processed.', 'AT THE GATE'),
-  scene('c/06-movement.png', 'Choose.\nReview. Record.', 'Driver, vehicle, location and time.', 'Choose in or out, review the movement, and submit. The record includes the driver, vehicle, gate, device, and time. The scanner then returns to the start, ready for the next vehicle.', 'AT THE GATE'),
-  scene('c/08-exit.png', 'Keep the\nrecord moving.', 'New vehicles follow the usual driver checks.', 'A newly added vehicle can leave through the normal process. Missing inventory details do not hold it up. The usual driver authorization and license checks still apply.', 'A CONTINUOUS RECORD'),
-  scene('c/09-override.png', 'Handle\nexceptions.', 'Temporary approval: Fleet Lead or above.', 'When a driver needs temporary authorization, a Fleet Lead or higher role can approve it. The prototype records that decision, keeping the exception connected to the movement.', 'ACCOUNTABILITY'),
-  scene('c/10-console.png', 'The wider view.', 'Drivers, vehicles and devices in one console.', 'The desktop console brings the operational records together. Supervisors can manage drivers, update vehicle details, and review the devices assigned to each location.', 'IN THE OFFICE', 'desktop'),
-  scene('c/14-search.png', 'Find the record.', 'Search the history behind a movement.', 'When a question comes up later, search the movement history by driver, vehicle, location, or date. The details captured at the gate are there to review.', 'IN THE OFFICE', 'desktop'),
-  scene('c/15-yard.png', 'Ready for\na closer look.', 'Android review build. Local device storage.', 'This review build runs on Android and stores records on the device, including without a signal. Shared cloud data and automatic synchronization are still being developed. For now, it is ready to explore the gate workflow.', 'CURRENT REVIEW BUILD'),
-  scene('c/16-close.png', 'Veri-Gate', 'Every movement starts with a clear record.', 'Veri Gate. A focused workflow at the gate, and a clearer record to work from afterward.', 'LET\'S TAKE A LOOK'),
+  scene("c/01-title.png", "Veri-Gate", "A clear record of each gate movement.", "Meet Veri Gate. Record which vehicle is moving, who is driving, and when it passes through the gate. Here is the current review workflow.", "CAVALRY / PRODUCT REVIEW"),
+  scene("c/04-vehicle.png", "Start with the vehicle.", "Scan the vehicle barcode first.", "Start by scanning the vehicle barcode. The field opens scan ready, with keyboard input suppressed. When typing is needed, tap the field. The tap marks that entry as manual.", "AT THE GATE"),
+  scene("c/05-driver.png", "Then the driver.", "Scan or enter the employee number.", "Next, scan the driver employee number. Confirm the driver before choosing the movement direction.", "AT THE GATE"),
+  scene("c/alphanumeric-driver.png", "Flexible employee IDs.", "Letters are supported alongside numeric IDs.", "Employee numbers can include letters, as this demonstration record shows. Numeric forms such as one zero zero three and E M P dash one zero zero three still resolve to E one zero zero three.", "AT THE GATE"),
+  scene("c/06-movement.png", "Choose IN or OUT.", "Direction comes after vehicle and driver.", "Choose whether the vehicle is entering or leaving. Then continue to the review screen.", "AT THE GATE"),
+  scene("c/review.png", "Review, then submit.", "Vehicle, driver, direction, gate and time.", "Choose the direction, then review the movement before submitting. The scanner returns to the start after recording it.", "AT THE GATE"),
+  scene("c/07-unknown.png", "A new scanned vehicle.", "Continues without a barcode warning or review flag.", "An unknown scanned barcode continues without a barcode warning. Its vehicle record is created when the movement is submitted, without a Check barcode flag. Normal driver checks still apply.", "SCANNED ENTRY"),
+  scene("c/typed-partial.png", "Complete the barcode.", "G00 is incomplete. Enter all four digits.", "When typing is needed, tap the barcode field. That tap enables typing and records manual entry. A partial barcode such as G zero zero is refused. Enter all four digits.", "TYPED ENTRY"),
+  scene("c/typed-unknown.png", "Check a typed barcode.", "A complete unknown barcode can continue.", "A complete typed barcode that is not in inventory warns: Check this barcode. Continue if it is right. The movement can proceed, and the vehicle is marked Check barcode for supervisor review.", "TYPED ENTRY"),
+  scene("c/flagged-vehicle.png", "A supervisor can review.", "Typed unknown vehicles show Check barcode.", "In the console, the vehicle created from the typed unknown barcode is marked Check barcode, making it visible for supervisor review.", "IN THE OFFICE", "desktop"),
+  scene("c/09-override.png", "Controlled exceptions.", "Fleet Lead or above can approve.", "For a driver who needs temporary authorization, approval requires a Fleet Lead or higher role. Here, an approver with the Scanner role is refused.", "AUTHORIZATION"),
+  scene("c/durations.png", "Select the duration.", "Nine hours is the default.", "Choose nine hours, twelve hours, today, forty eight hours, or three days. Nine hours is the default selection.", "AUTHORIZATION"),
+  scene("c/10-console.png", "The Supervisor Console.", "Vehicle inventory and operational records.", "The desktop console brings vehicle inventory and operational records together for supervisors.", "IN THE OFFICE", "desktop"),
+  scene("c/vin-only.png", "Start with a VIN.", "A blank barcode is assigned automatically.", "To add a vehicle, enter its V I N. Other details can be completed later. Leave the barcode blank to assign the next free G barcode automatically.", "IN THE OFFICE", "desktop"),
+  scene("c/auto-barcode.png", "Saved to inventory.", "The VIN and assigned barcode appear together.", "The saved vehicle now appears in inventory with its automatically assigned barcode. Select its V I N to open the record.", "IN THE OFFICE", "desktop"),
+  scene("c/user-identifiers.png", "Open the right record.", "Select a User ID or name.", "User records open from their User I D or name, keeping the record directly accessible from the list.", "IN THE OFFICE", "desktop"),
+  scene("c/13-devices.png", "Devices and locations.", "Select a Device ID to open its record.", "Select a Device I D to open that device. Supervisors can review the location and device details associated with gate operations.", "IN THE OFFICE", "desktop"),
+  scene("c/14-search.png", "Find the movement.", "Search the recorded history.", "Search movement history by driver, vehicle, location, or date. The information captured at the gate remains available to review.", "IN THE OFFICE", "desktop"),
+  scene("c/16-close.png", "Veri-Gate", "Device-local Android review build.", "This Android review build stores records on the device. Shared cloud data and automatic synchronization are still being developed. Veri Gate brings a focused workflow to the gate and a clearer record afterward.", "CURRENT REVIEW BUILD"),
  ],
  'walkthrough': [
-  scene('d/01-scanner-home.png', 'A smoother\ngate workflow.', 'Veri-Gate V0.8 / latest review revision', 'Here is the updated Veri Gate walkthrough. We will follow a vehicle through the gate, then look at the inventory and user changes from your latest feedback.', 'PATRICK / REVIEW EDITION'),
-  scene('d/02-driver-entry.png', 'Driver first.', 'Scan or enter the employee number.', 'Start with the driver. Scan the badge or enter the employee number, confirm the record, and continue to the vehicle barcode.', '01 / SCAN'),
-  scene('d/03-unknown-vehicle.png', 'New barcode?\nKeep going.', 'Inventory is created during the movement.', 'This barcode is not in inventory yet. The workflow accepts it and continues. When the movement is processed, the vehicle is added as ordinary inventory.', '01 / SCAN'),
-  scene('d/04-movement-choice.png', 'Choose the\ndirection.', 'IN or OUT, followed by review and submit.', 'Choose the direction, review the details, and submit the movement. After recording it, the scanner returns to the start, ready for the next driver.', '02 / RECORD'),
-  scene('d/06-unknown-out.png', 'The exit\nis recorded too.', 'Normal driver and license checks still apply.', 'The same vehicle can leave through the usual driver checks. There is no inventory completion block. A barcode first encountered on exit is also added and logged in this version.', '02 / RECORD'),
-  scene('d/08-gate-log.png', 'See what arrived.', 'Vehicles Added By Scan preserves their origin.', 'In the console, Vehicles Added By Scan shows which records originated at the gate. Supervisors can fill in missing details later. Those details do not delay the vehicle\'s next movement.', '03 / REVIEW', 'desktop'),
-  scene('d/10-user-edit.png', 'Edit existing\nusers.', 'Update the existing record, without a duplicate.', 'Users now have an Edit action. It opens their existing details, and saving updates that same user. Changes to the user\'s role are recorded in the audit history.', '04 / MANAGE', 'user'),
-  scene('d/10-user-edit.png', 'One Admin\nrole.', 'Scanner / Fleet Lead / Supervisor / Admin', 'The separate Manager role has been removed. The available roles are Scanner, Fleet Lead, Supervisor, and Admin. Existing Manager user records convert to Admin. These are still prototype accounts; secure login is part of the backend work.', '04 / MANAGE', 'user'),
-  scene('d/11-override-role.png', 'Approval has\na clear threshold.', 'Fleet Lead or above for temporary authorization.', 'For a driver authorization override, the approver must be a Fleet Lead or above. A Scanner role cannot approve it. The driver checks remain in place alongside the new inventory behavior.', '05 / AUTHORIZE'),
-  scene('d/12-search.png', 'Review the history.', 'The movement remains available to search.', 'Finally, the movement stays in the searchable history. The Android package includes these same revisions. This remains a device-local review build, with shared data and synchronization still ahead.', '06 / FOLLOW THROUGH', 'desktop'),
+  scene("d/01-scanner-home.png", "The updated workflow.", "CR-V13, CR-V14 and CR-V15.", "Patrick, this walkthrough shows the current vehicle first workflow and the latest barcode integrity changes. We will also check the console updates and one remaining record control issue.", "PATRICK / REVIEW"),
+  scene("d/02-vehicle-entry.png", "Vehicle first.", "Scan-ready. Tap the field only to type.", "Step one is the vehicle barcode. The field opens in scan mode, with keyboard input suppressed. Tapping the field enables typing and marks the entry as manual. There is no separate manual entry button.", "01 / VEHICLE"),
+  scene("d/03-driver-entry.png", "Driver second.", "Then direction, review and submit.", "Step two is the driver employee number. This field also opens scan ready. After the driver, choose the direction, then review and submit.", "02 / DRIVER"),
+  scene("d/alphanumeric-driver.png", "Letters are supported.", "AB123 stays AB123. Numeric IDs fold to E1003.", "Employee numbers can contain letters. Here, A B one two three identifies our demonstration driver. Numeric forms one zero zero three, E one zero zero three, and E M P dash one zero zero three all resolve to E one zero zero three.", "02 / DRIVER"),
+  scene("d/04-movement-choice.png", "Choose the direction.", "Vehicle IN or Vehicle OUT.", "With the vehicle and driver captured, choose Vehicle In or Vehicle Out. The next screen is the review step.", "03 / DIRECTION"),
+  scene("d/review.png", "Review, then submit.", "Vehicle, driver, direction, gate and time.", "Choose the direction, then review the movement before submitting. The scanner returns to the start after recording it.", "AT THE GATE"),
+  scene("d/03-unknown-vehicle.png", "Unknown, scanned.", "No barcode warning. No Check barcode flag.", "This unknown barcode arrived through the scanner input path. It advances without the typed barcode warning. When submitted, its vehicle record is created without a Check barcode flag. Normal driver checks still apply.", "SCANNED ENTRY"),
+  scene("d/typed-partial.png", "Complete the barcode.", "G00 is incomplete. Enter all four digits.", "When typing is needed, tap the barcode field. That tap enables typing and records manual entry. A partial barcode such as G zero zero is refused. Enter all four digits.", "TYPED ENTRY"),
+  scene("d/typed-unknown.png", "Check a typed barcode.", "A complete unknown barcode can continue.", "A complete typed barcode that is not in inventory warns: Check this barcode. Continue if it is right. The movement can proceed, and the vehicle is marked Check barcode for supervisor review.", "TYPED ENTRY"),
+  scene("d/flagged-vehicle.png", "Visible for review.", "G9002 was typed. Its record says Check barcode.", "Here is the vehicle created from the typed unknown barcode. Check barcode is visible on its record. The unknown scanned vehicle was verified without that flag. That distinction is deliberate.", "SUPERVISOR REVIEW", "desktop"),
+  scene("d/06-unknown-out.png", "Review the exit.", "Inventory details do not block the movement.", "The scanned vehicle can leave through the normal driver and license checks. This is the exit review screen, before submission. Missing inventory details do not block the movement.", "MOVEMENT HISTORY"),
+  scene("d/11-override-role.png", "Role refusal verified.", "Scanner cannot approve. Fleet Lead or above is required.", "This is the actual role refusal. Casey Rowe holds the Scanner role and cannot approve the override. This driver has a current license but lacks authorization, so we are showing a role refusal, not an expired license screen.", "AUTHORIZATION"),
+  scene("d/durations.png", "Choose the duration.", "9 Hours / 12 Hours / Today / 48 Hours / 3 Days", "Authorization is selectable. The choices are nine hours, twelve hours, today, forty eight hours, and three days. Nine hours is the default, not a fixed duration.", "AUTHORIZATION"),
+  scene("d/07-console-shell.png", "Supervisor Console.", "Vehicle inventory in the desktop console.", "This is the desktop supervisor console, showing vehicle inventory. Records open through their identifiers instead of separate per row Edit buttons.", "RECORD MANAGEMENT", "desktop"),
+  scene("d/vehicle-record.png", "Open the vehicle record.", "VIN opens the record. Removal control needs attention.", "A vehicle opens from its V I N, or Add V I N when missing. There is one remaining discrepancy: the intended removal button is still hidden inside this record in the current build. That control needs correction before we can demonstrate removal.", "RECORD MANAGEMENT", "desktop"),
+  scene("d/vin-only.png", "Add with only a VIN.", "Leave the optional barcode blank.", "Adding a vehicle requires only its V I N. Leave the optional barcode blank and save. The application assigns the next free G barcode.", "VEHICLE INVENTORY", "desktop"),
+  scene("d/auto-barcode.png", "Barcode assigned.", "The next free barcode is G0006 in this demo.", "The vehicle has been saved. Here the next free barcode was G zero zero zero six, and the inventory shows it beside the V I N we entered.", "VEHICLE INVENTORY", "desktop"),
+  scene("d/user-identifiers.png", "Open by user identity.", "User ID or name opens the existing record.", "In the user list, select the User I D or name to open that existing user. The old per row Edit and Remove controls are gone.", "USERS", "desktop"),
+  scene("d/10-user-edit.png", "Edit the existing user.", "Scanner / Fleet Lead / Supervisor / Admin", "This is the existing user record. The available roles are Scanner, Fleet Lead, Supervisor, and Admin. These are prototype accounts, with the limitations shown in the form.", "USERS", "desktop"),
+  scene("d/device-identifiers.png", "Open by Device ID.", "Select the identifier to inspect the device.", "Device records open from Device I D. The list retains operational status and history controls.", "DEVICES", "desktop"),
+  scene("d/device-record.png", "Device record.", "Location and device details together.", "The selected device opens here, with its location and configuration details.", "DEVICES", "desktop"),
+  scene("d/12-search.png", "Review the history.", "Searchable movements. Device-local review build.", "Movement history remains searchable. This is a device local review build. Shared cloud data and synchronization remain future work. The videos are ready for review, with deployment handled separately.", "FOLLOW THROUGH", "desktop"),
  ]
 }
 
@@ -189,11 +211,29 @@ async def build(name, scenes):
 
 async def main():
     OUT.mkdir(parents=True,exist_ok=True)
+    if '--render-only' in sys.argv:
+        for name, scenes in VIDEOS.items():
+            work = OUT/name
+            work.mkdir(parents=True, exist_ok=True)
+            thumbs = Image.new('RGB', (960, math.ceil(len(scenes)/2)*270), PAPER)
+            for i, item in enumerate(scenes):
+                rendered = frame(item, i, len(scenes))
+                rendered.save(work/f'{i+1:02d}.png')
+                thumbs.paste(rendered.resize((480,270)), ((i%2)*480,(i//2)*270))
+            thumbs.save(OUT/f'{name}-contact.jpg')
+        return
     originals = [MEDIA/'verigate-customer.webm',MEDIA/'verigate-v08-demo.webm']
     before = {p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in originals}
     reports=[]
     for name, scenes in VIDEOS.items():
-        reports.append(await build(name,scenes))
+        if '--verify-only' in sys.argv:
+            output = OUT/f'verigate-{name}-v2.mp4'
+            timeline = json.loads(output.with_suffix('.json').read_text())
+            assert len(timeline['scenes']) == len(scenes)
+            run(['-v','error','-i',output,'-f','null','-'])
+            reports.append(dict(file=output.name,seconds=round(timeline['duration'],2),bytes=output.stat().st_size,decoded=True))
+        else:
+            reports.append(await build(name,scenes))
     assert before == {p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in originals}
     (OUT/'verification.json').write_text(json.dumps(dict(originals=before,voice=VOICE,reports=reports),indent=2))
     print(json.dumps(reports),flush=True)
