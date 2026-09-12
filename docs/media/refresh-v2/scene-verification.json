@@ -1,0 +1,301 @@
+[
+  {
+    "video": "customer",
+    "scenes": [
+      {
+        "scene": 1,
+        "title": "Veri-Gate",
+        "midpoint": 5.375,
+        "pictureDelta": 3.211,
+        "captionsMatch": true
+      },
+      {
+        "scene": 2,
+        "title": "Start with the vehicle.",
+        "midpoint": 17.792,
+        "pictureDelta": 3.425,
+        "captionsMatch": true
+      },
+      {
+        "scene": 3,
+        "title": "Then the driver.",
+        "midpoint": 28.708,
+        "pictureDelta": 3.168,
+        "captionsMatch": true
+      },
+      {
+        "scene": 4,
+        "title": "Flexible employee IDs.",
+        "midpoint": 39.833,
+        "pictureDelta": 3.434,
+        "captionsMatch": true
+      },
+      {
+        "scene": 5,
+        "title": "Choose IN or OUT.",
+        "midpoint": 50.458,
+        "pictureDelta": 3.45,
+        "captionsMatch": true
+      },
+      {
+        "scene": 6,
+        "title": "Review, then submit.",
+        "midpoint": 58.104,
+        "pictureDelta": 3.423,
+        "captionsMatch": true
+      },
+      {
+        "scene": 7,
+        "title": "A new scanned vehicle.",
+        "midpoint": 69.062,
+        "pictureDelta": 3.477,
+        "captionsMatch": true
+      },
+      {
+        "scene": 8,
+        "title": "Complete the barcode.",
+        "midpoint": 83.042,
+        "pictureDelta": 3.561,
+        "captionsMatch": true
+      },
+      {
+        "scene": 9,
+        "title": "Check a typed barcode.",
+        "midpoint": 97.312,
+        "pictureDelta": 3.514,
+        "captionsMatch": true
+      },
+      {
+        "scene": 10,
+        "title": "A supervisor can review.",
+        "midpoint": 108.813,
+        "pictureDelta": 2.265,
+        "captionsMatch": true
+      },
+      {
+        "scene": 11,
+        "title": "Controlled exceptions.",
+        "midpoint": 118.77,
+        "pictureDelta": 3.548,
+        "captionsMatch": true
+      },
+      {
+        "scene": 12,
+        "title": "Select the duration.",
+        "midpoint": 128.979,
+        "pictureDelta": 3.379,
+        "captionsMatch": true
+      },
+      {
+        "scene": 13,
+        "title": "The Supervisor Console.",
+        "midpoint": 137.271,
+        "pictureDelta": 2.344,
+        "captionsMatch": true
+      },
+      {
+        "scene": 14,
+        "title": "Start with a VIN.",
+        "midpoint": 146.73,
+        "pictureDelta": 2.676,
+        "captionsMatch": true
+      },
+      {
+        "scene": 15,
+        "title": "Saved to inventory.",
+        "midpoint": 157.23,
+        "pictureDelta": 2.344,
+        "captionsMatch": true
+      },
+      {
+        "scene": 16,
+        "title": "Open the right record.",
+        "midpoint": 165.438,
+        "pictureDelta": 2.275,
+        "captionsMatch": true
+      },
+      {
+        "scene": 17,
+        "title": "Devices and locations.",
+        "midpoint": 174.187,
+        "pictureDelta": 2.331,
+        "captionsMatch": true
+      },
+      {
+        "scene": 18,
+        "title": "Find the movement.",
+        "midpoint": 184.355,
+        "pictureDelta": 2.156,
+        "captionsMatch": true
+      },
+      {
+        "scene": 19,
+        "title": "Veri-Gate",
+        "midpoint": 196.709,
+        "pictureDelta": 3.545,
+        "captionsMatch": true
+      }
+    ],
+    "seconds": 204.0
+  },
+  {
+    "video": "walkthrough",
+    "scenes": [
+      {
+        "scene": 1,
+        "title": "The updated workflow.",
+        "midpoint": 6.292,
+        "pictureDelta": 3.476,
+        "captionsMatch": true
+      },
+      {
+        "scene": 2,
+        "title": "Vehicle first.",
+        "midpoint": 20.229,
+        "pictureDelta": 3.211,
+        "captionsMatch": true
+      },
+      {
+        "scene": 3,
+        "title": "Driver second.",
+        "midpoint": 33.667,
+        "pictureDelta": 3.136,
+        "captionsMatch": true
+      },
+      {
+        "scene": 4,
+        "title": "Letters are supported.",
+        "midpoint": 48.916,
+        "pictureDelta": 3.447,
+        "captionsMatch": true
+      },
+      {
+        "scene": 5,
+        "title": "Choose the direction.",
+        "midpoint": 62.542,
+        "pictureDelta": 3.474,
+        "captionsMatch": true
+      },
+      {
+        "scene": 6,
+        "title": "Review, then submit.",
+        "midpoint": 70.979,
+        "pictureDelta": 3.41,
+        "captionsMatch": true
+      },
+      {
+        "scene": 7,
+        "title": "Unknown, scanned.",
+        "midpoint": 83.188,
+        "pictureDelta": 3.323,
+        "captionsMatch": true
+      },
+      {
+        "scene": 8,
+        "title": "Complete the barcode.",
+        "midpoint": 98.417,
+        "pictureDelta": 3.542,
+        "captionsMatch": true
+      },
+      {
+        "scene": 9,
+        "title": "Check a typed barcode.",
+        "midpoint": 112.687,
+        "pictureDelta": 3.485,
+        "captionsMatch": true
+      },
+      {
+        "scene": 10,
+        "title": "Visible for review.",
+        "midpoint": 126.855,
+        "pictureDelta": 2.229,
+        "captionsMatch": true
+      },
+      {
+        "scene": 11,
+        "title": "Review the exit.",
+        "midpoint": 140.396,
+        "pictureDelta": 3.389,
+        "captionsMatch": true
+      },
+      {
+        "scene": 12,
+        "title": "Role refusal verified.",
+        "midpoint": 154.75,
+        "pictureDelta": 3.422,
+        "captionsMatch": true
+      },
+      {
+        "scene": 13,
+        "title": "Choose the duration.",
+        "midpoint": 169.458,
+        "pictureDelta": 3.399,
+        "captionsMatch": true
+      },
+      {
+        "scene": 14,
+        "title": "Supervisor Console.",
+        "midpoint": 181.521,
+        "pictureDelta": 2.328,
+        "captionsMatch": true
+      },
+      {
+        "scene": 15,
+        "title": "Open the vehicle record.",
+        "midpoint": 195.375,
+        "pictureDelta": 2.69,
+        "captionsMatch": true
+      },
+      {
+        "scene": 16,
+        "title": "Add with only a VIN.",
+        "midpoint": 209.0,
+        "pictureDelta": 2.666,
+        "captionsMatch": true
+      },
+      {
+        "scene": 17,
+        "title": "Barcode assigned.",
+        "midpoint": 219.479,
+        "pictureDelta": 2.334,
+        "captionsMatch": true
+      },
+      {
+        "scene": 18,
+        "title": "Open by user identity.",
+        "midpoint": 229.666,
+        "pictureDelta": 2.298,
+        "captionsMatch": true
+      },
+      {
+        "scene": 19,
+        "title": "Edit the existing user.",
+        "midpoint": 241.125,
+        "pictureDelta": 2.722,
+        "captionsMatch": true
+      },
+      {
+        "scene": 20,
+        "title": "Open by Device ID.",
+        "midpoint": 251.771,
+        "pictureDelta": 2.344,
+        "captionsMatch": true
+      },
+      {
+        "scene": 21,
+        "title": "Device record.",
+        "midpoint": 259.0,
+        "pictureDelta": 2.698,
+        "captionsMatch": true
+      },
+      {
+        "scene": 22,
+        "title": "Review the history.",
+        "midpoint": 269.687,
+        "pictureDelta": 2.232,
+        "captionsMatch": true
+      }
+    ],
+    "seconds": 277.16666666666663
+  }
+]

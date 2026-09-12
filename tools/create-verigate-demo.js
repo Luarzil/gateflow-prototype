@@ -24,19 +24,19 @@ const slides = [
     duration: 5200
   },
   {
-    file: "02-driver-entry.png",
+    file: "02-vehicle-entry.png",
     mode: "phone",
-    title: "Step One: The Driver",
-    caption: "The operator scans or types the driver employee number.",
-    narration: "The workflow is four guided steps. First, the driver employee number is scanned or entered.",
+    title: "Step One: The Vehicle",
+    caption: "Scan the vehicle barcode, then the driver employee number.",
+    narration: "The workflow starts with the vehicle barcode, followed by the driver employee number, direction, and review. Each scan step opens scan ready. Tap the field to type; that tap marks the entry as manual.",
     duration: 4200
   },
   {
     file: "03-unknown-vehicle.png",
     mode: "phone",
     title: "A Vehicle We Have Never Seen",
-    caption: "An unknown barcode is accepted. The operator is not interrupted.",
-    narration: "Here is the change Patrick asked for. This vehicle is not in inventory. The scanner accepts it anyway and does not stop to ask for approval. Vehicles coming in are not the risk.",
+    caption: "An unknown scanned barcode continues without a barcode warning.",
+    narration: "This unknown barcode was scanned. It continues without a barcode warning or a Check barcode flag. A complete unknown barcode typed by hand instead warns the operator and flags the vehicle for supervisor review.",
     duration: 6200
   },
   {
@@ -89,7 +89,7 @@ const slides = [
   },
   {
     file: "10-user-edit.png",
-    mode: "phone",
+    mode: "desktop",
     title: "Editing Users",
     caption: "Existing users can now be edited, not just created.",
     narration: "Users can now be edited after they are created, which was missing before. Roles are Scanner, Fleet Lead, Supervisor and Admin. One admin account is issued, and that admin creates everyone else.",
@@ -240,116 +240,7 @@ async function screenshot(cdp, filename) {
 }
 
 async function captureFrames(cdp, appUrl) {
-  const phone = () => setViewport(cdp, 390, 844, true);
-  const desktop = () => setViewport(cdp, 1366, 900, false);
-  const type = (sel, value) => evaluate(cdp, `(() => { const n = document.querySelector('${sel}'); n.value = '${value}'; n.dispatchEvent(new Event('input', { bubbles: true })); })()`);
-  const click = (sel) => evaluate(cdp, `document.querySelector('${sel}').click()`);
-  const pause = (ms) => new Promise((r) => setTimeout(r, ms));
-  const scannerShell = async () => { await cdp.send("Page.navigate", { url: `${appUrl}?shell=scanner` }); await waitForReady(cdp); await pause(400); };
-
-  await phone();
-  await cdp.send("Page.navigate", { url: `${appUrl}?shell=scanner&demo=${Date.now()}` });
-  await waitForReady(cdp);
-  await evaluate(cdp, "localStorage.clear()");
-  await cdp.send("Page.reload", { ignoreCache: true });
-  await waitForReady(cdp);
-  await pause(400);
-  await screenshot(cdp, "01-scanner-home.png");
-
-  await click('#startScanButton');
-  await type('#driverInput', 'E1001');
-  await pause(200);
-  await screenshot(cdp, "02-driver-entry.png");
-
-  await click('#driverNext');
-  await type('#barcodeInput', 'G9001');
-  await pause(200);
-  await screenshot(cdp, "03-unknown-vehicle.png");
-
-  await click('#barcodeNext');
-  await pause(200);
-  await screenshot(cdp, "04-movement-choice.png");
-
-  await click('#directionIn');
-  await click('#submitTransactionButton');
-  await pause(600);
-  await screenshot(cdp, "05-submitted-home.png");
-
-  await click('#startScanButton');
-  await type('#driverInput', 'E1001');
-  await click('#driverNext');
-  await type('#barcodeInput', 'G9001');
-  await click('#barcodeNext');
-  await click('#directionOut');
-  await click('#submitTransactionButton');
-  await pause(500);
-  await screenshot(cdp, "06-unknown-out.png");
-
-  await desktop();
-  await cdp.send("Page.navigate", { url: `${appUrl}?shell=console` });
-  await waitForReady(cdp);
-  await pause(500);
-  await screenshot(cdp, "07-console-shell.png");
-
-  await evaluate(cdp, "document.querySelector('[data-view=\"supervisorView\"]').click(); document.querySelector('[data-supervisor-section=\"vehiclesSection\"]').click()");
-  await pause(400);
-  await screenshot(cdp, "08-gate-log.png");
-
-  await evaluate(cdp, `(() => {
-    const btn = [...document.querySelectorAll('[data-vehicle-action="edit"]')].pop();
-    if (btn) btn.click();
-  })()`);
-  await pause(400);
-  await evaluate(cdp, `(() => {
-    const set = (id, v) => { const n = document.querySelector(id); if (n) { n.value = v; n.dispatchEvent(new Event('input', { bubbles: true })); } };
-    set('#vehicleMake', 'Ford'); set('#vehicleModel', 'Transit'); set('#vehicleYear', '2022');
-    set('#vehicleColor', 'White'); set('#vehicleVin', '1FTBW2CM5NKA12345'); set('#vehiclePlate', 'PROV-08');
-  })()`);
-  await pause(300);
-  await screenshot(cdp, "09-complete-record.png");
-
-  await evaluate(cdp, "document.querySelector('#vehicleForm button[type=\"submit\"]').click()");
-  await pause(500);
-
-  // Slide 10: editing an existing user (081526 v7 item #1).
-  await evaluate(cdp, "document.querySelector('[data-supervisor-section=\"usersSection\"]').click()");
-  await pause(400);
-  await evaluate(cdp, `(() => {
-    const btn = document.querySelector('[data-user-action="edit"]');
-    if (btn) btn.click();
-  })()`);
-  await pause(500);
-  await screenshot(cdp, "10-user-edit.png");
-  await evaluate(cdp, "const c=document.querySelector('#cancelDesktopUserButton'); if(c) c.click();");
-  await pause(300);
-
-  await phone();
-  await scannerShell();
-  await click('#startScanButton');
-  await type('#driverInput', 'E1003');
-  await click('#driverNext');
-  await type('#barcodeInput', 'G0003');
-  await click('#barcodeNext');
-  await click('#directionOut');
-  await click('#submitTransactionButton');
-  await pause(500);
-  await type('#supervisorInput', 'S3090');
-  await pause(200);
-  await evaluate(cdp, "const b=document.querySelector('#approveSupervisorButton'); if(b) b.click();");
-  await pause(400);
-  await screenshot(cdp, "11-override-role.png");
-
-  await desktop();
-  await cdp.send("Page.navigate", { url: `${appUrl}?shell=console` });
-  await waitForReady(cdp);
-  await evaluate(cdp, `(() => {
-    document.querySelector('[data-view="searchView"]').click();
-    const d = document.querySelector('#filterDriver');
-    if (d) { d.value = 'E1001'; d.dispatchEvent(new Event('input', { bubbles: true })); }
-    document.querySelector('#searchForm').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-  })()`);
-  await pause(500);
-  await screenshot(cdp, "12-search.png");
+  await require("./capture-video-frames")({ cdp, appUrl, evaluate, setViewport, waitForReady, screenshot, customer: false });
 }
 
 function createNarration() {
@@ -551,11 +442,10 @@ ${slidesMarkup}
 async function main() {
   if (!fs.existsSync(chromePath)) throw new Error(`Chrome is required: ${chromePath}`);
   fs.mkdirSync(frameDir, { recursive: true });
-  for (const file of fs.readdirSync(frameDir)) fs.rmSync(path.join(frameDir, file), { force: true });
-  createNarration();
-  const audioMs = wavDurationMs(audioPath);
+  if (!process.argv.includes("--frames-only")) createNarration();
+  const audioMs = process.argv.includes("--frames-only") ? 0 : wavDurationMs(audioPath);
   const timelineSlides = fitSlidesToAudio(slides, audioMs);
-  writeFallbackHtml(timelineSlides);
+  if (!process.argv.includes("--frames-only")) writeFallbackHtml(timelineSlides);
 
   const webPort = await freePort();
   const debugPort = await freePort();
@@ -581,6 +471,7 @@ async function main() {
     await cdp.send("Runtime.enable");
     const appUrl = `http://127.0.0.1:${webPort}/`;
     await captureFrames(cdp, appUrl);
+    if (process.argv.includes("--frames-only")) { console.log("Verified current workflow frames captured."); return; }
     const video = await createWebm(cdp, appUrl, timelineSlides);
     console.log(JSON.stringify({
       audio: audioPath,

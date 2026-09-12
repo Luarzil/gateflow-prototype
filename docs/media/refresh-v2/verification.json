@@ -7,14 +7,14 @@
   "reports": [
     {
       "file": "verigate-customer-v2.mp4",
-      "seconds": 122.83,
-      "bytes": 7378443,
+      "seconds": 204.0,
+      "bytes": 13066132,
       "decoded": true
     },
     {
       "file": "verigate-walkthrough-v2.mp4",
-      "seconds": 126.67,
-      "bytes": 7685466,
+      "seconds": 277.17,
+      "bytes": 16575463,
       "decoded": true
     }
   ]

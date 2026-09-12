@@ -1,109 +1,245 @@
 WEBVTT
 
 1
-00:00:00.280 --> 00:00:03.374
-Here is the updated Veri Gate walkthrough.
+00:00:00.280 --> 00:00:07.073
+Patrick, this walkthrough shows the current vehicle first workflow and the latest barcode integrity changes.
 
 2
-00:00:03.324 --> 00:00:09.768
-We will follow a vehicle through the gate, then look at the inventory and user changes from your latest feedback.
+00:00:07.023 --> 00:00:12.023
+We will also check the console updates and one remaining record control issue.
 
 3
-00:00:10.613 --> 00:00:12.677
-Start with the driver.
+00:00:12.863 --> 00:00:15.558
+Step one is the vehicle barcode.
 
 4
-00:00:12.627 --> 00:00:19.044
-Scan the badge or enter the employee number, confirm the record, and continue to the vehicle barcode.
+00:00:15.508 --> 00:00:19.941
+The field opens in scan mode, with keyboard input suppressed.
 
 5
-00:00:19.863 --> 00:00:22.932
-This barcode is not in inventory yet.
+00:00:19.941 --> 00:00:24.284
+Tapping the field enables typing and marks the entry as manual.
 
 6
-00:00:22.882 --> 00:00:26.013
-The workflow accepts it and continues.
+00:00:24.284 --> 00:00:27.312
+There is no separate manual entry button.
 
 7
-00:00:26.013 --> 00:00:31.104
-When the movement is processed, the vehicle is added as ordinary inventory.
+00:00:28.155 --> 00:00:31.314
+Step two is the driver employee number.
 
 8
-00:00:31.947 --> 00:00:36.459
-Choose the direction, review the details, and submit the movement.
+00:00:31.264 --> 00:00:34.202
+This field also opens scan ready.
 
 9
-00:00:36.409 --> 00:00:41.847
-After recording it, the scanner returns to the start, ready for the next driver.
+00:00:34.202 --> 00:00:38.906
+After the driver, choose the direction, then review and submit.
 
 10
-00:00:42.697 --> 00:00:46.487
-The same vehicle can leave through the usual driver checks.
+00:00:39.738 --> 00:00:42.807
+Employee numbers can contain letters.
 
 11
-00:00:46.437 --> 00:00:49.465
-There is no inventory completion block.
+00:00:42.757 --> 00:00:47.357
+Here, A B one two three identifies our demonstration driver.
 
 12
-00:00:49.465 --> 00:00:54.568
-A barcode first encountered on exit is also added and logged in this version.
+00:00:47.357 --> 00:00:57.821
+Numeric forms one zero zero three, E one zero zero three, and E M P dash one zero zero three all resolve to E one zero zero three.
 
 13
-00:00:55.405 --> 00:01:00.948
-In the console, Vehicles Added By Scan shows which records originated at the gate.
+00:00:58.655 --> 00:01:03.373
+With the vehicle and driver captured, choose Vehicle In or Vehicle Out.
 
 14
-00:01:00.898 --> 00:01:04.545
-Supervisors can fill in missing details later.
+00:01:03.323 --> 00:01:06.145
+The next screen is the review step.
 
 15
-00:01:04.545 --> 00:01:08.320
-Those details do not delay the vehicle's next movement.
+00:01:06.988 --> 00:01:11.204
+Choose the direction, then review the movement before submitting.
 
 16
-00:01:09.155 --> 00:01:11.850
-Users now have an Edit action.
+00:01:11.154 --> 00:01:14.698
+The scanner returns to the start after recording it.
 
 17
-00:01:11.800 --> 00:01:16.813
-It opens their existing details, and saving updates that same user.
+00:01:15.530 --> 00:01:19.436
+This unknown barcode arrived through the scanner input path.
 
 18
-00:01:16.813 --> 00:01:20.962
-Changes to the user's role are recorded in the audit history.
+00:01:19.386 --> 00:01:22.750
+It advances without the typed barcode warning.
 
 19
-00:01:21.822 --> 00:01:24.968
-The separate Manager role has been removed.
+00:01:22.750 --> 00:01:27.788
+When submitted, its vehicle record is created without a Check barcode flag.
 
 20
-00:01:24.918 --> 00:01:33.152
-The available roles are Scanner, Fleet Lead, Supervisor, and Admin. Existing Manager user records convert to Admin.
+00:01:27.788 --> 00:01:30.572
+Normal driver checks still apply.
 
 21
-00:01:33.152 --> 00:01:38.255
-These are still prototype accounts; secure login is part of the backend work.
+00:01:31.405 --> 00:01:34.899
+When typing is needed, tap the barcode field.
 
 22
-00:01:39.113 --> 00:01:44.617
-For a driver authorization override, the approver must be a Fleet Lead or above.
+00:01:34.849 --> 00:01:38.741
+That tap enables typing and records manual entry.
 
 23
-00:01:44.567 --> 00:01:47.299
-A Scanner role cannot approve it.
+00:01:38.741 --> 00:01:42.851
+A partial barcode such as G zero zero is refused.
 
 24
-00:01:47.299 --> 00:01:52.016
-The driver checks remain in place alongside the new inventory behavior.
+00:01:42.851 --> 00:01:45.171
+Enter all four digits.
 
 25
-00:01:52.863 --> 00:01:56.666
-Finally, the movement stays in the searchable history.
+00:01:45.988 --> 00:01:51.209
+A complete typed barcode that is not in inventory warns: Check this barcode.
 
 26
-00:01:56.616 --> 00:02:00.173
-The Android package includes these same revisions.
+00:01:51.159 --> 00:01:53.479
+Continue if it is right.
 
 27
-00:02:00.173 --> 00:02:06.114
-This remains a device-local review build, with shared data and synchronization still ahead.
+00:01:53.479 --> 00:01:59.110
+The movement can proceed, and the vehicle is marked Check barcode for supervisor review.
+
+28
+00:01:59.947 --> 00:02:03.814
+Here is the vehicle created from the typed unknown barcode.
+
+29
+00:02:03.764 --> 00:02:06.741
+Check barcode is visible on its record.
+
+30
+00:02:06.741 --> 00:02:10.890
+The unknown scanned vehicle was verified without that flag.
+
+31
+00:02:10.890 --> 00:02:13.494
+That distinction is deliberate.
+
+32
+00:02:14.322 --> 00:02:18.782
+The scanned vehicle can leave through the normal driver and license checks.
+
+33
+00:02:18.732 --> 00:02:22.546
+This is the exit review screen, before submission.
+
+34
+00:02:22.546 --> 00:02:26.193
+Missing inventory details do not block the movement.
+
+35
+00:02:27.030 --> 00:02:29.789
+This is the actual role refusal.
+
+36
+00:02:29.739 --> 00:02:33.979
+Casey Rowe holds the Scanner role and cannot approve the override.
+
+37
+00:02:33.979 --> 00:02:42.188
+This driver has a current license but lacks authorization, so we are showing a role refusal, not an expired license screen.
+
+38
+00:02:43.030 --> 00:02:45.622
+Authorization is selectable.
+
+39
+00:02:45.572 --> 00:02:51.886
+The choices are nine hours, twelve hours, today, forty eight hours, and three days.
+
+40
+00:02:51.886 --> 00:02:55.623
+Nine hours is the default, not a fixed duration.
+
+41
+00:02:56.447 --> 00:03:01.281
+This is the desktop supervisor console, showing vehicle inventory.
+
+42
+00:03:01.231 --> 00:03:06.308
+Records open through their identifiers instead of separate per row Edit buttons.
+
+43
+00:03:07.155 --> 00:03:12.053
+A vehicle opens from its V I N, or Add V I N when missing.
+
+44
+00:03:12.003 --> 00:03:19.040
+There is one remaining discrepancy: the intended removal button is still hidden inside this record in the current build.
+
+45
+00:03:19.040 --> 00:03:23.331
+That control needs correction before we can demonstrate removal.
+
+46
+00:03:24.155 --> 00:03:29.956
+Adding a vehicle requires only its V I N. Leave the optional barcode blank and save.
+
+47
+00:03:29.906 --> 00:03:33.591
+The application assigns the next free G barcode.
+
+48
+00:03:34.405 --> 00:03:36.816
+The vehicle has been saved.
+
+49
+00:03:36.766 --> 00:03:44.279
+Here the next free barcode was G zero zero zero six, and the inventory shows it beside the V I N we entered.
+
+50
+00:03:45.113 --> 00:03:50.424
+In the user list, select the User I D or name to open that existing user.
+
+51
+00:03:50.374 --> 00:03:53.944
+The old per row Edit and Remove controls are gone.
+
+52
+00:03:54.780 --> 00:03:57.488
+This is the existing user record.
+
+53
+00:03:57.438 --> 00:04:02.760
+The available roles are Scanner, Fleet Lead, Supervisor, and Admin.
+
+54
+00:04:02.760 --> 00:04:07.206
+These are prototype accounts, with the limitations shown in the form.
+
+55
+00:04:08.030 --> 00:04:11.099
+Device records open from Device I D.
+
+56
+00:04:11.049 --> 00:04:15.237
+The list retains operational status and history controls.
+
+57
+00:04:16.072 --> 00:04:21.692
+The selected device opens here, with its location and configuration details.
+
+58
+00:04:22.488 --> 00:04:25.260
+Movement history remains searchable.
+
+59
+00:04:25.210 --> 00:04:28.007
+This is a device local review build.
+
+60
+00:04:28.007 --> 00:04:32.156
+Shared cloud data and synchronization remain future work.
+
+61
+00:04:32.156 --> 00:04:36.602
+The videos are ready for review, with deployment handled separately.
