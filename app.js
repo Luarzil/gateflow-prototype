@@ -25,6 +25,9 @@ const LEGACY_STORAGE_KEY = "lot-watch.gateflow.v0.4.state";
 // normalizeV07State reads it, and loadState() runs while the script is still evaluating.
 const TEMP_AUTHORIZATION_DURATION = "9_hours";
 const AUTHORIZATION_DURATIONS = ["9_hours", "12_hours", "today", "48_hours", "3_days"];
+// CR-V15: a gate barcode is G plus four digits. Declared up here because
+// canonicalVehicleBarcode runs during the load-time migration.
+const VEHICLE_BARCODE_DIGITS = 4;
 const VIEWS = ["scannerView", "supervisorView", "searchView"];
 
 // CR-V09-ROLE-SHELLS-001 - one codebase, two shells.
@@ -267,6 +270,9 @@ function bindEvents() {
   el.vehicleSearch.addEventListener("input", renderVehicles);
   el.vehicleStatusFilter.addEventListener("change", renderVehicles);
   el.vehiclesTableBody.addEventListener("click", handleVehicleTableAction);
+  // The added-by-scan panel carries the same data-vehicle-action buttons but never had a
+  // listener, so its Edit button had been inert since the panel was built.
+  el.incompleteInventoryBody.addEventListener("click", handleVehicleTableAction);
   el.addDeviceButton.addEventListener("click", () => openDeviceModal());
   el.closeDeviceModalButton.addEventListener("click", closeDeviceModal);
   el.cancelDeviceButton.addEventListener("click", closeDeviceModal);
@@ -617,6 +623,7 @@ function normalizeVehicle(vehicle, index) {
     // an ordinary vehicle on load, so nothing stays stuck from the earlier build.
     inventoryStatus: COMPLETE_STATUS,
     createdSource: vehicle.createdSource || "migration",
+    barcodeNeedsReview: vehicle.barcodeNeedsReview === true,
     needsSupervisorCompletion: false,
     provisionalFromTxId: vehicle.provisionalFromTxId || "",
     provisionalAt: vehicle.provisionalAt || "",
@@ -657,6 +664,7 @@ function createScannedVehicle(barcode, context) {
     needsSupervisorCompletion: false,
     provisionalFromTxId: context.transactionId || "",
     provisionalAt: now,
+    barcodeNeedsReview: Boolean(context.needsBarcodeReview),
     completedBy: "", completedAt: ""
   };
   state.vehicles.push(vehicle);
@@ -894,7 +902,12 @@ function handleScanInput(fieldId) {
   // right while a dialog set it to "manual" afterwards. Now the tap comes first, so clearing here
   // would erase it before the value is even typed and every movement would look scanned. resetFlow
   // clears both at the start of a movement, which is the only point they should be forgotten.
-  if (fieldId === "barcodeInput") input.value = canonicalVehicleBarcode(rawValue);
+  // CR-V15: padding a part-typed barcode invents digits nobody entered, and it fought the
+  // operator mid-word: typing "G0" jumped the field straight to "G0000". A scan is still
+  // normalised, because that is what the padding was always for.
+  if (fieldId === "barcodeInput") {
+    input.value = ui.vehicleEntryMethod === "manual" ? normalize(rawValue) : canonicalVehicleBarcode(rawValue);
+  }
   // The cleared-state warning must survive: updateDriverStatus would otherwise overwrite it with
   // its success notice on the very next line, and the operator would never learn that the
   // previous authorization review and pending approval were discarded.
@@ -1014,6 +1027,17 @@ function validateDriverStep() {
 }
 
 function validateBarcodeStep() {
+  const typed = ui.vehicleEntryMethod === "manual";
+  const digits = vehicleBarcodeDigits(el.barcodeInput.value);
+  // CR-V15: an unfinished entry is not an unknown vehicle. Patrick's rule is that a movement is
+  // never gated on whether the vehicle is known; it says nothing about accepting half a barcode,
+  // and padding one to G0000 would record a barcode nobody ever saw.
+  if (typed && digits.length > 0 && digits.length !== VEHICLE_BARCODE_DIGITS) {
+    setNotice(`Barcode looks incomplete. Enter all ${VEHICLE_BARCODE_DIGITS} digits, for example G0001.`, "warning");
+    shake(el.barcodeInput);
+    el.barcodeInput.focus();
+    return;
+  }
   const barcode = canonicalVehicleBarcode(el.barcodeInput.value);
   el.barcodeInput.value = barcode;
   if (!barcode) {
@@ -1032,6 +1056,14 @@ function validateBarcodeStep() {
   }
   if (ui.vehicleEntryMethod !== "manual") ui.vehicleEntryMethod = "scanner_field";
   updateBarcodeStatus();
+  // CR-V15: a full-length typed barcode that is not in inventory is either a new vehicle or a
+  // fat-finger, and the two are indistinguishable here. So this warns and lets them through
+  // rather than blocking: the operator is the only person who still remembers what they typed.
+  if (typed && !vehicle) {
+    setNotice(`Check this barcode. ${barcode} is not in inventory. Continue if it is right.`, "warning");
+    addAudit("typed_barcode_unverified", `Operator continued with typed barcode ${barcode}, which is not in inventory.`, currentStationIdentity(), state.workingLocation);
+    saveState();
+  }
   showWizardStep(1);
 }
 
@@ -1056,7 +1088,11 @@ function startTransaction() {
   // CR-V11: an unknown barcode is added to inventory and the movement proceeds, in either
   // direction. There is no gate, because the point is the log, not a checkpoint.
   if (!draft.vehicle) {
-    draft.vehicle = createScannedVehicle(draft.barcode, { actor: currentStationIdentity() });
+    draft.vehicle = createScannedVehicle(draft.barcode, {
+      actor: currentStationIdentity(),
+      // CR-V15: typed rather than scanned, and unknown. Worth a supervisor looking at.
+      needsBarcodeReview: draft.vehicleEntryMethod === "manual"
+    });
     if (!draft.vehicle) {
       setNotice("Vehicle barcode could not be read. Re-scan the vehicle.", "danger");
       return;
@@ -1713,6 +1749,9 @@ function saveVehicleForm(event) {
   if (existing) {
     const barcodeChanged = existing.assignedBarcode !== fields.assignedBarcode;
     Object.assign(existing, fields, { updatedAt: now, updatedBy: "Supervisor Console" });
+    // CR-V15: a supervisor who has opened and saved the record has looked at the barcode, so the
+    // review flag is settled here too rather than lingering after it has been dealt with.
+    if (existing.barcodeNeedsReview) { existing.barcodeNeedsReview = false; addAudit("typed_barcode_resolved", `Barcode review closed for ${existing.assignedBarcode} by editing the record.`, "Supervisor Console", ""); }
     addAudit("vehicle_edited", `Vehicle ${existing.id} edited.`, "Supervisor Console", "");
     if (barcodeChanged) addAudit("barcode_changed", `Vehicle ${existing.id} barcode changed to ${fields.assignedBarcode}.`, "Supervisor Console", "");
   } else {
@@ -1731,12 +1770,23 @@ function handleVehicleTableAction(event) {
   const vehicle = state.vehicles.find((item) => item.id === button.dataset.vehicleId);
   if (!vehicle) return;
   if (button.dataset.vehicleAction === "edit") { openVehicleModal(vehicle); return; }
+  if (button.dataset.vehicleAction === "confirm-barcode") { confirmVehicleBarcode(vehicle); return; }
   if (!setVehicleInventoryState(vehicle, button.dataset.vehicleAction === "restore")) return;
   saveState(); renderAll();
 }
 
 // Shared by the modal control and any remaining row action so the confirmation prompt and the
 // audit entry cannot drift apart between the two routes.
+// CR-V15: a supervisor saying the barcode is right is the end of the matter. It is recorded
+// rather than just cleared, so the trail shows who vouched for it.
+function confirmVehicleBarcode(vehicle) {
+  vehicle.barcodeNeedsReview = false;
+  vehicle.updatedAt = new Date().toISOString();
+  vehicle.updatedBy = "Supervisor Console";
+  addAudit("typed_barcode_confirmed", `Barcode ${vehicle.assignedBarcode} was confirmed correct by a supervisor.`, "Supervisor Console", "");
+  saveState(); renderAll();
+}
+
 function setVehicleInventoryState(vehicle, restoring) {
   const prompt = restoring ? `Restore ${vehicle.assignedBarcode} to active inventory?` : `Remove ${vehicle.assignedBarcode} from inventory? It will remain searchable but cannot be scanned for new movements.`;
   if (typeof confirm === "function" && !confirm(prompt)) return false;
@@ -1757,7 +1807,16 @@ function renderIncompleteInventory() {
     ? pending.map((vehicle) => {
       const missing = [["VIN", vehicle.vin], ["Make", vehicle.make], ["Model", vehicle.model], ["Year", vehicle.year], ["Color", vehicle.color], ["Plate", vehicle.plate]]
         .filter(([, value]) => !value).map(([label]) => label).join(", ");
-      return `<tr><td class="mono">${escapeHtml(vehicle.assignedBarcode)}</td><td>${escapeHtml(formatTimestamp(vehicle.provisionalAt))}</td><td>${escapeHtml(missing || "None")}</td><td><button class="table-action" type="button" data-vehicle-action="edit" data-vehicle-id="${escapeHtml(vehicle.id)}">Edit</button></td></tr>`;
+            // CR-V15: a typed unknown barcode is the one case in this list that may be a mistake rather
+      // than a new vehicle, so it is marked and given an explicit action. Everything else here
+      // stays a record, not a task, which is what Patrick asked for.
+      const flag = vehicle.barcodeNeedsReview
+        ? ` <span class="status-badge unauthorized" title="This barcode was typed by hand and was not in inventory. Confirm it is correct, or correct it through the VIN.">Check barcode</span>`
+        : "";
+      const action = vehicle.barcodeNeedsReview
+        ? `<button class="table-action success-text" type="button" data-vehicle-action="confirm-barcode" data-vehicle-id="${escapeHtml(vehicle.id)}">Barcode is correct</button>`
+        : `<button class="table-action" type="button" data-vehicle-action="edit" data-vehicle-id="${escapeHtml(vehicle.id)}">Open</button>`;
+      return `<tr><td class="mono">${escapeHtml(vehicle.assignedBarcode)}${flag}</td><td>${escapeHtml(formatTimestamp(vehicle.provisionalAt))}</td><td>${escapeHtml(missing || "None")}</td><td>${action}</td></tr>`;
     }).join("")
     : `<tr><td colspan="4" class="empty-cell">No vehicles have been added by a gate scan yet.</td></tr>`;
 }
@@ -1772,7 +1831,7 @@ function renderVehicles() {
     const haystack = [vehicle.assignedBarcode, vehicle.vin, vehicle.plate, vehicle.make, vehicle.model, vehicle.year, vehicle.color].join(" ").toUpperCase();
     return matchesStatus && (!needle || haystack.includes(needle));
   });
-  el.vehiclesTableBody.innerHTML = vehicles.length ? vehicles.map((vehicle) => `<tr><td class="mono">${escapeHtml(vehicle.assignedBarcode)}</td><td>${escapeHtml(vehicle.year)}</td><td>${escapeHtml(vehicle.make)}</td><td>${escapeHtml(vehicle.model)}</td><td>${escapeHtml(vehicle.color)}</td><td><button class="table-action mono" type="button" data-vehicle-action="edit" data-vehicle-id="${escapeHtml(vehicle.id)}" aria-label="Open ${escapeHtml(vehicle.assignedBarcode)} to edit or remove it">${escapeHtml(vehicle.vin || "Add VIN")}</button></td><td>${escapeHtml(vehicle.plate || "-")}</td><td><span class="status-badge ${vehicle.active ? "authorized" : "inactive"}">${vehicle.active ? "Active" : "Inactive"}</span>${isScannerAddedVehicle(vehicle) ? ` <span class="status-badge provisional" title="This vehicle was added automatically when it was scanned at the gate, rather than being entered by a person.">Added by scan</span>` : ""}</td></tr>`).join("") : `<tr><td colspan="8" class="empty-cell">No vehicles match this inventory view.</td></tr>`;
+  el.vehiclesTableBody.innerHTML = vehicles.length ? vehicles.map((vehicle) => `<tr><td class="mono">${escapeHtml(vehicle.assignedBarcode)}</td><td>${escapeHtml(vehicle.year || "-")}</td><td>${escapeHtml(vehicle.make)}</td><td>${escapeHtml(vehicle.model)}</td><td>${escapeHtml(vehicle.color)}</td><td><button class="table-action mono" type="button" data-vehicle-action="edit" data-vehicle-id="${escapeHtml(vehicle.id)}" aria-label="Open ${escapeHtml(vehicle.assignedBarcode)} to edit or remove it">${escapeHtml(vehicle.vin || "Add VIN")}</button></td><td>${escapeHtml(vehicle.plate || "-")}</td><td><span class="status-badge ${vehicle.active ? "authorized" : "inactive"}">${vehicle.active ? "Active" : "Inactive"}</span>${isScannerAddedVehicle(vehicle) ? ` <span class="status-badge provisional" title="This vehicle was added automatically when it was scanned at the gate, rather than being entered by a person.">Added by scan</span>` : ""}${vehicle.barcodeNeedsReview ? ` <span class="status-badge unauthorized" title="This barcode was typed by hand and was not in inventory. Confirm it is correct, or correct it here.">Check barcode</span>` : ""}</td></tr>`).join("") : `<tr><td colspan="8" class="empty-cell">No vehicles match this inventory view.</td></tr>`;
 }
 
 function openDriverProfile(driver) {
@@ -2165,6 +2224,13 @@ function canonicalEmployeeId(value) {
   if (!source) return "";
   const legacyNumeric = source.match(/^(?:EMP|E)?(\d+)$/);
   return legacyNumeric ? `E${legacyNumeric[1]}` : source;
+}
+
+// The digits actually present, with the prefix and separators stripped and nothing added.
+// canonicalVehicleBarcode pads, which is right for a scanner and for legacy records but hides
+// the difference between a finished barcode and a half-typed one.
+function vehicleBarcodeDigits(value) {
+  return normalize(value).replace(/^GFV-?/, "").replace(/^G-?/, "").replace(/\D/g, "");
 }
 
 function canonicalVehicleBarcode(value, index) {

@@ -68,6 +68,11 @@ const tests = [
   ["Blank barcode is rejected", testManualBarcodeReject],
   ["Unknown typed barcode is accepted and added", testManualBarcodeUnknownAccepted],
   ["Typed and scanned barcode paths match", testBarcodePathMatch],
+  ["Incomplete typed barcode is refused", testIncompleteTypedBarcode],
+  ["Typed barcode is not padded while typing", testTypedBarcodeNotPadded],
+  ["Unknown typed barcode warns but continues", testTypedUnknownWarns],
+  ["Scanned unknown vehicle is not flagged", testScannedUnknownNotFlagged],
+  ["Supervisor can confirm a flagged barcode", testSupervisorConfirmsBarcode],
   ["Barcode entry method is stored", testBarcodeEntryMethod],
   ["Success flow is shortened", testShortFlow],
   ["Submission returns straight to the scanner home", testImmediateReturnHome],
@@ -231,6 +236,69 @@ async function testManualBarcodeReject() { click("#startScanButton"); tap("#barc
 // asked for. The check that used to live here asserted the opposite, so it is replaced rather
 // than dropped: the rule is still worth pinning down, it just changed direction.
 async function testManualBarcodeUnknownAccepted() { click("#startScanButton"); tap("#barcodeInput"); input("#barcodeInput", "G9001"); key("#barcodeInput", "Enter"); await waitForStep(1); expect(q("#barcodeInput").value === "G9001", "Unknown typed barcode was not accepted."); }
+
+// CR-V15: G00 used to be padded into G0000, creating a vehicle under a barcode nobody typed.
+async function testIncompleteTypedBarcode() {
+  click("#startScanButton");
+  await waitForStep(0);
+  tap("#barcodeInput");
+  input("#barcodeInput", "G00");
+  click("#barcodeNext");
+  expect(q('.wizard-step[data-step="1"]').classList.contains("hidden"), "An incomplete typed barcode advanced past the vehicle step.");
+  expect(/incomplete/i.test(text("#scannerNotice")), "An incomplete typed barcode was not explained.");
+  expect(!state().vehicles.some((vehicle) => vehicle.assignedBarcode === "G0000"), "A padded barcode was created from an incomplete entry.");
+}
+
+async function testTypedBarcodeNotPadded() {
+  click("#startScanButton");
+  await waitForStep(0);
+  tap("#barcodeInput");
+  input("#barcodeInput", "G0");
+  expect(q("#barcodeInput").value === "G0", "Typing was rewritten under the operator.");
+}
+
+// The warning has to stay a warning: Patrick's rule is that the movement is never gated on
+// whether the vehicle is known.
+async function testTypedUnknownWarns() {
+  click("#startScanButton");
+  await waitForStep(0);
+  tap("#barcodeInput");
+  input("#barcodeInput", "G0044");
+  click("#barcodeNext");
+  await waitForStep(1);
+  expect(/check this barcode/i.test(text("#scannerNotice")), "A typed unknown barcode did not warn the operator.");
+  input("#driverInput", "1001"); key("#driverInput", "Enter");
+  await waitForStep(2);
+  click("#directionIn"); click("#submitTransactionButton");
+  await waitForHome();
+  const created = state().vehicles.find((vehicle) => vehicle.assignedBarcode === "G0044");
+  expect(created, "The movement was blocked instead of warned.");
+  expect(created.barcodeNeedsReview === true, "A typed unknown barcode was not flagged for review.");
+}
+
+async function testScannedUnknownNotFlagged() {
+  click("#startScanButton");
+  await waitForStep(0);
+  input("#barcodeInput", "G0077"); key("#barcodeInput", "Enter");
+  await waitForStep(1);
+  input("#driverInput", "1001"); key("#driverInput", "Enter");
+  await waitForStep(2);
+  click("#directionIn"); click("#submitTransactionButton");
+  await waitForHome();
+  const created = state().vehicles.find((vehicle) => vehicle.assignedBarcode === "G0077");
+  expect(created, "A scanned unknown vehicle was not added.");
+  expect(created.barcodeNeedsReview === false, "A scanned unknown vehicle must not be flagged.");
+}
+
+async function testSupervisorConfirmsBarcode() {
+  await testTypedUnknownWarns();
+  click('[data-view="supervisorView"]');
+  click('[data-supervisor-section="vehiclesSection"]');
+  const flagged = state().vehicles.find((vehicle) => vehicle.assignedBarcode === "G0044");
+  click(`[data-vehicle-action="confirm-barcode"][data-vehicle-id="${flagged.id}"]`);
+  expect(state().vehicles.find((vehicle) => vehicle.id === flagged.id).barcodeNeedsReview === false, "Confirming did not clear the review flag.");
+  expect(events().some((event) => event.type === "typed_barcode_confirmed"), "Confirming a barcode was not recorded.");
+}
 
 async function testBarcodePathMatch() { await beginScan("1001", "G0001"); const scanned = text("#barcodeStatus"); click("#flowCancel"); click("#startScanButton"); tap("#barcodeInput"); input("#barcodeInput", "G0001"); key("#barcodeInput", "Enter"); expect(text("#barcodeStatus") === scanned, "Typed barcode lookup does not match the scanned lookup result."); }
 

@@ -104,6 +104,20 @@
 <blockquote>S3090 / Casey Rowe holds Scanner and cannot approve a Vehicle OUT override. Fleet Lead or above is required.</blockquote>
 <p>Enter <code>S2040</code> instead and it is approved. Both the approval and the refusal are</p>
 <p>recorded.</p>
+<h3>Typed barcodes are checked, scanned ones are not</h3>
+<p>A vehicle arriving that nobody has seen before is ordinary traffic. Scan it and it goes through</p>
+<p>with no interruption, exactly as before.</p>
+<p>Typing a barcode by hand is the one case that gets checked, because that is the only place a</p>
+<p>digit can be mistyped:</p>
+<ul>
+<li><strong>A part-typed barcode is refused.</strong> <code>G00</code> is not a vehicle, it is half a barcode. Veri-Gate asks for all four digits rather than quietly filling in the rest. It used to turn <code>G00</code> into <code>G0000</code> and create a vehicle under a barcode nobody had entered.</li>
+<li><strong>A complete typed barcode that is not in inventory shows a caution.</strong> *Check this barcode. G0044 is not in inventory. Continue if it is right.* It does <strong>not</strong> stop you. If the vehicle really is new, carry on; the operator is the only person who still remembers what they typed.</li>
+</ul>
+<h3>Supervisors see typed barcodes that were never verified</h3>
+<p><strong>Supervisor -&gt; Vehicles -&gt; Vehicles Added By Scan.</strong> A vehicle created from a typed barcode is</p>
+<p>marked <strong>Check barcode</strong> and offers <strong>Barcode is correct</strong>. Confirming it, or opening the record</p>
+<p>and correcting the barcode, clears the mark. Both are recorded.</p>
+<p>Vehicles added by an actual scan are not marked. Nothing is waiting on a supervisor for those.</p>
 <h3>Employee numbers can contain letters</h3>
 <p><code>AB123</code> and <code>J5000</code> are accepted and kept exactly as entered. Purely numeric numbers still</p>
 <p>resolve the way they always did, so <code>1003</code>, <code>E1003</code> and <code>EMP-1003</code> all mean the same driver.</p>
