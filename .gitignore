@@ -6,4 +6,5 @@ android/local.properties
 android/capacitor-cordova-android-plugins/build/
 www/
 dist/
+build/
 tools/__pycache__/
