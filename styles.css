@@ -137,13 +137,6 @@ textarea { resize: vertical; min-height: 68px; }
 .field-status { min-height: 18px; margin: 0; color: var(--muted); font-size: 12px; }
 .confirmation-panel { border-color: #8AC6A6; background: #F0FAF5; }
 
-.recent-activity { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
-.mini-feed { display: grid; gap: 1px; overflow: hidden; border: 1px solid var(--line); border-radius: 5px; }
-.feed-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 9px; align-items: center; padding: 9px; background: #fff; }
-.feed-item strong, .feed-item span { display: block; }
-.feed-item strong { font-size: 12px; }
-.feed-item div span { color: var(--muted); font-size: 11px; }
-.feed-item time { color: var(--muted); font-size: 11px; white-space: nowrap; }
 .movement-chip { display: inline-block; min-width: 36px; padding: 3px 5px; border-radius: 4px; font-size: 10px; font-weight: 900; text-align: center; }
 .movement-chip.in { color: #004B2E; background: var(--green-soft); }
 .movement-chip.out { color: #164c74; background: var(--blue-soft); }
@@ -170,12 +163,6 @@ textarea { resize: vertical; min-height: 68px; }
 .number-badge { min-width: 34px; display: inline-grid; place-items: center; padding: 5px 8px; border-radius: 4px; color: #004B2E; background: var(--green-soft); }
 
 .admin-grid { display: grid; min-width: 0; grid-template-columns: minmax(300px, .8fr) minmax(420px, 1.2fr); gap: 16px; }
-.placeholder-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 16px; }
-.placeholder-grid h2 { margin: 3px 0 8px; font-size: 17px; }
-.placeholder-grid p { margin: 0; color: var(--muted); }
-.simple-list { display: grid; gap: 1px; margin: 10px 0 0; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 5px; list-style: none; }
-.simple-list li { display: flex; justify-content: space-between; gap: 10px; padding: 9px 10px; background: #fff; font-weight: 700; }
-.simple-list span { color: var(--muted); font-size: 12px; font-weight: 500; }
 
 .table-wrap { min-width: 0; max-width: 100%; overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: auto; }
@@ -237,7 +224,7 @@ tbody tr:last-child td { border-bottom: 0; }
   .scanner-layout { grid-template-columns: minmax(320px, 650px); }
   .gate-context { grid-template-columns: repeat(2, 1fr); }
   .scanner-note { grid-column: span 2; }
-  .admin-grid, .placeholder-grid { grid-template-columns: minmax(0, 1fr); }
+  .admin-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 760px) {
@@ -315,7 +302,6 @@ tbody tr:last-child td { border-bottom: 0; }
 .compact-metrics div { min-height: 70px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: #f6f9f7; }
 .compact-metrics span, .summary-list span, .detail-list span { display: block; color: var(--muted); font-size: 10px; font-weight: 850; letter-spacing: .04em; text-transform: uppercase; }
 .compact-metrics strong { display: block; margin-top: 3px; font-size: 23px; }
-.recent-feed { display: grid; gap: 8px; padding-top: 2px; }
 .progress-dots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .dot { height: 8px; border-radius: 999px; background: #d7e1dd; }
 .dot.done { background: #9BD5B6; }
@@ -458,9 +444,6 @@ tbody tr:hover { background: var(--green-soft); }
 .audit-event { transition: box-shadow 0.15s var(--ease), transform 0.15s var(--ease); }
 .audit-event:hover { box-shadow: var(--shadow-lift); transform: translateY(-1px); }
 
-/* Simple-list / location rows: consistent hover with the rest of the app. */
-.simple-list li { transition: background-color 0.12s var(--ease); }
-.simple-list li:hover { background: var(--green-soft); }
 
 /* Progress dots: smooth fill/scale as a step completes. */
 .dot { transition: background-color 0.2s var(--ease), transform 0.2s var(--ease); }
@@ -599,4 +582,35 @@ tbody tr:hover { background: var(--green-soft); }
 
 @media (max-width: 760px) {
   .enter-anim { animation-name: enterFadeMobile; }
+}
+
+/* CR-V16-PATRICK-0913-001 */
+
+/* A scanned employee # or approver ID is drawn as dots. Patrick, 2026-09-13: an operator who can
+   read an ID off the screen can type it in later to let someone out. Tapping the field to type
+   removes the class, because a person typing has to see what they typed. The value underneath is
+   unchanged; only the drawing is. */
+.id-masked { -webkit-text-security: disc; }
+
+.sort-note { margin: -4px 0 10px; }
+.results-more { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+.results-more .field-status { min-height: 0; }
+.print-only { display: none; }
+
+/* The printed search: the results and a footer naming the criteria, when the search ran, how many
+   rows are on the page, and who printed it. Everything else is left off the paper. */
+@media print {
+  @page { size: landscape; margin: 12mm; }
+  html, body { background: #fff; }
+  .topbar, #scannerView, #supervisorView, #searchForm, #searchPrintStatus, .results-more, .modal-backdrop { display: none !important; }
+  main { max-width: none; padding: 0; }
+  #searchView { display: block !important; }
+  #searchView .panel { padding: 0; border: 0; box-shadow: none; }
+  #searchView .table-wrap { overflow: visible; }
+  #searchView table { font-size: 10px; }
+  tbody tr:nth-child(even), tbody tr:hover { background: none; }
+  .status-badge, .movement-chip { padding: 0; background: none !important; }
+  .print-only { display: block !important; }
+  .print-footer { margin-top: 12px; padding-top: 8px; border-top: 1px solid #000; font-size: 11px; break-inside: avoid; }
+  .print-footer p { margin: 2px 0; }
 }

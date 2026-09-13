@@ -162,6 +162,40 @@ the gate. This does not change what happens when an unknown vehicle is scanned i
 Column headings are abbreviated -- Emp #, Lic Exp, Auth, Auth Exp -- and the tables no longer
 need a horizontal scrollbar to read.
 
+### The scanner does not show employee numbers
+
+Once a badge is scanned, the scanner shows the driver's **name**, never the employee number. The
+number in the box is drawn as dots, the review step and the blocked-OUT screen name the driver, and
+an approver is shown by name and role, not by ID. The **Gate activity** list is gone from the
+scanner home. An ID that can be read off the screen can be typed in later to let someone out.
+
+Tapping the box to type is different: the operator can see what they are typing, as before.
+
+### Location override (Admin tab)
+
+The **Admin** tab has one switch per location. All of them start **Off**. When a location's
+switch is on, a driver whose badge is **scanned** there can leave without a daily authorization,
+provided the driver is active, the licence is current, and nobody revoked the driver's
+authorization today. A **typed** employee number is never covered; it still needs a Fleet Lead or
+above. Every exit the override allows is saved as **Location override**, not as Authorized, and
+turning a switch on or off is confirmed and recorded.
+
+In this review build anyone at the console can flip the switches. Once sign-in moves to AWS, only
+the Admin will be able to.
+
+### Search shows 50 at a time, and prints
+
+Search shows the first **50** matching movements, with **Show next 50** under the table for more.
+**Print** sits beside Clear. Type your name in **Your name (for printouts)** first. The printout
+carries the search criteria, when the search ran, how many rows are on the page, and who printed it
+and when. The print window can also save the page as a PDF, on your own computer, with no server
+involved.
+
+### Dates are MM/DD/YY
+
+Every date on screen reads like 11/22/26, with the time after it where there is one. The date box
+in Search is a date picker, so how you enter a date there does not change.
+
 ### Scanner and console are separate
 
 Described above. Same application, same data.
@@ -170,18 +204,22 @@ Described above. Same application, same data.
 
 ## The supervisor console
 
-**Drivers** — roster, licence expiry warnings at 30, 15 and 5 days, expired licences, and
-temporary authorizations individually or in bulk. Drivers are records, not logins.
+**Drivers** — roster, most recent gate activity first, licence expiry warnings at 30, 15 and 5
+days, expired licences, and temporary authorizations individually or in bulk. Beside the roster,
+**Active Driver Authorizations** lists who is authorized right now and says, in one line, how many
+active drivers are not. Drivers are records, not logins.
 
-**Vehicles** — the incomplete-inventory queue, then full inventory. Vehicles are removed from
-active use rather than deleted, so history stays intact.
+**Vehicles** — vehicles added by a gate scan, then full inventory, most recent gate activity
+first. Vehicles are removed from active use rather than deleted, so history stays intact.
 
 **Devices** — each handheld registered to a gate, or a floater assigned at the start of a shift.
 A device that is not Active cannot scan.
 
 **Users** — staff accounts and what each can do. Separate from drivers.
 
-**Search** — every movement by driver, vehicle, plate, VIN, gate or date range.
+**Admin** — the scanned-badge override switch for each location, described above.
+
+**Search** — every movement by driver, vehicle, plate, VIN, gate or date, 50 at a time, with Print.
 
 ---
 

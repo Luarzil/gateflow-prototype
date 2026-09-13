@@ -126,7 +126,27 @@ const tests = [
   // CR-V08-BETA-CRITICAL-APP-002 - override restricted to Fleet Lead and above.
   ["Under-ranked approver cannot approve an override", testUnderRankedApproverDenied],
   ["Fleet Lead can approve an override", testFleetLeadCanApprove],
-  ["Denied override is audited", testOverrideDenialAudited]
+  ["Denied override is audited", testOverrideDenialAudited],
+
+  // CR-V16-PATRICK-0913-001 - Patrick's 2026-09-13 list.
+  ["Scanner has no Gate activity feed", testGateActivityGone],
+  ["Scanned employee # is masked and not repeated", testScannedIdMasked],
+  ["Tapping to type shows the employee #", testTypedIdVisible],
+  ["Blocked OUT screen shows names, not IDs", testBlockedScreenHidesIds],
+  ["License panel uses the short label", testLicensePanelShortLabel],
+  ["Authorization panel cross-checks the roster", testAuthorizationCrossCheck],
+  ["Drivers sort by recent activity", testDriversSortedByActivity],
+  ["Vehicles sort by recent activity", testVehiclesSortedByActivity],
+  ["Locations and Label printer sections are gone", testPlaceholdersGone],
+  ["Search shows 50 rows at a time", testSearchPagesAt50],
+  ["Search print needs a name and signs the page", testSearchPrint],
+  ["Dates display as MM/DD/YY", testShortDates],
+  ["Location override is off by default", testOverrideOffByDefault],
+  ["Location override lets a scanned badge out", testOverrideScannedBadgeExits],
+  ["Location override never covers a typed employee #", testOverrideTypedStillBlocked],
+  ["Location override is per location", testOverrideOtherLocationUnaffected],
+  ["Location override does not cover a driver revoked today", testOverrideRevokedToday],
+  ["Location override does not cover an expired license", testOverrideExpiredLicense]
 ];
 
 document.getElementById("testCount").textContent = String(tests.length);
@@ -1017,6 +1037,210 @@ async function testOverrideDenialAudited() {
   click("#approveSupervisorButton");
   expect(state().auditEvents.some((item) => item.type === "override_denied_insufficient_role"),
     "A denied override was not audited.");
+}
+
+// --- CR-V16-PATRICK-0913-001 ----------------------------------------------------
+
+async function testGateActivityGone() {
+  expect(!doc().querySelector("#gateMiniFeed"), "The scanner still renders the Gate activity feed.");
+  expect(!/gate activity/i.test(text("#scannerHome")), "The scanner home still mentions Gate activity.");
+}
+
+async function testScannedIdMasked() {
+  await beginScan("E1003", "G0003");
+  expect(q("#driverInput").classList.contains("id-masked"), "A scanned employee # is drawn in the clear.");
+  click("#directionIn");
+  await waitForStep(3);
+  const summary = text("#scanSummary");
+  expect(summary.includes("Tyrone Brooks"), "The review step does not name the driver.");
+  expect(!summary.includes("E1003"), "The review step still shows the employee #.");
+}
+
+async function testTypedIdVisible() {
+  click("#startScanButton");
+  await waitForStep(0);
+  input("#barcodeInput", "G0003"); key("#barcodeInput", "Enter");
+  await waitForStep(1);
+  tap("#driverInput");
+  expect(!q("#driverInput").classList.contains("id-masked"), "A typed employee # is hidden from the person typing it.");
+}
+
+async function testBlockedScreenHidesIds() {
+  await beginScan("E1003", "G0003");
+  click("#directionOut");
+  click("#submitTransactionButton");
+  await waitForVisible("#supervisorPanel");
+  expect(!text("#supervisorReason").includes("E1003"), "The blocked OUT screen shows the employee #.");
+  expect(text("#supervisorReason").includes("Tyrone Brooks"), "The blocked OUT screen does not name the driver.");
+  expect(q("#supervisorInput").classList.contains("id-masked"), "The approver field is not masked.");
+  input("#supervisorInput", "S1001");
+  expect(text("#supervisorStatus").includes("Morgan Lee"), "The approver is not named.");
+  expect(!text("#supervisorStatus").includes("S1001"), "The approver ID is shown on the scanner.");
+}
+
+async function testLicensePanelShortLabel() {
+  click('[data-view="supervisorView"]');
+  // Read the badges one by one: the row's textContent runs the cells together ("09/10/26ExpActive").
+  const badges = [...doc().querySelectorAll("#licenseWarningBody .status-badge")].map((badge) => badge.textContent.trim());
+  expect(badges.includes("Exp"), `The license panel badges read: ${badges.join(", ")}`);
+  expect(!badges.some((label) => /authorization blocked/i.test(label)), "The license panel still spells out Expired - authorization blocked.");
+}
+
+// The seed is Patrick's exact case: three authorized, and two active drivers who are not.
+async function testAuthorizationCrossCheck() {
+  click('[data-view="supervisorView"]');
+  expect(text("#adminAuthorizedCount") === "3", "The authorization count is wrong for the seed.");
+  expect(/3 authorized now\. 2 active drivers are not authorized today\./.test(text("#authorizationCrossCheck")), `Cross-check reads: ${text("#authorizationCrossCheck")}`);
+}
+
+function firstCells(bodySelector, cellIndex, count) {
+  return [...doc().querySelectorAll(`${bodySelector} tr`)].slice(0, count).map((row) => row.cells[cellIndex].textContent.trim());
+}
+
+async function testDriversSortedByActivity() {
+  click('[data-view="supervisorView"]');
+  expect(firstCells("#driversTableBody", 1, 3).join(",") === "E1001,E1003,E1004", `Roster order: ${firstCells("#driversTableBody", 1, 6).join(",")}`);
+  click('[data-view="scannerView"]');
+  await submitMovement("E1002", "G0002", "IN");
+  await waitForHome();
+  click('[data-view="supervisorView"]');
+  expect(firstCells("#driversTableBody", 1, 1)[0] === "E1002", "The driver who just moved is not at the top.");
+}
+
+async function testVehiclesSortedByActivity() {
+  click('[data-view="supervisorView"]');
+  click('[data-supervisor-section="vehiclesSection"]');
+  expect(firstCells("#vehiclesTableBody", 0, 3).join(",") === "G0001,G0003,G0004", `Vehicle order: ${firstCells("#vehiclesTableBody", 0, 5).join(",")}`);
+}
+
+async function testPlaceholdersGone() {
+  expect(!doc().querySelector("#locationList"), "The Locations placeholder is still rendered.");
+  expect(!/label printer/i.test(doc().body.textContent), "The Label printer placeholder is still rendered.");
+}
+
+async function testSearchPagesAt50() {
+  const saved = state();
+  const template = saved.transactions[0];
+  for (let index = 0; index < 117; index += 1) {
+    saved.transactions.push({ ...template, id: `bulk-${index}`, timestamp: new Date(Date.now() - (200 + index) * 60000).toISOString() });
+  }
+  targetWindow().localStorage.setItem(STATE_KEY, JSON.stringify(saved));
+  await reloadTarget();
+  click('[data-view="searchView"]');
+  const rows = () => doc().querySelectorAll("#searchResultsBody tr").length;
+  expect(rows() === 50, `Expected 50 rows, found ${rows()}.`);
+  expect(text("#searchResultCount") === "120", "The badge does not count every match.");
+  expect(!q("#searchMoreButton").classList.contains("hidden") && /Show next 50/.test(text("#searchMoreButton")), "There is no way to load the next 50.");
+  click("#searchMoreButton");
+  expect(rows() === 100, `Expected 100 rows after one more page, found ${rows()}.`);
+  click("#searchMoreButton");
+  expect(rows() === 120 && q("#searchMoreButton").classList.contains("hidden"), "The last page did not finish the list.");
+  click('#searchForm button[type="submit"]');
+  expect(rows() === 50, "A new search did not start again at the first page.");
+}
+
+async function testSearchPrint() {
+  let printed = 0;
+  targetWindow().print = () => { printed += 1; };
+  click('[data-view="searchView"]');
+  click("#printSearchButton");
+  expect(printed === 0 && /enter your name/i.test(text("#searchPrintStatus")), "Printing went ahead without a name.");
+  input("#searchPrintedBy", "Pat Tester");
+  input("#filterDriver", "E1001");
+  click('#searchForm button[type="submit"]');
+  click("#printSearchButton");
+  // One line per footer paragraph; the footer's own textContent runs them together.
+  const lines = [...doc().querySelectorAll("#searchPrintFooter p")].map((line) => line.textContent.trim());
+  expect(printed === 1, "The print dialog was not opened.");
+  expect(lines.some((line) => /^Printed by: Pat Tester, \d{2}\/\d{2}\/\d{2}/.test(line)), "The printout does not name who printed it, and when.");
+  expect(lines.includes("Search criteria: Employee # or driver: E1001"), "The printout does not keep the search criteria.");
+  expect(lines.includes("Rows printed: 1 of 1 matching movement"), `Footer reads: ${lines.join(" | ")}`);
+  expect(lines.some((line) => /^Search run: \d{2}\/\d{2}\/\d{2}/.test(line)), "The printout does not show when the search ran.");
+  expect(events().some((event) => event.type === "search_printed"), "Printing was not recorded.");
+  click("#clearSearchButton");
+  expect(q("#searchPrintedBy").value === "Pat Tester", "Clear wiped the printout name.");
+}
+
+async function testShortDates() {
+  click('[data-view="supervisorView"]');
+  const licenseDate = firstCells("#driversTableBody", 5, 1)[0];
+  expect(/^\d{2}\/\d{2}\/\d{2}$/.test(licenseDate), `License date reads ${licenseDate}.`);
+  click('[data-view="searchView"]');
+  const stamp = firstCells("#searchResultsBody", 0, 1)[0];
+  expect(/^\d{2}\/\d{2}\/\d{2}, \d{1,2}:\d{2}\s?[AP]M$/.test(stamp), `Search timestamp reads ${stamp}.`);
+}
+
+async function setLocationOverride(locationName) {
+  click('[data-view="supervisorView"]');
+  click('[data-supervisor-section="adminSection"]');
+  click(`[data-override-location="${locationName}"]`);
+  click('[data-view="scannerView"]');
+}
+
+async function testOverrideOffByDefault() {
+  click('[data-view="supervisorView"]');
+  click('[data-supervisor-section="adminSection"]');
+  const states = firstCells("#locationOverrideBody", 1, 4);
+  expect(states.length === 4 && states.every((value) => value === "Off"), `Override states: ${states.join(",")}`);
+  click('[data-view="scannerView"]');
+  await testUnauthorizedOutBlock();
+}
+
+async function testOverrideScannedBadgeExits() {
+  await setLocationOverride("Division Street");
+  expect(events().some((event) => event.type === "location_override_enabled"), "Turning the override on was not recorded.");
+  await beginScan("E1003", "G0003");
+  click("#directionOut");
+  await waitForStep(3);
+  expect(/scanned-badge override/i.test(text("#scanSummary")), "The review step does not say the override applies.");
+  click("#submitTransactionButton");
+  await waitForHome();
+  const transaction = latestTransaction();
+  expect(transaction.direction === "OUT" && transaction.authorizationStatus === "Location override", `Saved as ${transaction.authorizationStatus}.`);
+  expect(events().some((event) => event.type === "location_override_exit"), "The override exit was not recorded.");
+  expect(!state().authorizations.some((item) => item.driverEmployee === "E1003" && item.status === "active"), "The override created a daily authorization.");
+}
+
+async function testOverrideTypedStillBlocked() {
+  await setLocationOverride("Division Street");
+  click("#startScanButton");
+  await waitForStep(0);
+  input("#barcodeInput", "G0003"); key("#barcodeInput", "Enter");
+  await waitForStep(1);
+  tap("#driverInput");
+  input("#driverInput", "E1003"); key("#driverInput", "Enter");
+  await waitForStep(2);
+  click("#directionOut");
+  click("#submitTransactionButton");
+  await waitForVisible("#supervisorPanel");
+  expect(/scanned badges only/i.test(text("#supervisorReason")), "The operator is not told why the override did not apply.");
+  expect(state().transactions.length === seededTransactionCount(), "A typed employee # was let out by the override.");
+}
+
+async function testOverrideOtherLocationUnaffected() {
+  await setLocationOverride("North Ave");
+  await testUnauthorizedOutBlock();
+}
+
+async function testOverrideRevokedToday() {
+  await setLocationOverride("Division Street");
+  click('[data-view="supervisorView"]');
+  click('[data-driver-action="deauthorize"][data-driver-employee="E1001"]');
+  expect(state().authorizations.some((item) => item.driverEmployee === "E1001" && item.status === "revoked"), "Revoking E1001 did not take.");
+  click('[data-view="scannerView"]');
+  await beginScan("E1001", "G0001");
+  click("#directionOut");
+  click("#submitTransactionButton");
+  await waitForVisible("#supervisorPanel");
+  expect(/revoked today/i.test(text("#supervisorReason")), "A driver revoked today was not refused with a reason.");
+}
+
+async function testOverrideExpiredLicense() {
+  await setLocationOverride("Division Street");
+  await beginScan("E1005", "G0005");
+  click("#directionOut");
+  click("#submitTransactionButton");
+  expect(state().transactions.length === seededTransactionCount(), "The override let out a driver with an expired license.");
 }
 
 function seededTransactionCount() { return 3; }
