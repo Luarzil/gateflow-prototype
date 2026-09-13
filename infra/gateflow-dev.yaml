@@ -93,6 +93,9 @@ Resources:
       MasterUserPassword: !Sub '{{resolve:secretsmanager:${DbSecret}:SecretString:password}}'
       DBSubnetGroupName: !Ref DbSubnetGroup
       VpcSecurityGroupIds: [!Ref DbSecurityGroup]
+      # The Data API is how migrations are applied and how the application will reach a database
+      # that has no public endpoint. The first deployment had it; this file had fallen behind.
+      EnableHttpEndpoint: true
       StorageEncrypted: true
       BackupRetentionPeriod: 7
       ServerlessV2ScalingConfiguration:

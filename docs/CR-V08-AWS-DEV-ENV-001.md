@@ -1,6 +1,6 @@
 # CR-V08-AWS-DEV-ENV-001 — GateFlow dev/test environment and initial schema
 
-**Status:** template validated; stack creation pending owner execution
+**Status:** deployed; moved 2026-09-13 into the Veri-Gate Dev member account (see below)
 **Branch:** `change/CR-V08-AWS-DEV-ENV-001-dev-environment`
 **Date:** 2026-09-03
 
@@ -86,6 +86,21 @@ aws cloudformation delete-stack --stack-name gateflow-dev --region us-east-1
 
 The entire environment is created and destroyed as one unit. That is the primary reason for
 using a stack rather than console clicks.
+
+## 2026-09-13 — moved out of the management account
+
+The scope limit above is resolved. Patrick's Organization now has two Veri-Gate member accounts,
+created by the owner: **Veri-Gate Dev** `043262085191` and **Veri-Gate Prod** `627963863480`.
+
+- The stack was rebuilt from this template in Veri-Gate Dev (cluster
+  `gateflow-dev-dbcluster-brcnvrrfcdl3`), and `001` then `002` were applied through the Data API,
+  one transaction per file. The result was checked against the original: same tables, the
+  provisional columns and OUT trigger gone, `app_role` without Manager, `approver_rank` intact.
+- `EnableHttpEndpoint: true` is now in the template. The first deployment had it, but this file
+  had fallen behind, so a rebuild from the file alone would have had no Data API.
+- `002_scan_created_inventory.sql` was also applied to the original stack in the management
+  account on the same day. The owner then approved deleting that stack, which held only
+  smoke-test rows; the rollback command above, run against the management account, is how.
 
 ## Not authorised by this CR
 
