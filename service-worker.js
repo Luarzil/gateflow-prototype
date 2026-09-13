@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE_NAME = "lot-watch-gateflow-v0.8-barcode-integrity-static";
+const CACHE_NAME = "lot-watch-gateflow-v0.8-patrick-0913-static";
 const APP_SHELL = [
   "./",
   "./index.html",

@@ -182,7 +182,10 @@ async function verifyRecoveryBehavior(cdp, url) {
   // CR-V11 replaced "Supervisor found" with "<role> or above found", because the minimum approver
   // is Fleet Lead now. Matching the tail keeps this about acceptance rather than the role name.
   assert.match(supervisorReady.notice, /or above found/i, "legacy supervisor ID must normalize before approval");
-  assert.match(supervisorReady.status, /S1001/, "supervisor status must show the canonical ID");
+  // CR-V16: on the scanner the approver is named, never shown by ID. The migration itself is proven
+  // by the stored value asserted above.
+  assert.match(supervisorReady.status, /Morgan Lee/, "supervisor status must name the approver");
+  assert.doesNotMatch(supervisorReady.status, /S1001|SUP-1001/, "supervisor status must not show the approver ID");
   await evaluate(cdp, "document.querySelector('#approveSupervisorButton').click()");
   const approval = await evaluate(cdp, `(() => { const state = JSON.parse(localStorage.getItem('lot-watch.gateflow.v0.7.state')); const authorization = state.authorizations.find(item => item.driverEmployee === 'E1003' && item.status === 'active'); return { heading: document.querySelector('#reviewStepTitle').textContent, notice: document.querySelector('#scannerNotice').textContent, summary: document.querySelector('#scanSummary').innerText, authorizedAt: authorization?.authorizedAt, expiresAt: authorization?.expiresAt }; })()`);
   assert.match(approval.heading, /Review Vehicle OUT/, "approval must advance to the OUT review step");

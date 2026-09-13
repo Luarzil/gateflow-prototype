@@ -72,7 +72,8 @@ const cases = [
   ["52 an unknown barcode is added to inventory rather than gated", includes(app, "createScannedVehicle")],
   ["53 barcode uses canonical lookup", includes(app, "const value = canonicalVehicleBarcode(el.barcodeInput.value)")],
   ["54 supervisor field updates live status", includes(app, 'addEventListener("input", updateSupervisorStatus)')],
-  ["55 supervisor valid state is visible", includes(app, "is ready to approve 9 hours")],
+  // CR-V16: the duration is chosen from a list now, and the approver is named rather than shown by ID.
+  ["55 supervisor valid state is visible", includes(app, "is ready to approve.`")],
   // CR-V08-BETA-CRITICAL-APP-002 (081526 v7 edit #10): the override approver is now role-gated.
   ["56 approver valid state clears stale feedback", includes(app, "setNotice(`${OVERRIDE_MIN_ROLE} or above found. Approve the temporary authorization to continue.`, \"success\")")],
   ["57 approver invalid state remains visible and under-ranked approvers are denied", () => { assert.ok(app.includes("Approver ID was not found."), "invalid ID message"); assert.ok(app.includes("override_denied_insufficient_role"), "role denial is audited at approval time"); }],
@@ -80,7 +81,8 @@ const cases = [
   ["59 supervisor approval defaults to nine hours", includes(app, 'const TEMP_AUTHORIZATION_DURATION = "9_hours"')],
   ["60 supervisor approval advances to OUT review", includes(app, 'chooseDirection("OUT")')],
   ["61 approval completion is visible", includes(app, "approved ${humanDuration(duration)}. Vehicle OUT can continue")],
-  ["62 unauthorized OUT is still blocked", includes(app, "blockOutForSupervisor(draft.driver)")],
+  // CR-V16 passes the reason a location override did not apply, so the call gained an argument.
+  ["62 unauthorized OUT is still blocked", includes(app, "blockOutForSupervisor(draft.driver, override.explanation)")],
   ["63 unauthorized IN remains reviewable", includes(app, "Unauthorized IN - operational review")],
   ["64 expired license still blocks OUT", includes(app, "authorization_blocked_expired_license")],
   ["65 inactive vehicle still blocks movement", includes(app, "Vehicle is inactive and cannot be used")],
@@ -97,7 +99,7 @@ const cases = [
   ["76 users can be added", includes(app, "function saveDesktopUser")],
   ["77 Device setup is Supervisor-only", includes(html, 'id="openDeviceSetupButton"')],
   ["78 current scanner setup remains outside scanning", includes(html, "outside the scan workflow")],
-  ["79 service worker cache version changes", includes(worker, "v0.8-barcode-integrity-static")],
+  ["79 service worker cache version changes", includes(worker, "v0.8-patrick-0913-static")],
   ["80 mobile safe-area action styling remains", includes(css, "safe-area-inset-bottom")],
   ["81 mobile action dock remains fixed", matches(css, /\.wizard-actions \{ position: fixed/)],
   ["82 README records the AWS read-only boundary", includes(readme, "read-only account and resource inventory")],

@@ -135,18 +135,45 @@
 <h3>Supervisor tables fit the screen</h3>
 <p>Column headings are abbreviated -- Emp #, Lic Exp, Auth, Auth Exp -- and the tables no longer</p>
 <p>need a horizontal scrollbar to read.</p>
+<h3>The scanner does not show employee numbers</h3>
+<p>Once a badge is scanned, the scanner shows the driver's <strong>name</strong>, never the employee number. The</p>
+<p>number in the box is drawn as dots, the review step and the blocked-OUT screen name the driver, and</p>
+<p>an approver is shown by name and role, not by ID. The <strong>Gate activity</strong> list is gone from the</p>
+<p>scanner home. An ID that can be read off the screen can be typed in later to let someone out.</p>
+<p>Tapping the box to type is different: the operator can see what they are typing, as before.</p>
+<h3>Location override (Admin tab)</h3>
+<p>The <strong>Admin</strong> tab has one switch per location. All of them start <strong>Off</strong>. When a location's</p>
+<p>switch is on, a driver whose badge is <strong>scanned</strong> there can leave without a daily authorization,</p>
+<p>provided the driver is active, the licence is current, and nobody revoked the driver's</p>
+<p>authorization today. A <strong>typed</strong> employee number is never covered; it still needs a Fleet Lead or</p>
+<p>above. Every exit the override allows is saved as <strong>Location override</strong>, not as Authorized, and</p>
+<p>turning a switch on or off is confirmed and recorded.</p>
+<p>In this review build anyone at the console can flip the switches. Once sign-in moves to AWS, only</p>
+<p>the Admin will be able to.</p>
+<h3>Search shows 50 at a time, and prints</h3>
+<p>Search shows the first <strong>50</strong> matching movements, with <strong>Show next 50</strong> under the table for more.</p>
+<p><strong>Print</strong> sits beside Clear. Type your name in <strong>Your name (for printouts)</strong> first. The printout</p>
+<p>carries the search criteria, when the search ran, how many rows are on the page, and who printed it</p>
+<p>and when. The print window can also save the page as a PDF, on your own computer, with no server</p>
+<p>involved.</p>
+<h3>Dates are MM/DD/YY</h3>
+<p>Every date on screen reads like 11/22/26, with the time after it where there is one. The date box</p>
+<p>in Search is a date picker, so how you enter a date there does not change.</p>
 <h3>Scanner and console are separate</h3>
 <p>Described above. Same application, same data.</p>
 <hr>
 <h2>The supervisor console</h2>
-<p><strong>Drivers</strong> — roster, licence expiry warnings at 30, 15 and 5 days, expired licences, and</p>
-<p>temporary authorizations individually or in bulk. Drivers are records, not logins.</p>
-<p><strong>Vehicles</strong> — the incomplete-inventory queue, then full inventory. Vehicles are removed from</p>
-<p>active use rather than deleted, so history stays intact.</p>
+<p><strong>Drivers</strong> — roster, most recent gate activity first, licence expiry warnings at 30, 15 and 5</p>
+<p>days, expired licences, and temporary authorizations individually or in bulk. Beside the roster,</p>
+<p><strong>Active Driver Authorizations</strong> lists who is authorized right now and says, in one line, how many</p>
+<p>active drivers are not. Drivers are records, not logins.</p>
+<p><strong>Vehicles</strong> — vehicles added by a gate scan, then full inventory, most recent gate activity</p>
+<p>first. Vehicles are removed from active use rather than deleted, so history stays intact.</p>
 <p><strong>Devices</strong> — each handheld registered to a gate, or a floater assigned at the start of a shift.</p>
 <p>A device that is not Active cannot scan.</p>
 <p><strong>Users</strong> — staff accounts and what each can do. Separate from drivers.</p>
-<p><strong>Search</strong> — every movement by driver, vehicle, plate, VIN, gate or date range.</p>
+<p><strong>Admin</strong> — the scanned-badge override switch for each location, described above.</p>
+<p><strong>Search</strong> — every movement by driver, vehicle, plate, VIN, gate or date, 50 at a time, with Print.</p>
 <hr>
 <h2>Known boundaries of this build</h2>
 <p>These are expected, not defects:</p>
