@@ -1,0 +1,8 @@
+{
+  "appId": "com.verigate.gateops",
+  "appName": "Veri-Gate",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  }
+}

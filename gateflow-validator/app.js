@@ -103,7 +103,7 @@ const tests = [
   ["Deterministic devices are seeded", testDeviceSeeds],
   ["VIN search works", testVinSearch],
   ["Plate search works", testPlateSearch],
-  ["Normal refresh loads V0.7", testV07Refresh],
+  ["Normal refresh loads the app and stored state", testV07Refresh],
   ["Mobile scanner surface is responsive", testMobileSurface],
   ["Drivers, Vehicles, and Devices sections work", testSupervisorSections],
 
@@ -193,7 +193,7 @@ async function runAll() {
 }
 
 async function testSurface() {
-  expect(text(".brand span span").includes("V0.7"), "V0.7 label is not visible.");
+  expect(text(".brand span span").includes("V0.8"), "V0.8 label is not visible.");
   expect(!doc().querySelector('[data-view="adminView"]'), "Admin navigation is still visible.");
   expect(q('[data-view="supervisorView"]'), "Supervisor navigation is missing.");
   expect(!doc().querySelector('[data-view="auditView"]'), "Audit navigation is still visible.");
@@ -640,7 +640,7 @@ async function testSubmissionRevalidatesLocation() { await beginScan("1001", "G0
 async function testDeviceSeeds() { expect(state().devices.length === 5 && ["D0001", "D0002", "D0003", "D0004", "D0005"].every((id) => state().devices.some((device) => device.id === id)), "Deterministic V0.7 devices are not seeded."); }
 async function testVinSearch() { click('[data-view="searchView"]'); input("#filterVehicle", "1HGCM82633A004352"); click('#searchForm button[type="submit"]'); expect(text("#searchResultsBody").includes("G0001"), "VIN search failed."); }
 async function testPlateSearch() { click('[data-view="searchView"]'); input("#filterVehicle", "TRK-8877"); click('#searchForm button[type="submit"]'); expect(text("#searchResultsBody").includes("TRK-8877"), "Plate search failed."); }
-async function testV07Refresh() { await reloadTarget(); expect(text(".brand span span").includes("V0.7") && state().version === "0.7", "Normal refresh did not load V0.7 state."); }
+async function testV07Refresh() { await reloadTarget(); expect(text(".brand span span").includes("V0.8") && state().version === "0.7", "Normal refresh did not load the app and its stored state."); }
 async function testMobileSurface() { const css = await (await targetWindow().fetch("../styles.css")).text(); expect(/max-width:\s*760px/.test(css), "Mobile responsive CSS breakpoint is missing."); }
 async function testSupervisorSections() { click('[data-view="supervisorView"]'); for (const id of ["driversSection", "vehiclesSection", "devicesSection"]) { click(`[data-supervisor-section="${id}"]`); await waitForVisible(`#${id}`); } }
 
