@@ -14,6 +14,17 @@ python -m http.server 8800 --bind 127.0.0.1
 
 Open `http://127.0.0.1:8800/`.
 
+## Build the Android app
+
+```bash
+node tools/build-apk.mjs
+```
+
+Writes `C:\VeriGate\out\Veri-Gate-V0.8.apk`, and proves the seven web files inside it are
+byte-identical to this tree before it says it succeeded. See
+[docs/BUILDING-THE-ANDROID-APP.md](docs/BUILDING-THE-ANDROID-APP.md) — including why the build
+refuses to run under `%TEMP%`, Downloads or OneDrive.
+
 ## V0.7 workflow
 
 1. Work at one configured gate: Division Street, North Ave, EWR North, or Linden.

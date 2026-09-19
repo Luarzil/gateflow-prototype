@@ -247,7 +247,7 @@ test("a flag is stored on the movement and returned to the scanner", async () =>
 
 // --- through the handler --------------------------------------------------
 
-const signedIn = { requestContext: { http: { method: "POST" }, authorizer: { jwt: { claims: { sub: "abc", "cognito:username": "raul" } } } }, rawPath: "/v1/movements" };
+const signedIn = { requestContext: { http: { method: "POST" }, authorizer: { jwt: { claims: { sub: "abc", "cognito:username": "raul", "cognito:groups": "[Admin]" } } } }, rawPath: "/v1/movements" };
 
 test("a new movement answers 201, one already recorded answers 200", async () => {
   const handler = createHandler({ db: fakeDb(), now: () => NOW });

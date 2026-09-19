@@ -27,7 +27,8 @@
   var IDP = "https://cognito-idp." + CONFIG.region + ".amazonaws.com/";
   var SESSION_KEY = "veri-gate.cloud.session.v1";
   // The console's session lives in the tab. Closing it signs out, which is what we want on a
-  // shared supervisor computer. A handheld that must stay signed in across shifts is step 5.
+  // shared supervisor computer. A gate phone is signed in once by the Admin and remembers it
+  // across restarts (step 5), so its session is kept in localStorage instead.
   var listeners = [];
   var session = null;
   var lastError = "";
@@ -48,12 +49,11 @@
 
   // --- session --------------------------------------------------------------------------------
 
-  function store() {
-    try { return window.sessionStorage; } catch (error) { return null; }
+  function store(remembered) {
+    try { return remembered ? window.localStorage : window.sessionStorage; } catch (error) { return null; }
   }
 
-  function readStoredSession() {
-    var box = store();
+  function readFrom(box) {
     if (!box) return null;
     try {
       var raw = box.getItem(SESSION_KEY);
@@ -64,13 +64,44 @@
     }
   }
 
+  function readStoredSession() {
+    return readFrom(store(false)) || readFrom(store(true));
+  }
+
+  // A session lives in exactly one place: the tab for a console, the device for a gate phone.
   function writeStoredSession(value) {
-    var box = store();
-    if (!box) return;
+    [false, true].forEach(function (remembered) {
+      var box = store(remembered);
+      if (!box) return;
+      try {
+        if (value && Boolean(value.remember) === remembered) box.setItem(SESSION_KEY, JSON.stringify(value));
+        else box.removeItem(SESSION_KEY);
+      } catch (error) { /* private browsing; the session simply does not survive a reload */ }
+    });
+  }
+
+  // What the verified token says about the login: its roles and its person's name. Read, not
+  // trusted - the server reads the same token and decides for itself.
+  var RANKS = { Device: 1, Scanner: 1, FleetLead: 2, Supervisor: 3, Admin: 4 };
+
+  function tokenClaims(idToken) {
     try {
-      if (value) box.setItem(SESSION_KEY, JSON.stringify(value));
-      else box.removeItem(SESSION_KEY);
-    } catch (error) { /* private browsing; the session simply does not survive a reload */ }
+      var part = String(idToken || "").split(".")[1] || "";
+      var base64 = part.replace(/-/g, "+").replace(/_/g, "/");
+      while (base64.length % 4) base64 += "=";
+      var text = typeof atob === "function" ? atob(base64) : Buffer.from(base64, "base64").toString("binary");
+      var utf8 = decodeURIComponent(text.split("").map(function (c) { return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2); }).join(""));
+      return JSON.parse(utf8) || {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function roleFromClaims(claims) {
+    var groups = claims["cognito:groups"];
+    if (!Array.isArray(groups)) groups = groups ? [groups] : [];
+    return groups.filter(function (group) { return RANKS[group]; })
+      .sort(function (a, b) { return RANKS[b] - RANKS[a]; })[0] || "";
   }
 
   // Cognito answers with seconds of life left. An absolute time is easier to reason about, and
@@ -85,7 +116,8 @@
       // A refresh only comes back on the first sign-in, so keep the one we already had.
       refreshToken: result.RefreshToken || (previous && previous.refreshToken) || "",
       expiresAt: new Date(Date.now() + lifetime).toISOString(),
-      signedInAt: (previous && previous.signedInAt) || new Date().toISOString()
+      signedInAt: (previous && previous.signedInAt) || new Date().toISOString(),
+      remember: Boolean(previous && previous.remember)
     };
   }
 
@@ -98,10 +130,16 @@
   }
 
   function currentStatus() {
-    if (!session) return { signedIn: false, username: "", source: "device", message: lastError };
+    if (!session) return { signedIn: false, username: "", role: "", rank: 0, name: "", source: "device", message: lastError };
+    var claims = tokenClaims(session.idToken);
+    var role = roleFromClaims(claims);
     return {
       signedIn: true,
       username: session.username,
+      role: role,
+      rank: role ? RANKS[role] : 0,
+      name: claims.name || session.username,
+      remembered: Boolean(session.remember),
       source: "shared",
       expiresAt: session.expiresAt,
       environment: CONFIG.environment,
@@ -154,9 +192,9 @@
     return payload.message || fallback || "Sign-in failed.";
   }
 
-  function finishAuth(payload, username, previous) {
+  function finishAuth(payload, username, previous, remember) {
     if (payload.ChallengeName === "NEW_PASSWORD_REQUIRED") {
-      return { challenge: "NEW_PASSWORD_REQUIRED", challengeSession: payload.Session, username: username };
+      return { challenge: "NEW_PASSWORD_REQUIRED", challengeSession: payload.Session, username: username, remember: Boolean(remember) };
     }
     if (payload.ChallengeName) {
       // MFA is available in the user pool but the console cannot prompt for a code yet.
@@ -164,30 +202,34 @@
     }
     var next = sessionFromAuthResult(payload.AuthenticationResult, username, previous);
     if (!next) throw new CloudError("Sign-in did not return a token.", "auth");
+    if (remember !== undefined) next.remember = Boolean(remember);
     lastError = "";
     setSession(next);
     return { signedIn: true, username: next.username };
   }
 
-  function signIn(username, password) {
+  // remember: true for a gate phone, whose sign-in must survive the app being closed.
+  function signIn(username, password, options) {
+    var remember = Boolean(options && options.remember);
     var name = String(username || "").trim();
     if (!name || !password) return Promise.reject(new CloudError("Enter the username and password."));
     return idp("InitiateAuth", {
       AuthFlow: "USER_PASSWORD_AUTH",
       ClientId: CONFIG.clientId,
       AuthParameters: { USERNAME: name, PASSWORD: password }
-    }).then(function (payload) { return finishAuth(payload, name, null); });
+    }).then(function (payload) { return finishAuth(payload, name, null, remember); });
   }
 
   // The Admin creates a login with a temporary password, so the first sign-in always lands here.
-  function completeNewPassword(username, newPassword, challengeSession) {
+  function completeNewPassword(username, newPassword, challengeSession, options) {
+    var remember = Boolean(options && options.remember);
     if (!newPassword) return Promise.reject(new CloudError("Enter the new password."));
     return idp("RespondToAuthChallenge", {
       ChallengeName: "NEW_PASSWORD_REQUIRED",
       ClientId: CONFIG.clientId,
       Session: challengeSession,
       ChallengeResponses: { USERNAME: username, NEW_PASSWORD: newPassword }
-    }).then(function (payload) { return finishAuth(payload, username, null); });
+    }).then(function (payload) { return finishAuth(payload, username, null, remember); });
   }
 
   // Several requests can find the token expired at once - a search and the queue, say. They share
@@ -214,15 +256,28 @@
     setSession(null);
   }
 
+  // Signing out on purpose also ends the refresh token at Cognito, so a copy of it left anywhere is
+  // worthless. Best effort: with no signal the session still ends here.
+  function signOutOnPurpose() {
+    var token = session && session.refreshToken;
+    signOut("");
+    if (token) idp("RevokeToken", { Token: token, ClientId: CONFIG.clientId }).catch(function () {});
+  }
+
+  // Only Cognito saying no ends a session. With no signal, or Cognito unreachable, a phone keeps its
+  // sign-in and tries again later: a gate out of signal for an afternoon must not come back signed
+  // out and waiting for the Admin. (Before step 5, any failed refresh signed the device out.)
+  function refreshFailed(error) {
+    if (error && error.kind === "auth") signOut("The sign-in expired. Sign in again.");
+    throw error && error.kind === "auth" ? new CloudError("The sign-in expired. Sign in again.", "auth") : error;
+  }
+
   // --- the API --------------------------------------------------------------------------------
 
   function ready() {
     if (!session) return Promise.reject(new CloudError("Sign in to read the shared records.", "auth"));
     if (!isSessionExpired(session)) return Promise.resolve();
-    return refresh().catch(function () {
-      signOut("The sign-in expired. Sign in again.");
-      throw new CloudError("The sign-in expired. Sign in again.", "auth");
-    });
+    return refresh().catch(refreshFailed);
   }
 
   function request(path, query, options) {
@@ -240,9 +295,15 @@
         return response.text().then(function (text) {
           var payload = {};
           try { payload = text ? JSON.parse(text) : {}; } catch (error) { /* reported below */ }
-          if (response.status === 401 || response.status === 403) {
+          // 401 is API Gateway saying the sign-in itself is no good. 403 is the server saying this
+          // login's role may not do this one thing (step 5) - a refusal with a reason, not a reason to
+          // sign anybody out.
+          if (response.status === 401) {
             signOut("The sign-in expired. Sign in again.");
             throw new CloudError("The sign-in expired. Sign in again.", "auth", response.status);
+          }
+          if (response.status === 403) {
+            throw new CloudError(payload.message || "This login is not allowed to do that.", "forbidden", 403);
           }
           // The dev database pauses when nobody uses it, and takes about half a minute to wake.
           if (response.status === 503 && payload.error === "database_waking") {
@@ -387,6 +448,19 @@
     return request("/v1/audit-events", "", { method: "POST", body: { entries: entries } });
   }
 
+  // The Admin's logins (step 5). A temporary password comes back once, to be handed over.
+  function users() {
+    return request("/v1/users", "").then(function (payload) { return payload.users || []; });
+  }
+
+  function createUser(input) {
+    return request("/v1/users", "", { method: "POST", body: input });
+  }
+
+  function updateUser(username, input) {
+    return request("/v1/users/" + encodeURIComponent(username), "", { method: "PATCH", body: input });
+  }
+
   // --- the offline queue (step 4) ---------------------------------------------------------------
   //
   // Patrick, on how long a gate can be without signal: "could be minutes or days", and "Enterprise
@@ -457,7 +531,7 @@
     start: function () {
       var stored = readStoredSession();
       if (stored && !isSessionExpired(stored)) session = stored;
-      else if (stored && stored.refreshToken) { session = stored; refresh().catch(function () { signOut("The sign-in expired. Sign in again."); }); }
+      else if (stored && stored.refreshToken) { session = stored; refresh().catch(function (error) { try { refreshFailed(error); } catch (ignored) { /* reported through status */ } }); }
       announce();
       return currentStatus();
     },
@@ -465,7 +539,10 @@
     status: currentStatus,
     signIn: signIn,
     completeNewPassword: completeNewPassword,
-    signOut: function () { signOut(""); },
+    signOut: signOutOnPurpose,
+    users: users,
+    createUser: createUser,
+    updateUser: updateUser,
     health: health,
     reference: reference,
     movements: movements,
@@ -478,7 +555,7 @@
     drainQueue: drainQueue,
     failureAction: failureAction,
     // Exposed for the tests, which check these without a browser or a network.
-    internals: { movementQuery: movementQuery, mapMovement: mapMovement, sessionFromAuthResult: sessionFromAuthResult, isSessionExpired: isSessionExpired, signInMessage: signInMessage, CloudError: CloudError }
+    internals: { tokenClaims: tokenClaims, roleFromClaims: roleFromClaims, refreshFailed: refreshFailed, movementQuery: movementQuery, mapMovement: mapMovement, sessionFromAuthResult: sessionFromAuthResult, isSessionExpired: isSessionExpired, signInMessage: signInMessage, CloudError: CloudError }
   };
 
   // Node's test runner loads this file directly; the browser ignores this.

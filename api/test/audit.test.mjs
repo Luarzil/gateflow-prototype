@@ -69,7 +69,7 @@ test("an empty or oversized batch is refused", async () => {
 
 test("POST /v1/audit-events answers 201 with what was recorded", async () => {
   const response = await createHandler({ db: fakeDb(), now })({
-    requestContext: { http: { method: "POST" }, authorizer: { jwt: { claims: { sub: "abc", "cognito:username": "raul" } } } },
+    requestContext: { http: { method: "POST" }, authorizer: { jwt: { claims: { sub: "abc", "cognito:username": "raul", "cognito:groups": "[Admin]" } } } },
     rawPath: "/v1/audit-events",
     body: JSON.stringify({ entries: [entry()] })
   });

@@ -65,8 +65,10 @@ Resources:
       EnableTokenRevocation: true
       AccessTokenValidity: 60
       IdTokenValidity: 60
-      # A handheld at a gate should not need its password re-entered every shift.
-      RefreshTokenValidity: 30
+      # A handheld at a gate should not need its password re-entered every shift. Step 5: each phone
+      # is signed in once by the Admin and stays signed in; 180 days means the Admin re-signs a phone in
+      # twice a year. Turning a login off in the Users tab still stops it at once (global sign-out).
+      RefreshTokenValidity: 180
       TokenValidityUnits: {AccessToken: minutes, IdToken: minutes, RefreshToken: days}
 
   # Roles as Cognito groups, most senior first. The API reads them from the token.
@@ -114,6 +116,23 @@ Resources:
               - Effect: Allow
                 Action: 'secretsmanager:GetSecretValue'
                 Resource: !Ref SecretArn
+        # Step 5: the Admin makes and manages logins from the app. This pool only; no deleting.
+        - PolicyName: veri-gate-logins
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'cognito-idp:ListUsers'
+                  - 'cognito-idp:ListUsersInGroup'
+                  - 'cognito-idp:AdminListGroupsForUser'
+                  - 'cognito-idp:AdminCreateUser'
+                  - 'cognito-idp:AdminAddUserToGroup'
+                  - 'cognito-idp:AdminRemoveUserFromGroup'
+                  - 'cognito-idp:AdminDisableUser'
+                  - 'cognito-idp:AdminEnableUser'
+                  - 'cognito-idp:AdminSetUserPassword'
+                  - 'cognito-idp:AdminUserGlobalSignOut'
+                Resource: !GetAtt UserPool.Arn
       Tags:
         - {Key: Project, Value: GateFlow}
         - {Key: Environment, Value: dev}
@@ -137,6 +156,7 @@ Resources:
           SECRET_ARN: !Ref SecretArn
           DATABASE_NAME: !Ref DatabaseName
           STAGE: dev
+          USER_POOL_ID: !Ref UserPool
       Tags:
         - {Key: Project, Value: GateFlow}
         - {Key: Environment, Value: dev}

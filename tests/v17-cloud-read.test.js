@@ -265,7 +265,7 @@ test("cloud.js loads before the app, and is cached for offline use", () => {
 });
 
 test("the cache name moved on, so a stale shell is replaced", () => {
-  assert.ok(worker.includes('const CACHE_NAME = "lot-watch-gateflow-v0.8-crv18-static";'));
+  assert.ok(worker.includes('const CACHE_NAME = "lot-watch-gateflow-v0.8-signin-static";'));
 });
 
 test("the client points at the Veri-Gate Dev service", () => {

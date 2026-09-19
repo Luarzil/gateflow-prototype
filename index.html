@@ -29,7 +29,7 @@
       <nav class="top-nav" aria-label="Primary views">
         <button class="nav-tab is-active" type="button" data-view="scannerView">Scanner</button>
         <button class="nav-tab" type="button" data-view="supervisorView">Supervisor</button>
-        <button class="nav-tab" type="button" data-view="searchView">Search</button>
+        <button class="nav-tab" type="button" data-view="searchView" data-needs="fleetLead">Search</button>
       </nav>
 
       <!-- Says where the records on screen come from: this device, or the shared database. -->
@@ -37,6 +37,18 @@
     </header>
 
     <main>
+      <!-- CR-V17 step 5: the console is not used without signing in. -->
+      <section class="console-gate hidden" id="consoleGate" aria-labelledby="consoleGateHeading">
+        <div class="panel console-gate-card">
+          <p class="eyebrow">Veri-Gate console</p>
+          <h1 id="consoleGateHeading">Sign in to continue</h1>
+          <p>The console shows and changes the shared gate records, so every change is recorded under the name of the person signed in. Ask the Admin if you do not have a login.</p>
+          <p class="field-status" id="consoleGateStatus"></p>
+          <button class="button primary" id="consoleGateSignInButton" type="button">Sign in</button>
+          <p class="field-status">Just looking? <a href="./?demo=1">Open the demo</a> - made-up records that stay in this browser.</p>
+        </div>
+      </section>
+      <p class="demo-banner hidden" id="demoBanner" role="note">Demo mode: nothing here is real, and nothing leaves this browser.</p>
       <section class="view is-active" id="scannerView" aria-labelledby="scannerHeading">
         <div class="scanner-layout">
           <section class="handheld-shell" aria-labelledby="scannerHeading">
@@ -68,6 +80,8 @@
                 </div>
                 <!-- CR-V17 step 4: how many movements are waiting for a signal. Hidden at zero. -->
                 <p class="sync-status hidden" id="syncStatus" role="status"></p>
+                <!-- CR-V17 step 5: the Admin signs a gate phone in once, here. -->
+                <button class="phone-signin-link" id="phoneSignInOpenButton" type="button">Phone sign-in</button>
               </section>
 
               <section class="scanner-screen hidden" id="scanWizard">
@@ -153,9 +167,9 @@
         <div class="supervisor-tabs" role="tablist" aria-label="Supervisor sections">
           <button class="supervisor-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="driversSection" id="driversTab" data-supervisor-section="driversSection">Drivers</button>
           <button class="supervisor-tab" type="button" role="tab" aria-selected="false" aria-controls="vehiclesSection" id="vehiclesTab" data-supervisor-section="vehiclesSection">Vehicles</button>
-          <button class="supervisor-tab" type="button" role="tab" aria-selected="false" aria-controls="devicesSection" id="devicesTab" data-supervisor-section="devicesSection">Devices</button>
-          <button class="supervisor-tab" type="button" role="tab" aria-selected="false" aria-controls="usersSection" id="usersTab" data-supervisor-section="usersSection">Users</button>
-          <button class="supervisor-tab" type="button" role="tab" aria-selected="false" aria-controls="adminSection" id="adminTab" data-supervisor-section="adminSection">Admin</button>
+          <button class="supervisor-tab" type="button" role="tab" aria-selected="false" aria-controls="devicesSection" id="devicesTab" data-supervisor-section="devicesSection" data-needs="supervisor">Devices</button>
+          <button class="supervisor-tab" type="button" role="tab" aria-selected="false" aria-controls="usersSection" id="usersTab" data-supervisor-section="usersSection" data-needs="admin">Users</button>
+          <button class="supervisor-tab" type="button" role="tab" aria-selected="false" aria-controls="adminSection" id="adminTab" data-supervisor-section="adminSection" data-needs="admin">Admin</button>
         </div>
 
         <section id="driversSection" class="supervisor-section is-active" role="tabpanel" aria-labelledby="driversTab">
@@ -163,12 +177,12 @@
             <section class="panel driver-roster-panel">
               <div class="panel-heading">
                 <div><p class="eyebrow">Driver roster</p><h2>All Drivers</h2></div>
-                <button class="button secondary" id="addDriverButton" type="button">Add Driver</button>
+                <button class="button secondary" id="addDriverButton" type="button" data-needs="supervisor">Add Driver</button>
               </div>
               <div class="bulk-toolbar" aria-label="Bulk driver authorization controls">
                 <div><label for="driverRosterSearch">Search drivers</label><input id="driverRosterSearch" type="search" placeholder="Name or employee #"></div>
                 <div><label for="authorizationDuration">Auth duration</label><select id="authorizationDuration" name="authorizationDuration"><option value="9_hours" selected>9 Hours</option><option value="12_hours">12 Hours</option><option value="today">Today</option><option value="48_hours">48 Hours</option><option value="3_days">3 Days</option></select></div>
-                <button class="button primary" id="bulkAuthorizeButton" type="button">Authorize selected</button>
+                <button class="button primary" id="bulkAuthorizeButton" type="button" data-needs="fleetLead">Authorize selected</button>
               </div>
               <p class="field-status" id="bulkActionStatus">No bulk action yet.</p>
               <p class="field-status sort-note">Most recent gate activity first. Drivers with no movements follow, by name.</p>
@@ -178,7 +192,7 @@
               <section class="panel compact-panel">
                 <div class="panel-heading"><div><p class="eyebrow">Today</p><h2>Active Driver Authorizations</h2></div><strong class="number-badge" id="adminAuthorizedCount">0</strong></div>
                 <p class="field-status" id="authorizationCrossCheck"></p>
-                <button class="button danger compact" id="deauthorizeAllButton" type="button">Deauthorize all</button>
+                <button class="button danger compact" id="deauthorizeAllButton" type="button" data-needs="fleetLead">Deauthorize all</button>
                 <p class="field-status">Scope for every authorization: All current locations.</p>
                 <div class="table-wrap"><table class="compact-rows"><thead><tr><th>Driver</th><th>Dur</th><th>Expires</th><th></th></tr></thead><tbody id="authorizedDriversBody"></tbody></table></div>
               </section>
@@ -198,7 +212,7 @@
             <div class="table-wrap"><table><thead><tr><th>Barcode</th><th>Added</th><th>Still blank</th><th>Actions</th></tr></thead><tbody id="incompleteInventoryBody"></tbody></table></div>
           </section>
           <section class="panel">
-            <div class="panel-heading"><div><p class="eyebrow">Vehicle inventory</p><h2>Active fleet vehicles</h2></div><button class="button secondary" id="addVehicleButton" type="button">Add Vehicle</button></div>
+            <div class="panel-heading"><div><p class="eyebrow">Vehicle inventory</p><h2>Active fleet vehicles</h2></div><button class="button secondary" id="addVehicleButton" type="button" data-needs="supervisor">Add Vehicle</button></div>
             <div class="bulk-toolbar vehicle-toolbar"><div><label for="vehicleSearch">Search vehicles</label><input id="vehicleSearch" type="search" placeholder="Barcode, VIN, plate, make, model, year, or color"></div><div><label for="vehicleStatusFilter">Inventory status</label><select id="vehicleStatusFilter"><option value="active">Active</option><option value="inactive">Inactive</option><option value="all">All</option></select></div></div>
             <p class="field-status sort-note">Most recent gate activity first. Vehicles with no movements follow, by barcode.</p>
             <div class="table-wrap"><table><thead><tr><th>Barcode</th><th>Year</th><th>Make</th><th>Model</th><th>Color</th><th>VIN</th><th>Plate</th><th>Status</th></tr></thead><tbody id="vehiclesTableBody"></tbody></table></div>
@@ -216,7 +230,24 @@
         </section>
 
         <section id="usersSection" class="supervisor-section" role="tabpanel" aria-labelledby="usersTab" hidden>
-          <section class="panel">
+          <section class="panel hidden" id="loginsPanel">
+            <div class="panel-heading"><div><p class="eyebrow">Admin only</p><h2>Logins</h2></div></div>
+            <p class="field-status">Each person, and each gate phone, has a login. Make one here and hand over the temporary password shown; they choose their own at their first sign-in. Nobody signs themselves up.</p>
+            <form class="login-form" id="loginForm" novalidate>
+              <div class="form-row"><label for="loginNameInput">Name</label><input id="loginNameInput" autocomplete="off" placeholder="Jordan Wells, or Division Gate Scanner"></div>
+              <div class="form-row"><label for="loginUsernameInput">Login name</label><input id="loginUsernameInput" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="jwells, or d0001"></div>
+              <div class="form-row"><label for="loginRoleInput">Role</label><select id="loginRoleInput"><option value="Supervisor">Supervisor</option><option value="FleetLead">Fleet Lead</option><option value="Scanner">Scanner (person)</option><option value="Device">Gate phone</option><option value="Admin">Admin</option></select></div>
+              <button class="button primary" type="submit">Create login</button>
+            </form>
+            <p class="field-status" id="loginFormStatus" role="status"></p>
+            <div class="login-password hidden" id="loginPasswordBox" role="status">
+              <p id="loginPasswordText"></p>
+              <p class="login-password-value mono" id="loginPasswordValue"></p>
+              <button class="button secondary compact" id="hideLoginPasswordButton" type="button">Done - hide it</button>
+            </div>
+            <div class="table-wrap"><table class="compact-rows"><thead><tr><th>Login</th><th>Name</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody id="loginsTableBody"></tbody></table></div>
+          </section>
+          <section class="panel" id="prototypeUsersPanel">
             <div class="panel-heading"><div><p class="eyebrow">Desktop users</p><h2>Application users and roles</h2></div><button class="button secondary" id="addDesktopUserButton" type="button">Add desktop user</button></div>
             <p class="field-status">Prototype-only user directory. Demo credential fields are not secure production passwords. Permissions shown here are planning controls only; production roles require AWS-backed authentication and server-side authorization. Drivers are operational records, not application login accounts.</p>
             <div class="table-wrap"><table><thead><tr><th>User ID</th><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th>Scope</th><th>Credential</th><th>Abilities</th><th>Actions</th></tr></thead><tbody id="desktopUsersTableBody"></tbody></table></div>
@@ -227,7 +258,7 @@
           <section class="panel">
             <div class="panel-heading"><div><p class="eyebrow">Admin only</p><h2>Scanned-badge override by location</h2></div></div>
             <p class="field-status">When a location's override is on, a driver whose badge is scanned there can leave without a daily authorization, as long as the driver is active, the license is current, and nobody revoked the driver's authorization today. A typed employee # is never covered; it still needs a Fleet Lead or above. Every exit the override allows is recorded as a location override, not as authorized.</p>
-            <p class="field-status">Review build: anyone at this console can change these switches. Once sign-in moves to AWS, only the Admin can. Every change is confirmed and recorded.</p>
+            <p class="field-status">Only the Admin sees this tab, and the shared records accept a switch change from the Admin's login only. Every change is confirmed and recorded.</p>
             <div class="table-wrap"><table><thead><tr><th>Location</th><th>Override</th><th>Last changed</th><th><span class="sr-only">Action</span></th></tr></thead><tbody id="locationOverrideBody"></tbody></table></div>
           </section>
         </section>
@@ -285,6 +316,17 @@
       </form>
     </section>
   </div>
+  <div class="modal-backdrop hidden" id="phoneSignInModal" role="dialog" aria-modal="true" aria-labelledby="phoneSignInHeading"><section class="modal-panel"><div class="panel-heading tight"><div><p class="eyebrow">Admin</p><h2 id="phoneSignInHeading">Phone sign-in</h2></div><button class="button ghost compact" id="closePhoneSignInButton" type="button">Close</button></div>
+    <p class="field-status neutral" id="phoneSignInStatus"></p>
+    <div id="phoneSignInFields">
+      <div class="form-row"><label for="phoneUsername">Phone's login</label><input id="phoneUsername" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="d0001"></div>
+      <div class="form-row"><label for="phonePassword">Password</label><input id="phonePassword" type="password" autocomplete="current-password"></div>
+      <div class="form-row hidden" id="phoneNewPasswordRow"><label for="phoneNewPassword">New password for this phone</label><input id="phoneNewPassword" type="password" autocomplete="new-password"></div>
+      <button class="button primary" id="phoneSignInButton" type="button">Sign this phone in</button>
+    </div>
+    <p class="field-status" id="phoneSignInMessage" role="status"></p>
+    <button class="button secondary hidden" id="phoneSignOutButton" type="button">Sign this phone out</button>
+  </section></div>
   <div class="modal-backdrop hidden" id="labelModal" role="dialog" aria-modal="true" aria-labelledby="labelModalHeading"><section class="modal-panel"><div class="panel-heading tight"><div><p class="eyebrow">Vehicle saved</p><h2 id="labelModalHeading">Print the barcode label?</h2></div></div><div class="label-preview" id="labelPreview"></div><p class="field-status" id="labelModalStatus"></p><div class="button-row"><button class="button secondary" id="skipLabelButton" type="button">Not now</button><button class="button primary" id="printLabelButton" type="button">Print label</button></div></section></div>
   <div class="modal-backdrop hidden" id="vehicleModal" role="dialog" aria-modal="true" aria-labelledby="vehicleModalHeading">
     <section class="modal-panel modal-wide" role="document">

@@ -147,13 +147,13 @@ test("inside the validator, movements get no shared-records id, so nothing can u
   const detection = app.slice(app.indexOf("const IN_TEST_HARNESS = (() => {"), app.indexOf('const IN_TEST_HARNESS = (() => {') + 400);
   assert.ok(detection.includes("window.top !== window"), "only a framed copy can be the harness");
   assert.ok(detection.includes("gateflow-validator"), "and only inside the validator page");
-  assert.ok(app.includes("clientId: IN_TEST_HARNESS ? undefined :"));
+  assert.ok(app.includes("clientId: IN_TEST_HARNESS || DEMO_MODE ? undefined :"));
   // And a movement without an id is never queued.
   assert.ok(app.includes("state.transactions.filter((item) => item.clientId && SYNC_WAITING.includes(item.sync))"));
 });
 
 test("inside the validator, the cloud client and the queue are never started", () => {
-  assert.ok(app.includes("if (!window.VeriGateCloud || IN_TEST_HARNESS) return;"));
+  assert.ok(app.includes("if (!window.VeriGateCloud || IN_TEST_HARNESS || DEMO_MODE) {"));
 });
 
 test("the validator's saves carry their own epoch, so no open tab merges them in", () => {
