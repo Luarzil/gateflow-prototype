@@ -260,10 +260,13 @@ export async function recordMovement(db, body, { actor = "", now = () => new Dat
     }
 
     const movementId = Number(inserted.id);
-    if (vehicle.added) {
-      await db.execute("update vehicles set added_from_movement = :movementId, updated_at = now() where id = :vehicleId and added_from_movement is null",
-        { movementId, vehicleId: vehicle.id }, transactionId);
-    }
+    // The first movement of a vehicle that turned up at the gate is where it came from. The device may
+    // have sent the vehicle itself a moment earlier, as a change, so this is not only for vehicles
+    // this upload created.
+    await db.execute(
+      `update vehicles set added_from_movement = :movementId, updated_at = now()
+        where id = :vehicleId and added_from_movement is null and created_source = 'inbound_scan'`,
+      { movementId, vehicleId: vehicle.id }, transactionId);
 
     // The audit trail is append-only, and carries the same client_id so a retry cannot double it.
     await db.execute(

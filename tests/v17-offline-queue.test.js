@@ -163,8 +163,9 @@ test("a fault inside the queue itself can never lose a movement", () => {
 
 test("the queue runs when the signal returns, on sign-in, after a scan, and every minute", () => {
   assert.ok(app.includes('window.addEventListener("online", () => { syncDevice(); });'));
-  assert.ok(app.includes("if (status.signedIn) syncDevice();"));
-  assert.ok(app.includes("setInterval(() => { if (queuedMovements().length) syncDevice(); }, SYNC_RETRY_MS);"));
+  assert.ok(app.includes("if (status.signedIn) syncDevice().then(() => pullReference());"));
+  // Since the shared drivers and vehicles: the minute check sends movements and changes alike.
+  assert.match(app, /setInterval\(\(\) => \{\r?\n\s*if \(syncQueue\(\)\.length\) syncDevice\(\);/);
   assert.ok(app.includes("const SYNC_RETRY_MS = 60000;"));
 });
 

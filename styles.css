@@ -60,6 +60,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .cloud-pill::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: #b7c4bf; }
 .cloud-pill[data-state="connected"] { border-color: var(--green); color: var(--green-deep); }
 .cloud-pill[data-state="connected"]::before { background: var(--green); }
+/* Something this console changed was refused by the shared records. */
+.cloud-pill[data-state="refused"] { border-color: var(--red); color: var(--red); background: var(--red-soft); }
+.cloud-pill[data-state="refused"]::before { background: var(--red); }
 .cloud-pill:hover { border-color: var(--green-deep); color: var(--green-deep); }
 body[data-shell="scanner"] .cloud-pill { display: none; }
 

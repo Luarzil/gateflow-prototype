@@ -35,16 +35,21 @@ export async function referenceData(db) {
     await db.query(`select employee_number, name, license_expires::text as license_expires, active,
                            ${utc("updated_at", "updated_at")}
                       from drivers order by name`),
-    await db.query(`select id, assigned_barcode, vin, plate, make, model, year, color, active, created_source::text as created_source,
-                           barcode_needs_review, ${utc("added_at", "added_at")}
+    await db.query(`select id, client_id, assigned_barcode, vin, plate, make, model, year, color, active, created_source::text as created_source,
+                           barcode_needs_review, ${utc("added_at", "added_at")}, ${utc("removed_at", "removed_at")}, removed_by
                       from vehicles order by assigned_barcode`),
     await db.query(`select id, name, imei, type, assigned_location, status, active, ${utc("last_used_at", "last_used_at")}
                       from devices order by id`),
     await db.query(`select badge_id, name, role::text as role
                       from approvers where active order by badge_id`),
-    await db.query(`select id, client_id, driver_employee, duration, ${utc("authorized_at", "authorized_at")},
-                           ${utc("expires_at", "expires_at")}, authorized_by, authorized_role::text as authorized_role, scope_type
-                      from authorizations where status = 'active' and expires_at > now() order by expires_at`)
+    // Every authorization still running, and every one that began in the last three days whatever
+    // became of it: a device needs to know a driver was revoked today, not only who is authorized.
+    await db.query(`select id, client_id, driver_employee, duration, status, ${utc("valid_from", "valid_from")}, ${utc("authorized_at", "authorized_at")},
+                           ${utc("expires_at", "expires_at")}, authorized_by, authorized_role::text as authorized_role, scope_type,
+                           revoked_by, ${utc("revoked_at", "revoked_at")}, revocation_reason, location, action_location
+                      from authorizations
+                     where (status = 'active' and expires_at > now()) or valid_from > now() - interval '3 days'
+                     order by valid_from desc`)
   ];
   return { generatedAt: new Date().toISOString(), locations, drivers, vehicles, devices, approvers, authorizations };
 }

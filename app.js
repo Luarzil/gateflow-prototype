@@ -576,6 +576,7 @@ function normalizeV07State(saved) {
   normalized.currentDeviceId = normalized.devices[currentDeviceIndex]?.id || normalized.devices.find((device) => device.id === canonicalDeviceId(originalCurrentDeviceId))?.id || normalized.devices[0]?.id || "D0001";
   normalized.auditEvents = (normalized.auditEvents || []).map((event) => ({ ...event, location: normalizeLocationName(event.location), actor: String(event.actor || "").replaceAll("EWR Scanner", "EWR North Scanner"), description: String(event.description || "").replaceAll("EMP-", "E").replaceAll("EWR Scanner", "EWR North Scanner") })).filter((event) => event.location !== "Enterprise Repair Facility" && !event.description.includes("Enterprise Repair Facility"));
   normalized.feedback = Array.isArray(normalized.feedback) ? normalized.feedback : [];
+  normalized.outbox = Array.isArray(normalized.outbox) ? normalized.outbox : [];
   normalized.desktopUsers = (Array.isArray(normalized.desktopUsers) && normalized.desktopUsers.length ? normalized.desktopUsers : createSeedState().desktopUsers).map((user, index) => normalizeDesktopUser(user, index));
   normalized.floaterLocationConfirmed = Boolean(normalized.floaterLocationConfirmed);
   return normalized;
@@ -672,7 +673,14 @@ function normalizeVehicle(vehicle, index) {
   return {
     id: vehicle.id || `veh-${String(index + 1).padStart(3, "0")}`,
     assignedBarcode: canonicalVehicleBarcode(vehicle.assignedBarcode, index),
-    vin: normalize(vehicle.vin), plate: normalize(vehicle.plate), make: vehicle.make || demo[0], model: vehicle.model || demo[1], year: Number(vehicle.year || demo[2]), color: vehicle.color || demo[3], active: vehicle.active !== false,
+    // The demo details are only for records from before V0.6, which had no such fields at all. A blank
+    // is a real answer: an unknown vehicle scanned at the gate (CR-V11) and a vehicle added with only
+    // its VIN (CR-V14) both have one. Filling blanks turned every such vehicle into a made-up car on
+    // the next load - a G0777 met at the gate came back as a 2021 silver Toyota Camry.
+    vin: normalize(vehicle.vin), plate: normalize(vehicle.plate),
+    make: vehicle.make === undefined ? demo[0] : String(vehicle.make || ""), model: vehicle.model === undefined ? demo[1] : String(vehicle.model || ""),
+    year: vehicle.year === undefined ? demo[2] : Number(vehicle.year) || "", color: vehicle.color === undefined ? demo[3] : String(vehicle.color || ""),
+    active: vehicle.active !== false,
     createdAt: vehicle.createdAt || now, updatedAt: vehicle.updatedAt || now, createdBy: vehicle.createdBy || "V0.5 migration", updatedBy: vehicle.updatedBy || "V0.5 migration", removedAt: vehicle.removedAt || "", removedBy: vehicle.removedBy || "", reactivatedAt: vehicle.reactivatedAt || "",
     // CR-V11: provisional inventory is gone. Any record previously held as provisional becomes
     // an ordinary vehicle on load, so nothing stays stuck from the earlier build.
@@ -775,6 +783,10 @@ const SYNC_RANK = { local: 0, pending: 1, sending: 2, refused: 3, shared: 3 };
 function saveState() {
   if (!storageAvailable) return false;
   if (IN_TEST_HARNESS) state.resetEpoch = HARNESS_EPOCH;
+  // What changed on this device is queued before another tab's records are taken in, so the two
+  // cannot be confused. Then it is sent straight away, not at the next minute's check: a driver
+  // added on the console should reach the gate scanners as soon as there is a signal.
+  if (recordLocalChanges()) setTimeout(() => syncDevice(), 0);
   mergeFromStorage();
   pruneSharedHistory(SHARED_KEEP_DAYS);
   if (writeState()) return true;
@@ -808,7 +820,11 @@ function pruneSharedHistory(keepDays) {
     return !confirmedAndOld;
   });
   if (trimmed.size) state.auditEvents = state.auditEvents.filter((event) => !(event.movementClientId && trimmed.has(event.movementClientId)));
-  return trimmed.size;
+  // A change the shared records have is only kept a day, long enough for another tab to learn it was
+  // sent. What it changed lives on in the records themselves.
+  const changesBefore = (state.outbox || []).length;
+  if (changesBefore) state.outbox = state.outbox.filter((item) => !(item.sync === "shared" && new Date(item.sharedAt || item.queuedAt).getTime() < Date.now() - SHARED_CHANGE_KEEP_MS));
+  return trimmed.size + (changesBefore - (state.outbox || []).length);
 }
 
 // Movements and audit entries are only ever added, so taking in everything another tab saved loses
@@ -817,7 +833,7 @@ function mergeFromStorage() {
   let stored = null;
   try { stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); } catch (error) { return 0; }
   if (!stored || (stored.resetEpoch || 0) !== (state.resetEpoch || 0)) return 0;
-  return mergeRecords("transactions", stored.transactions) + mergeRecords("auditEvents", stored.auditEvents);
+  return mergeRecords("transactions", stored.transactions) + mergeRecords("auditEvents", stored.auditEvents) + mergeChanges(stored.outbox);
 }
 
 function mergeRecords(key, incoming) {
@@ -1501,7 +1517,7 @@ function markRefused(transaction, error) {
 }
 
 function syncDevice() {
-  if (queuedMovements().length === 0) return Promise.resolve(null);
+  if (syncQueue().length === 0) return Promise.resolve(null);
   if (syncRunning || !cloudReady()) {
     renderSyncStatus();
     return Promise.resolve(null);
@@ -1512,12 +1528,12 @@ function syncDevice() {
     return Promise.resolve(null);
   }
   const cloud = window.VeriGateCloud;
-  const waiting = queuedMovements();
+  const waiting = syncQueue();
   syncRunning = true;
   waiting.forEach((item) => { item.sync = "sending"; });
-  return cloud.drainQueue(waiting, (item) => cloud.recordMovement(movementPayload(item)), {
-    sent: markShared,
-    refused: markRefused
+  return cloud.drainQueue(waiting, (item) => (item.change ? cloud.recordChange(changePayload(item)) : cloud.recordMovement(movementPayload(item))), {
+    sent: (item, result) => (item.change ? markChangeShared(item, result) : markShared(item, result)),
+    refused: (item, error) => (item.change ? markChangeRefused(item, error) : markRefused(item, error))
   }).then((summary) => {
     // Everything the queue did not reach goes back to waiting, with the reason it stopped.
     const reason = syncStopReason(summary.stopped);
@@ -1539,6 +1555,8 @@ function syncDevice() {
     syncRunning = false;
     saveState();
     renderAll();
+    // What was just sent is now the shared version; read it back, with anything other devices did.
+    if (summary && summary.sent) pullReference();
     return summary;
   });
 }
@@ -1554,11 +1572,22 @@ function syncStopReason(stopped) {
   return (stopped.error && stopped.error.message) || "the shared records did not answer.";
 }
 
+function countText(movements, changes) {
+  const parts = [];
+  if (movements) parts.push(`${movements} movement${movements === 1 ? "" : "s"}`);
+  if (changes) parts.push(`${changes} change${changes === 1 ? "" : "s"} to drivers, vehicles or authorizations`);
+  return parts.join(" and ");
+}
+
 function renderSyncStatus() {
+  renderCloudPill();
   if (!el.syncStatus) return;
-  const queue = queuedMovements();
+  const queue = syncQueue();
   const waiting = queue.length;
-  const refused = refusedMovements().length;
+  const waitingMovements = queuedMovements().length;
+  const refusedMovementCount = refusedMovements().length;
+  const refusedChangeCount = refusedChanges().length;
+  const refused = refusedMovementCount + refusedChangeCount;
   const parts = [];
   if (waiting) {
     // A phone can believe it has signal while nothing gets through (a gate Wi-Fi with no
@@ -1571,9 +1600,9 @@ function renderSyncStatus() {
         : lastFailure
           ? `The last try failed: ${lastFailure} Trying again every minute.`
           : "Sending automatically.";
-    parts.push(`${waiting} movement${waiting === 1 ? "" : "s"} waiting to reach the shared records. ${why}`);
+    parts.push(`${countText(waitingMovements, waiting - waitingMovements)} waiting to reach the shared records. ${why}`);
   }
-  if (refused) parts.push(`${refused} refused by the shared records - a supervisor needs to review ${refused === 1 ? "it" : "them"}.`);
+  if (refused) parts.push(`${countText(refusedMovementCount, refusedChangeCount)} refused by the shared records - a supervisor needs to review ${refused === 1 ? "it" : "them"}.`);
   el.syncStatus.textContent = parts.join(" ");
   el.syncStatus.classList.toggle("hidden", parts.length === 0);
   el.syncStatus.dataset.tone = refused ? "danger" : waiting ? "warning" : "";
@@ -1583,7 +1612,7 @@ function startSync() {
   // A movement that was mid-send when the app closed was never confirmed, so it is sent again.
   // The device id makes that safe: if it did arrive, the server says so and nothing is doubled.
   let recovered = 0;
-  state.transactions.forEach((item) => {
+  state.transactions.concat(state.outbox || []).forEach((item) => {
     if (item.sync === "sending") { item.sync = "pending"; recovered += 1; }
   });
   if (recovered) saveState();
@@ -1594,8 +1623,425 @@ function startSync() {
     if (event.key !== STORAGE_KEY || !event.newValue) return;
     if (mergeFromStorage()) renderAll();
   });
-  setInterval(() => { if (queuedMovements().length) syncDevice(); }, SYNC_RETRY_MS);
+  setInterval(() => {
+    if (syncQueue().length) syncDevice();
+    else if (pullIsDue() && pageIsVisible()) pullReference();
+  }, SYNC_RETRY_MS);
+  // Coming back to a console left in another window: catch up at once rather than within five minutes.
+  document.addEventListener("visibilitychange", () => {
+    if (pageIsVisible() && ui.referencePulledAt && Date.now() - ui.referencePulledAt > SYNC_RETRY_MS) pullReference();
+  });
   renderSyncStatus();
+}
+
+// --- CR-V17: drivers, vehicles, authorizations and override switches, shared --------------
+//
+// Until now only movements reached the shared records. A driver added on the console was unknown to
+// the server, so every movement for that driver was refused; an authorization a Fleet Lead gave at
+// the gate was unknown too, so the movement it allowed was flagged. The review after step 4 put this
+// first.
+//
+// Two halves. Out: every save compares these records with how they stood at the last save, and each
+// one that changed is queued in the outbox, then sent in the same line as the movements, oldest
+// first - so the authorization a Fleet Lead gave reaches the server before the OUT it allowed. It
+// catches every change whichever screen made it, including screens not written yet. In: the device
+// reads the shared records every few minutes and after it sends anything, and takes in what other
+// devices changed. Anything still waiting to be sent from this device is left alone until it has.
+
+const REFERENCE_PULL_MS = 5 * 60000;
+const SHARED_CHANGE_KEEP_MS = 86400000;
+const SHARED_KIND_ORDER = ["driver", "vehicle", "authorization", "location"];
+
+function isoOrEmpty(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+}
+
+// "S2040 / Jordan Wells" is how a gate approval names its approver.
+function approverBadgeFrom(authorizedBy) {
+  const match = /^(S\d+)\s*\//.exec(String(authorizedBy || ""));
+  return match ? match[1] : "";
+}
+
+// What each record looks like to the shared records, and so what counts as a change to it.
+function driverRecord(driver) {
+  return { employeeNumber: driver.employeeNumber, name: driver.name, licenseExpires: dateKey(new Date(driver.licenseExpires)), active: driver.active !== false };
+}
+
+function vehicleRecord(vehicle) {
+  return {
+    id: vehicle.id, assignedBarcode: vehicle.assignedBarcode, vin: vehicle.vin || "", plate: vehicle.plate || "",
+    make: vehicle.make || "", model: vehicle.model || "", year: vehicle.year || "", color: vehicle.color || "",
+    active: vehicle.active !== false, barcodeNeedsReview: vehicle.barcodeNeedsReview === true,
+    createdSource: vehicle.createdSource === SCAN_CREATED_SOURCE ? SCAN_CREATED_SOURCE : "supervisor"
+  };
+}
+
+function authorizationRecord(auth) {
+  return {
+    id: auth.id, driverEmployee: auth.driverEmployee, type: auth.type,
+    validFrom: isoOrEmpty(auth.validFrom), expiresAt: isoOrEmpty(auth.expiresAt),
+    // Running out is not news: every device and the server work that out from the clock. Only an
+    // authorization somebody ended is a change worth sending.
+    status: auth.status === "expired" ? "active" : auth.status,
+    authorizedBy: auth.authorizedBy || "", revokedBy: auth.revokedBy || "", revokedAt: isoOrEmpty(auth.revokedAt),
+    revocationReason: auth.revocationReason || "", location: auth.location || "", actionLocation: auth.actionLocation || ""
+  };
+}
+
+function locationRecord(location) {
+  const override = normalizeScanOverride(location.scanOverride);
+  return { name: location.name, scanOverride: { enabled: override.enabled, changedBy: override.changedBy, changedAt: isoOrEmpty(override.changedAt) } };
+}
+
+const SHARED_KINDS = {
+  driver: { list: () => state.drivers, id: (item) => item.employeeNumber, record: driverRecord },
+  vehicle: { list: () => state.vehicles, id: (item) => item.id, record: vehicleRecord },
+  authorization: { list: () => state.authorizations, id: (item) => item.id, record: authorizationRecord },
+  location: { list: () => state.locations, id: (item) => item.name, record: locationRecord }
+};
+
+function sharedKey(kind, id) {
+  return `${kind}:${id}`;
+}
+
+function sharingChanges() {
+  // Never inside the validator: its test records must not become anybody's shared records.
+  return !IN_TEST_HARNESS && Boolean(window.VeriGateCloud);
+}
+
+// Marks a record as agreeing with the shared records, so it is not sent back as a change.
+function settleShared(kind, item) {
+  state.refShadow[sharedKey(kind, SHARED_KINDS[kind].id(item))] = JSON.stringify(SHARED_KINDS[kind].record(item));
+}
+
+// Only what the server needs beyond the record itself: which shared vehicle this is, and who
+// approved an authorization.
+function changeData(kind, item, record, before) {
+  const data = { ...record };
+  if (kind === "vehicle") {
+    data.serverId = item.serverId || null;
+    const previous = before ? JSON.parse(before) : null;
+    if (previous && previous.assignedBarcode !== record.assignedBarcode) data.previousBarcode = previous.assignedBarcode;
+  }
+  if (kind === "authorization") {
+    data.approverBadge = approverBadgeFrom(item.authorizedBy);
+    const approver = data.approverBadge ? (state.supervisors || []).find((supervisor) => supervisor.id === data.approverBadge) : null;
+    // A badge approval's rank is checked by the server against its own approver list. The console
+    // has no sign-in of its own yet (step 5), so what it grants is recorded as a Supervisor's.
+    data.authorizedRole = approver ? approver.role : "Supervisor";
+  }
+  return data;
+}
+
+function recordLocalChanges() {
+  if (!sharingChanges()) return 0;
+  if (!Array.isArray(state.outbox)) state.outbox = [];
+  // The records this device already held when sharing began are not news to anybody; the first
+  // read of the shared records settles them. Only what changes after that is sent.
+  const first = !state.refShadow || typeof state.refShadow !== "object";
+  if (first) state.refShadow = {};
+  let queued = 0;
+  SHARED_KIND_ORDER.forEach((kind) => {
+    const spec = SHARED_KINDS[kind];
+    const items = (spec.list() || []).slice();
+    // Oldest first, so a replaced authorization is ended before the one replacing it arrives.
+    if (kind === "authorization") items.sort((a, b) => new Date(a.validFrom) - new Date(b.validFrom));
+    items.forEach((item) => {
+      const key = sharedKey(kind, spec.id(item));
+      const record = spec.record(item);
+      const print = JSON.stringify(record);
+      const before = state.refShadow[key];
+      if (before === print) return;
+      state.refShadow[key] = print;
+      if (first) return;
+      state.outbox.push({ id: window.VeriGateCloud.changeId(), change: true, kind, key, data: changeData(kind, item, record, before), queuedAt: new Date().toISOString(), sync: "local", syncError: "" });
+      queued += 1;
+    });
+  });
+  return queued;
+}
+
+function queuedChanges() {
+  return (state.outbox || []).filter((item) => SYNC_WAITING.includes(item.sync));
+}
+
+function refusedChanges() {
+  return (state.outbox || []).filter((item) => item.sync === "refused");
+}
+
+// Movements and changes in one line, in the order they happened. A change and a movement in the
+// same millisecond: the change goes first, since the movement may rely on it.
+function syncQueue() {
+  const at = (item) => new Date(item.change ? item.queuedAt : item.timestamp).getTime() || 0;
+  return queuedMovements().concat(queuedChanges())
+    .sort((a, b) => (at(a) - at(b)) || ((a.change ? 0 : 1) - (b.change ? 0 : 1)));
+}
+
+function changePayload(change) {
+  return { clientId: change.id, kind: change.kind, occurredAt: change.queuedAt, data: change.data };
+}
+
+function changeLabel(change) {
+  const data = change.data || {};
+  if (change.kind === "driver") return `driver ${data.employeeNumber}`;
+  if (change.kind === "vehicle") return `vehicle ${data.assignedBarcode}`;
+  if (change.kind === "authorization") return `the authorization for ${data.driverEmployee}`;
+  return `the override switch at ${data.name}`;
+}
+
+function markChangeShared(change, result) {
+  change.sync = "shared";
+  change.sharedAt = new Date().toISOString();
+  change.outcome = result.outcome;
+  change.syncError = "";
+  if (result.outcome === "superseded") {
+    // Not an error: another device changed the same record later, and the later edit stands. The
+    // next read brings it here, replacing this device's older one.
+    addAudit("change_superseded_by_records", `A later edit of ${changeLabel(change)} was already in the shared records, so it stands and this device's earlier edit does not.`, "Shared records", "");
+  }
+}
+
+function markChangeRefused(change, error) {
+  change.sync = "refused";
+  change.syncError = error.message;
+  addAudit("change_refused_by_records", `The shared records refused a change to ${changeLabel(change)}: ${error.message} Every device, this one included, keeps the shared version.`, "Shared records", "");
+  setNotice(`The shared records refused a change to ${changeLabel(change)}: ${error.message}`, "danger");
+}
+
+// Another tab of the console queued a change this tab has not seen. It is applied here too, so the
+// two tabs agree now rather than at the next read of the shared records.
+function applyChangeLocally(change) {
+  const data = change.data || {};
+  if (change.kind === "driver") {
+    const fields = { name: data.name, licenseExpires: new Date(`${data.licenseExpires}T12:00:00`).toISOString(), active: data.active !== false };
+    let driver = findDriverAny(data.employeeNumber);
+    if (!driver) { driver = { employeeNumber: data.employeeNumber, createdAt: change.queuedAt, createdBy: "Another tab" }; state.drivers.push(driver); }
+    Object.assign(driver, fields, { updatedAt: change.queuedAt, updatedBy: "Another tab" });
+    settleShared("driver", driver);
+  } else if (change.kind === "vehicle") {
+    let vehicle = state.vehicles.find((item) => item.id === data.id);
+    if (!vehicle) { vehicle = normalizeVehicle({ id: data.id, createdAt: change.queuedAt, createdBy: "Another tab" }, state.vehicles.length); state.vehicles.push(vehicle); }
+    Object.assign(vehicle, { assignedBarcode: data.assignedBarcode, vin: data.vin, plate: data.plate, make: data.make, model: data.model, year: data.year, color: data.color, active: data.active !== false, barcodeNeedsReview: data.barcodeNeedsReview === true, createdSource: data.createdSource, updatedAt: change.queuedAt, updatedBy: "Another tab" });
+    settleShared("vehicle", vehicle);
+  } else if (change.kind === "authorization") {
+    let auth = state.authorizations.find((item) => item.id === data.id);
+    if (!auth) { auth = { id: data.id, driverEmployee: data.driverEmployee, type: data.type, validFrom: data.validFrom, expiresAt: data.expiresAt, authorizedBy: data.authorizedBy, authorizedAt: data.validFrom, scopeType: "all_current_locations", scopeIds: [], createdAt: change.queuedAt }; state.authorizations.unshift(auth); }
+    Object.assign(auth, { status: data.status, revokedBy: data.revokedBy, revokedAt: data.revokedAt, revocationReason: data.revocationReason, location: data.location, actionLocation: data.actionLocation, updatedAt: change.queuedAt });
+    settleShared("authorization", auth);
+  } else if (change.kind === "location") {
+    const location = state.locations.find((item) => item.name === data.name);
+    if (!location) return;
+    location.scanOverride = normalizeScanOverride(data.scanOverride);
+    settleShared("location", location);
+  }
+}
+
+function mergeChanges(incoming) {
+  if (!Array.isArray(incoming)) return 0;
+  if (!Array.isArray(state.outbox)) state.outbox = [];
+  const known = new Map(state.outbox.map((item) => [item.id, item]));
+  let added = 0;
+  incoming.forEach((item) => {
+    if (!item || !item.id || !item.change) return;
+    const mine = known.get(item.id);
+    if (mine) {
+      // Another tab may already have sent it: take its word rather than send it again.
+      if ((SYNC_RANK[item.sync] || 0) > (SYNC_RANK[mine.sync] || 0)) Object.assign(mine, { sync: item.sync, sharedAt: item.sharedAt, outcome: item.outcome, syncError: item.syncError });
+      return;
+    }
+    state.outbox.push(item);
+    added += 1;
+    // Only a change still on its way is news. One already sent is in the shared records, and the
+    // next read brings it; applying it again here could undo something newer.
+    const newerHere = state.outbox.some((other) => other !== item && other.key === item.key && other.queuedAt > item.queuedAt);
+    if (SYNC_WAITING.includes(item.sync) && !newerHere && state.refShadow) applyChangeLocally(item);
+  });
+  return added;
+}
+
+// A value from the shared records differs from this device's copy.
+function differs(target, fields) {
+  return Object.keys(fields).some((key) => JSON.stringify(target[key]) !== JSON.stringify(fields[key]));
+}
+
+// Takes in the shared records. Returns how many records changed here.
+function applyReference(reference, startedAt) {
+  if (!reference || typeof reference !== "object") return 0;
+  // Anything changed here since the last save is queued first, so it counts as waiting below.
+  recordLocalChanges();
+  if (!state.refShadow) return 0;
+  // Left alone: records with a change still on its way from this device, and records whose change
+  // arrived while this read was under way, since the read may predate it. The next read settles them.
+  const busy = new Set((state.outbox || [])
+    .filter((item) => SYNC_WAITING.includes(item.sync) || (item.sharedAt && new Date(item.sharedAt).getTime() >= startedAt))
+    .map((item) => item.key));
+  const isBusy = (kind, id) => busy.has(sharedKey(kind, id));
+  const now = new Date().toISOString();
+  let changed = 0;
+
+  // An empty list is read as "nothing shared yet" rather than "delete everything": a new database
+  // must not wipe a device's roster before the import (step 6) has filled it.
+  const drivers = Array.isArray(reference.drivers) ? reference.drivers : [];
+  if (drivers.length) {
+    const seen = new Set();
+    drivers.forEach((row) => {
+      const employeeNumber = canonicalEmployeeId(row.employee_number);
+      seen.add(employeeNumber);
+      if (isBusy("driver", employeeNumber)) return;
+      const fields = { employeeNumber, name: String(row.name || ""), licenseExpires: new Date(`${row.license_expires}T12:00:00`).toISOString(), active: row.active !== false };
+      let driver = findDriverAny(employeeNumber);
+      if (!driver) {
+        driver = { ...fields, createdAt: isoOrEmpty(row.updated_at) || now, updatedAt: isoOrEmpty(row.updated_at) || now, createdBy: "Shared records", updatedBy: "Shared records" };
+        state.drivers.push(driver);
+        changed += 1;
+      } else if (differs(driver, fields)) {
+        Object.assign(driver, fields, { updatedAt: isoOrEmpty(row.updated_at) || now, updatedBy: "Shared records" });
+        changed += 1;
+      }
+      settleShared("driver", driver);
+    });
+    const before = state.drivers.length;
+    state.drivers = state.drivers.filter((driver) => seen.has(driver.employeeNumber) || isBusy("driver", driver.employeeNumber));
+    changed += before - state.drivers.length;
+  }
+
+  const vehicles = Array.isArray(reference.vehicles) ? reference.vehicles : [];
+  if (vehicles.length) {
+    const kept = new Set();
+    vehicles.forEach((row) => {
+      const serverId = Number(row.id);
+      const barcode = canonicalVehicleBarcode(row.assigned_barcode);
+      // The same car may carry a different id here: the one this device gave it, or none yet.
+      let vehicle = (row.client_id && state.vehicles.find((item) => item.id === row.client_id))
+        || state.vehicles.find((item) => Number(item.serverId) === serverId)
+        || state.vehicles.find((item) => item.assignedBarcode === barcode && !kept.has(item) && !item.serverId)
+        || null;
+      if (vehicle && isBusy("vehicle", vehicle.id)) { kept.add(vehicle); return; }
+      const id = row.client_id || (vehicle ? vehicle.id : `srv-veh-${serverId}`);
+      const fields = {
+        assignedBarcode: barcode, vin: normalize(row.vin), plate: normalize(row.plate), make: row.make || "", model: row.model || "",
+        year: Number(row.year) || "", color: row.color || "", active: row.active !== false, barcodeNeedsReview: row.barcode_needs_review === true,
+        createdSource: row.created_source || "supervisor", serverId
+      };
+      if (!vehicle) {
+        vehicle = { id, ...fields, createdAt: isoOrEmpty(row.added_at) || now, updatedAt: now, createdBy: "Shared records", updatedBy: "Shared records", removedAt: isoOrEmpty(row.removed_at), removedBy: row.removed_by || "", reactivatedAt: "", inventoryStatus: COMPLETE_STATUS, needsSupervisorCompletion: false, provisionalFromTxId: "", provisionalAt: isoOrEmpty(row.added_at), completedBy: "", completedAt: "" };
+        state.vehicles.push(vehicle);
+        changed += 1;
+      } else {
+        // Every device ends up calling the car by the id the shared records hold for it.
+        if (vehicle.id !== id) { delete state.refShadow[sharedKey("vehicle", vehicle.id)]; vehicle.id = id; changed += 1; }
+        if (differs(vehicle, fields)) {
+          Object.assign(vehicle, fields, { updatedAt: now, updatedBy: "Shared records", removedAt: isoOrEmpty(row.removed_at) || vehicle.removedAt || "", removedBy: row.removed_by || vehicle.removedBy || "" });
+          changed += 1;
+        }
+      }
+      kept.add(vehicle);
+      settleShared("vehicle", vehicle);
+    });
+    const before = state.vehicles.length;
+    state.vehicles = state.vehicles.filter((vehicle) => kept.has(vehicle) || isBusy("vehicle", vehicle.id));
+    changed += before - state.vehicles.length;
+  }
+
+  const authorizations = Array.isArray(reference.authorizations) ? reference.authorizations : [];
+  const seenAuthorizations = new Set();
+  authorizations.forEach((row) => {
+    const id = row.client_id || `srv-auth-${row.id}`;
+    seenAuthorizations.add(id);
+    if (isBusy("authorization", id)) return;
+    let auth = state.authorizations.find((item) => item.id === id);
+    const fields = {
+      driverEmployee: canonicalEmployeeId(row.driver_employee),
+      type: AUTHORIZATION_DURATIONS.includes(row.duration) ? row.duration : TEMP_AUTHORIZATION_DURATION,
+      validFrom: isoOrEmpty(row.valid_from || row.authorized_at), expiresAt: isoOrEmpty(row.expires_at),
+      // One this device has already seen run out stays "expired" here; the server never marks that.
+      status: auth && auth.status === "expired" && row.status === "active" ? "expired" : row.status || "active",
+      authorizedBy: row.authorized_by || "", revokedBy: row.revoked_by || "", revokedAt: isoOrEmpty(row.revoked_at),
+      revocationReason: row.revocation_reason || "", location: row.location || "", actionLocation: row.action_location || row.location || ""
+    };
+    if (!auth) {
+      auth = { id, ...fields, authorizedAt: isoOrEmpty(row.authorized_at) || fields.validFrom, scopeType: row.scope_type || "all_current_locations", scopeIds: [], createdAt: fields.validFrom, updatedAt: now };
+      state.authorizations.push(auth);
+      changed += 1;
+    } else if (differs(auth, fields)) {
+      Object.assign(auth, fields, { updatedAt: now });
+      changed += 1;
+    }
+    settleShared("authorization", auth);
+  });
+  // An authorization this device holds as active that the shared records do not list is one they
+  // never had. Ended ones are kept as this device's history.
+  const beforeAuthorizations = state.authorizations.length;
+  state.authorizations = state.authorizations.filter((auth) => seenAuthorizations.has(auth.id) || auth.status !== "active" || isBusy("authorization", auth.id));
+  changed += beforeAuthorizations - state.authorizations.length;
+  state.authorizations.sort((a, b) => new Date(b.validFrom) - new Date(a.validFrom));
+
+  (Array.isArray(reference.locations) ? reference.locations : []).forEach((row) => {
+    const name = normalizeLocationName(row.name);
+    if (!name || isBusy("location", name)) return;
+    const fields = {
+      active: row.active !== false,
+      historicalOnly: row.historical_only === true,
+      scanOverride: { enabled: row.scan_override_enabled === true, changedBy: row.scan_override_changed_by || "", changedAt: isoOrEmpty(row.scan_override_changed_at) }
+    };
+    let location = state.locations.find((item) => item.name === name);
+    if (!location) {
+      location = { name, ...fields };
+      state.locations.push(location);
+      changed += 1;
+    } else if (differs(location, fields)) {
+      Object.assign(location, fields);
+      changed += 1;
+    }
+    settleShared("location", location);
+  });
+
+  // The badges that can approve at the gate. Read only: they are not edited on any device.
+  const approvers = (Array.isArray(reference.approvers) ? reference.approvers : [])
+    .map((row) => ({ id: canonicalSupervisorId(row.badge_id), name: String(row.name || ""), role: DESKTOP_USER_ROLES.includes(row.role) ? row.role : OVERRIDE_MIN_ROLE }));
+  if (approvers.length && JSON.stringify(approvers) !== JSON.stringify(state.supervisors)) {
+    state.supervisors = approvers;
+    changed += 1;
+  }
+  return changed;
+}
+
+let pullRunning = false;
+
+function pullReference() {
+  if (pullRunning || !cloudReady() || IN_TEST_HARNESS) return Promise.resolve(null);
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return Promise.resolve(null);
+  pullRunning = true;
+  const startedAt = Date.now();
+  return window.VeriGateCloud.reference().then((reference) => {
+    const changed = applyReference(reference, startedAt);
+    ui.referencePulledAt = Date.now();
+    ui.referenceError = "";
+    if (changed) {
+      saveState();
+      renderAll();
+    }
+    return changed;
+  }).catch((error) => {
+    // The device keeps working from its own copy; the next read tries again.
+    ui.referenceError = error.message || "The shared records did not answer.";
+    return null;
+  }).then((result) => {
+    pullRunning = false;
+    return result;
+  });
+}
+
+function pullIsDue() {
+  return !ui.referencePulledAt || Date.now() - ui.referencePulledAt >= REFERENCE_PULL_MS;
+}
+
+// Reading the shared records keeps the database awake, and Dev's pauses when idle to save money,
+// so a device reads only while somebody is looking at it.
+function pageIsVisible() {
+  return typeof document === "undefined" || document.visibilityState !== "hidden";
 }
 
 function findDriver(value) {
@@ -2767,6 +3213,19 @@ function submitCloudSignIn(event) {
   });
 }
 
+// The console's pill also says when something has not reached the shared records, since the
+// scanner's waiting line is not on the console.
+function renderCloudPill() {
+  if (!el.cloudStatusButton || !window.VeriGateCloud) return;
+  const status = window.VeriGateCloud.status();
+  if (!status.signedIn) return;
+  const waiting = syncQueue().length;
+  const refused = refusedMovements().length + refusedChanges().length;
+  const extra = refused ? ` - ${refused} refused` : waiting ? ` - ${waiting} waiting` : "";
+  el.cloudStatusButton.textContent = `Shared records: ${status.username}${extra}`;
+  el.cloudStatusButton.dataset.state = refused ? "refused" : "connected";
+}
+
 function renderCloudStatus(status) {
   const signedIn = Boolean(status && status.signedIn);
   el.cloudStatusButton.textContent = signedIn ? `Shared records: ${status.username}` : "This device only";
@@ -2786,12 +3245,13 @@ function startCloud() {
   startSync();
   window.VeriGateCloud.onChange((status) => {
     renderCloudStatus(status);
-    // Signing in is the moment a device that recorded offline can finally send its backlog.
-    if (status.signedIn) syncDevice();
+    // Signing in is the moment a device that recorded offline can finally send its backlog, and
+    // then take in the shared records.
+    if (status.signedIn) syncDevice().then(() => pullReference());
   });
   const status = window.VeriGateCloud.start();
   renderCloudStatus(status);
-  if (status.signedIn) syncDevice();
+  if (status.signedIn) syncDevice().then(() => pullReference());
 }
 
 // CR-V16: Patrick 2026-09-13 wants a printable search for "a criminal matter or even just as

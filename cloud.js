@@ -362,6 +362,25 @@
     });
   }
 
+  // A change to a driver, vehicle, authorization or override switch, queued like a movement and sent
+  // in the same line. The id is made here for the same reason: sent twice, applied once.
+  function changeId() {
+    return movementId().replace(/^m-/, "c-");
+  }
+
+  function recordChange(change) {
+    return request("/v1/changes", "", { method: "POST", body: change }).then(function (payload) {
+      return {
+        id: payload.id,
+        clientId: payload.clientId,
+        alreadyRecorded: Boolean(payload.duplicate),
+        // "superseded": the shared records already held a later edit of the same record, so this
+        // one is kept on file but did not change anything. The next read brings the later one in.
+        outcome: payload.outcome || "applied"
+      };
+    });
+  }
+
   // --- the offline queue (step 4) ---------------------------------------------------------------
   //
   // Patrick, on how long a gate can be without signal: "could be minutes or days", and "Enterprise
@@ -446,6 +465,8 @@
     movements: movements,
     recordMovement: recordMovement,
     movementId: movementId,
+    recordChange: recordChange,
+    changeId: changeId,
     conflictText: conflictText,
     drainQueue: drainQueue,
     failureAction: failureAction,

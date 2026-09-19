@@ -300,3 +300,96 @@ now including `cloud.js`, are byte-identical to the working tree.
 - **Drivers and vehicles are still edited on one computer only.** A driver added in Supervisor
   → Add Driver is not in the shared roster, so every movement for them is refused. Steps 1-4 moved
   movements to the cloud; driver and vehicle management has to follow before real use.
+
+  *Done 2026-09-19 - see the next section.*
+
+## Shared drivers, vehicles, authorizations and switches (2026-09-19)
+
+The review after step 4 put this first: only movements were shared, so a driver added on the console
+was refused by the server, and an authorization a Fleet Lead gave at the gate was unknown to it.
+
+### Going out
+
+Every save compares the drivers, vehicles, authorizations and location override switches with how
+they stood at the last save. Each record that changed is queued in `state.outbox` and sent to
+`POST /v1/changes` in the same line as the movements, oldest first, so the authorization a Fleet Lead
+gave reaches the server before the OUT it allowed. A save that queues a change starts sending at
+once. Because it compares records rather than hooking each screen, it catches every change whichever
+screen made it, including screens CR-V18 has not written yet.
+
+What a device already held when this build first ran is not sent; the first read of the shared
+records settles it. An authorization running out is not sent either - every device and the server
+work that out from the clock. Inside the validator nothing is ever queued.
+
+### On the server (`api/src/changes.mjs`, migration `005_shared_reference`)
+
+| Record | Matched by | When two devices disagree |
+|---|---|---|
+| Driver | employee number | the later edit by device time wins; the older is kept as `superseded` |
+| Vehicle | server id, then device id, then its old barcode, then its barcode | later edit wins; a barcode already on another vehicle is refused (409) |
+| Authorization | its id | its window is never rewritten; it can only end (revoked / replaced / expired), never revive |
+| Override switch | location name | later change wins; **Admin group only** (403 otherwise) |
+
+- Every change is kept, as sent, in `reference_changes` (append-only, like the audit trail) with who
+  uploaded it and whether it was applied or superseded, and gets an audit entry.
+- The same change sent twice is applied once (`client_id`).
+- A device clock running fast never makes its edit "newer" than the moment it arrived.
+- A gate approval's rank comes from the shared approver list, not from the device. A Scanner badge
+  is refused.
+- A new authorization replaces an earlier active one for that driver even if the device never saw
+  it. "Deauthorize" revokes every active authorization for the driver, including ones granted on
+  another device.
+
+### Coming in
+
+A signed-in device reads `GET /v1/reference` on sign-in, after it sends anything, every five minutes
+while the page is visible, and on returning to a hidden page. It takes in drivers, vehicles,
+authorizations (all running ones and every one begun in the last three days, so "revoked today"
+works on every device), override switches and the approver badge list. Two things are left alone:
+
+- any record with a change still waiting to go from this device;
+- any record whose change was confirmed while the read was under way, since the read may predate it.
+
+An empty list from the server is read as "nothing shared yet", never as "delete everything", so a
+new database cannot wipe a device before the import (step 6). Two console tabs apply each other's
+unsent changes at once rather than at the next read.
+
+Reading only while visible matters for cost: Dev's database pauses after an hour idle, and any open
+signed-in page keeps it awake.
+
+### A bug found on the way
+
+`normalizeVehicle` filled a blank make, model, year or colour with demo values on every load, so an
+unknown vehicle met at the gate (CR-V11) or one added with only its VIN (CR-V14) turned into a made-up
+car the next time the app opened - a blank G0777 came back as a 2021 silver Toyota Camry. Demo values
+are now used only for pre-V0.6 records that never had the fields. Vehicles already altered this way
+on a device cannot be told apart and keep what they were given.
+
+### Verification, 2026-09-19 (live in Veri-Gate Dev, signed in as raul)
+
+| What | Result |
+|---|---|
+| First read after sign-in | 10 server-only vehicles taken in; the 5 demo vehicles matched by barcode |
+| New driver E2001 added on the console, then authorized | both sent in order, applied; database rows match |
+| IN with an unknown barcode G0888, then OUT with G0001, for E2001 | both accepted, **no flag**; one G0888 row, `inbound_scan`, linked to movement 100 |
+| Driver renamed in the database, as another device would | taken in on the next read, not sent back |
+| Linden override on, then off, from the console | applied (Admin); now off |
+| Reload | nothing reverted; G0888 still blank |
+| Console edit | sent within about half a second |
+| Validator run with the signed-in tab open | 113/113; after the queue timer, no new movement, change or vehicle in the database |
+
+Tests: 384 Node tests (API 90, device 294), of which 43 are new, including 20 that run the app's own
+functions in a sandbox. Twelve rules were broken on purpose one at a time; the tests caught all twelve.
+The APK was rebuilt and checked by extraction: all seven web files byte-identical.
+
+Test records left in Dev: driver E2001 (Dana Fox), its authorization, vehicle G0888, movements 100
+and 101.
+
+### Still not shared
+
+- **Devices** (Device setup) are still kept per computer.
+- **A refused change is not retried**; the red line says so and the shared version stands.
+- **The console has no sign-in of its own** (step 5), so what it grants is recorded as a
+  Supervisor's, and the server enforces roles only for the override switch.
+- The whole reference list is read each time. Fine for hundreds of vehicles; thousands will want
+  reading only what changed since the last read.
