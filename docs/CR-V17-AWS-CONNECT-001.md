@@ -118,3 +118,74 @@ aws --profile verigate-dev cloudformation deploy --stack-name gateflow-dev-api -
 - The web app and the Android app still use on-device storage; they switch over in steps 2 to 4.
 - The Lambda connects as the database's master user. A least-privilege application role, with
   `UPDATE`/`DELETE` revoked on `audit_events` and `movements`, is a go-live task.
+
+## Step 2 — the console reads the shared database (2026-09-18)
+
+The console can now read the movements in the Veri-Gate Dev database instead of only the ones in
+its own browser. This is the half of "the silo" that lets the owner review gate activity from his
+own computer; scanners writing into that database is step 3.
+
+### The client
+
+`cloud.js`, a plain script loaded before `app.js`:
+
+- signs in against the Cognito user pool (`USER_PASSWORD_AUTH`), including the new-password
+  challenge every Admin-created login starts with, and refreshes a token a minute before it
+  expires;
+- keeps the session in `sessionStorage`, so closing the tab signs out - deliberate on a shared
+  supervisor computer. A handheld that stays signed in across shifts is step 5;
+- reads `GET /v1/movements` and `GET /v1/reference`, and `GET /health`, which needs no sign-in so
+  "no signal" can be told from "not signed in";
+- turns a database row into the shape the console's renderers already use;
+- translates Cognito's developer wording into something an operator can act on, and never lets a
+  wrong username be distinguished from a wrong password.
+
+### The console
+
+- A pill in the header says where the records on screen come from: **This device only** or
+  **Shared records: <user>**. Clicking it signs in or out. The scanner shell never shows it.
+- Search reads the shared database when signed in. **Show next 50** then *fetches* the next page
+  by cursor rather than revealing rows already held - the resource saving Patrick asked for on
+  2026-09-13.
+- The count and "Showing x of y" come from the server's total, not from the rows loaded so far.
+- A failed read falls back to this device's records, labelled: a dropped connection must never
+  look like an empty gate log.
+- The printout and its audit entry state which records they came from, because a search printed
+  for a termination or a criminal matter has to say whether it is the shared log or one device.
+
+### Demo records
+
+`infra/seed/dev_demo.sql` - the same drivers, vehicles, devices and movements the app has always
+seeded into localStorage, so the console shows familiar records. Dev only; production gets the
+beta records imported in step 6. Every insert is guarded, so it is safe to run twice: the second
+run reported 0 rows for all eight statements.
+
+### Two faults this found in step 1
+
+- **The preflight was being authorized.** `ANY /v1/{proxy+}` also matched the unauthenticated
+  `OPTIONS` request a browser sends before a cross-origin call, so the JWT authorizer rejected it
+  and the console could only report "no connection". The methods are now listed one at a time,
+  leaving `OPTIONS` for API Gateway's own CORS handling. Preflight now answers 204 with the
+  allow-origin, allow-methods and allow-headers the browser needs.
+- **Timestamps had no time zone.** The Data API renders a `timestamptz` as
+  `2026-09-18 22:59:47.718031` - the right instant, in UTC, with nothing to say so - and the
+  browser read it as local time, putting every movement four hours out. Every timestamp now leaves
+  the API as an explicit UTC instant, and the client insists on one.
+
+### Verification, 2026-09-18
+
+- API unit tests 28, cloud client tests 36, existing static suites 183, both browser suites, and
+  the click-path validator at 113/113.
+- Live in Veri-Gate Dev: signed in as `raul` (Admin group), Search returned the three seeded
+  movements from the database with the server's total, and the first row displayed 6:59 PM for the
+  22:59:47Z it was recorded at.
+- `GET /health` from the app's origin returns 200 with all three migrations; reading without a
+  sign-in is refused before a request leaves the browser; a rejected token signs the console out.
+
+### Deliberately still not done
+
+- Nothing writes. The scanner still records to the device; step 3 changes that.
+- The Supervisor tables still read this device's records. They are edit surfaces, and a screen
+  that reads from one place and writes to another would be lying about what it shows.
+- Roles are not enforced yet. The login is in the Admin group, but the API does not read the group
+  claim until sign-in is finished in step 5.

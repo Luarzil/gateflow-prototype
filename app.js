@@ -155,7 +155,15 @@ const ui = {
   vehicleEntryMethod: null,
   profileEmployee: "",
   validatedDriverEmployee: "",
-  feedbackSurface: "scanner"
+  feedbackSurface: "scanner",
+  // CR-V17 step 2: where the rows on the Search screen came from, and how to ask the shared
+  // database for the next page. "device" is the copy in this browser; "shared" is the database
+  // every scanner will write to.
+  searchSource: "device",
+  searchTotal: null,
+  searchCursor: null,
+  searchBusy: false,
+  cloudChallenge: null
 };
 
 const state = loadState();
@@ -168,6 +176,7 @@ document.addEventListener("DOMContentLoaded", () => {
   expireAuthorizations("system");
   populateLocationControls();
   renderAll();
+  startCloud();
   updateClock();
   setInterval(updateClock, 30000);
 
@@ -193,6 +202,9 @@ function cacheElements() {
     "filterDriver", "filterLocation", "filterDate", "filterType", "clearSearchButton",
     "searchResultCount", "searchResultsBody", "searchShowing", "searchMoreButton", "printSearchButton",
     "searchPrintedBy", "searchPrintStatus", "searchPrintFooter", "authorizationCrossCheck", "locationOverrideBody",
+    "searchSourceNote", "cloudStatusButton", "cloudSignInModal", "cloudSignInForm", "cloudUsername", "cloudPassword",
+    "cloudNewPasswordRow", "cloudNewPassword", "cloudSignInStatus", "cloudSignInSubmit",
+    "closeCloudSignInButton", "cancelCloudSignInButton",
     "directionOut", "directionIn", "movementBack",
     "driverRosterSearch", "authorizationDuration", "bulkAuthorizeButton",
     "license30Count", "license15Count", "license5Count", "licenseExpiredCount", "bulkActionStatus",
@@ -312,9 +324,16 @@ function bindEvents() {
 
   el.searchForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    runSearch(true);
-    renderSearchResults();
+    submitSearch();
   });
+  el.cloudStatusButton.addEventListener("click", handleCloudPillClick);
+  // Close and Cancel are deliberate: they give up on the sign-in rather than pausing it.
+  el.closeCloudSignInButton.addEventListener("click", () => { ui.cloudChallenge = null; closeCloudSignIn(); });
+  el.cancelCloudSignInButton.addEventListener("click", () => { ui.cloudChallenge = null; closeCloudSignIn(); });
+  el.cloudSignInForm.addEventListener("submit", submitCloudSignIn);
+  // A click beside the panel closes it, except while it is waiting for a new password: losing a
+  // half-finished first sign-in by clicking the page behind it is how this went wrong in testing.
+  el.cloudSignInModal.addEventListener("click", (event) => { if (event.target === el.cloudSignInModal && !ui.cloudChallenge) closeCloudSignIn(); });
   el.clearSearchButton.addEventListener("click", clearSearch);
   el.searchMoreButton.addEventListener("click", showMoreSearchResults);
   el.printSearchButton.addEventListener("click", printSearch);
@@ -2285,6 +2304,12 @@ function clearSearch() {
 }
 
 function runSearch(resetPage) {
+  // While the console is reading the shared database, a re-render of anything else must not
+  // quietly replace those rows with this device's copy.
+  if (ui.searchSource === "shared" && !resetPage) return;
+  ui.searchSource = "device";
+  ui.searchTotal = null;
+  ui.searchCursor = null;
   ui.searchResults = filterTransactions();
   ui.searchRanAt = new Date().toISOString();
   ui.searchCriteria = searchCriteriaText();
@@ -2302,8 +2327,175 @@ function searchCriteriaText() {
 }
 
 function showMoreSearchResults() {
+  // Against the shared database the next 50 rows are fetched, not revealed: that is the resource
+  // saving Patrick asked about on 2026-09-13. Against this device's copy there is nothing to
+  // fetch, so the page size only limits what is drawn.
+  if (ui.searchSource === "shared") {
+    searchShared(false);
+    return;
+  }
   ui.searchLimit = (ui.searchLimit || SEARCH_PAGE_SIZE) + SEARCH_PAGE_SIZE;
   renderSearchResults();
+}
+
+// --- CR-V17 step 2: reading the shared database ---------------------------
+
+function cloudReady() {
+  return Boolean(window.VeriGateCloud && window.VeriGateCloud.status().signedIn);
+}
+
+// The search fields, in the names the API uses. The date box is already a YYYY-MM-DD value.
+function cloudSearchFilters() {
+  return {
+    vehicle: el.filterVehicle.value.trim(),
+    driver: el.filterDriver.value.trim(),
+    location: el.filterLocation.value,
+    date: el.filterDate.value,
+    direction: el.filterType.value,
+    limit: SEARCH_PAGE_SIZE
+  };
+}
+
+function submitSearch() {
+  if (cloudReady()) {
+    searchShared(true);
+    return;
+  }
+  runSearch(true);
+  renderSearchResults();
+}
+
+function searchShared(reset) {
+  if (ui.searchBusy) return;
+  const cloud = window.VeriGateCloud;
+  const filters = reset ? cloudSearchFilters() : ui.searchFilters || cloudSearchFilters();
+  const cursor = reset ? null : ui.searchCursor;
+  if (!reset && !cursor) return;
+  ui.searchBusy = true;
+  ui.searchFilters = filters;
+  el.searchSourceNote.textContent = reset ? "Reading the shared database..." : "Reading the next 50 from the shared database...";
+  cloud.movements(filters, cursor).then((page) => {
+    // Cleared before the render, or the render leaves "Reading..." on screen after it finished.
+    ui.searchBusy = false;
+    const rows = reset ? page.movements : (ui.searchResults || []).concat(page.movements);
+    ui.searchSource = "shared";
+    ui.searchResults = rows;
+    ui.searchLimit = rows.length;
+    ui.searchCursor = page.next;
+    if (reset || typeof page.total === "number") ui.searchTotal = typeof page.total === "number" ? page.total : ui.searchTotal;
+    ui.searchRanAt = reset ? new Date().toISOString() : ui.searchRanAt;
+    ui.searchCriteria = searchCriteriaText();
+    renderSearchResults();
+  }).catch((error) => {
+    // A failure must never look like an empty gate log. The rows on this device are shown
+    // instead, clearly labelled, so nobody reads "no movements" off a dropped connection.
+    ui.searchBusy = false;
+    runSearch(true);
+    renderSearchResults();
+    el.searchSourceNote.textContent = `${error.message} Showing the records on this device instead.`;
+  });
+}
+
+function searchSourceText() {
+  if (ui.searchSource === "shared") {
+    const scope = ui.searchCursor ? "The next 50 are fetched when you ask for them." : "This is every matching row.";
+    return `From the shared Veri-Gate database. ${scope}`;
+  }
+  return cloudReady()
+    ? "From this device. Run the search again to read the shared database."
+    : "From this device only. Sign in to read what every scanner recorded.";
+}
+
+function handleCloudPillClick() {
+  if (cloudReady()) {
+    window.VeriGateCloud.signOut();
+    ui.searchSource = "device";
+    runSearch(true);
+    renderSearchResults();
+    return;
+  }
+  openCloudSignIn();
+}
+
+function openCloudSignIn() {
+  ui.modalTrigger = el.cloudStatusButton;
+  el.cloudPassword.value = "";
+  el.cloudNewPassword.value = "";
+  el.cloudSignInModal.classList.remove("hidden");
+  // A first sign-in that was interrupted picks up where it left off, rather than starting over.
+  if (ui.cloudChallenge) {
+    el.cloudUsername.value = ui.cloudChallenge.username;
+    el.cloudNewPasswordRow.classList.remove("hidden");
+    el.cloudSignInSubmit.textContent = "Set password and sign in";
+    el.cloudSignInStatus.textContent = "This login needs a new password before it can be used.";
+    el.cloudNewPassword.focus();
+    return;
+  }
+  el.cloudSignInStatus.textContent = "";
+  el.cloudNewPasswordRow.classList.add("hidden");
+  el.cloudSignInSubmit.textContent = "Sign in";
+  el.cloudUsername.focus();
+}
+
+function closeCloudSignIn() {
+  el.cloudSignInModal.classList.add("hidden");
+  el.cloudPassword.value = "";
+  el.cloudNewPassword.value = "";
+  if (ui.modalTrigger && typeof ui.modalTrigger.focus === "function") ui.modalTrigger.focus();
+}
+
+function submitCloudSignIn(event) {
+  event.preventDefault();
+  const cloud = window.VeriGateCloud;
+  if (!cloud) {
+    el.cloudSignInStatus.textContent = "The cloud client did not load.";
+    return;
+  }
+  const username = el.cloudUsername.value.trim();
+  el.cloudSignInStatus.textContent = "Signing in...";
+  el.cloudSignInSubmit.disabled = true;
+  // The Admin hands out a temporary password, so the first sign-in always asks for a new one.
+  const attempt = ui.cloudChallenge
+    ? cloud.completeNewPassword(ui.cloudChallenge.username, el.cloudNewPassword.value, ui.cloudChallenge.challengeSession)
+    : cloud.signIn(username, el.cloudPassword.value);
+  attempt.then((result) => {
+    if (result && result.challenge === "NEW_PASSWORD_REQUIRED") {
+      ui.cloudChallenge = result;
+      el.cloudNewPasswordRow.classList.remove("hidden");
+      el.cloudSignInSubmit.textContent = "Set password and sign in";
+      el.cloudSignInStatus.textContent = "This login needs a new password before it can be used.";
+      el.cloudNewPassword.focus();
+      return;
+    }
+    ui.cloudChallenge = null;
+    closeCloudSignIn();
+    // Signed in, so the search that matters is the shared one.
+    submitSearch();
+  }).catch((error) => {
+    el.cloudSignInStatus.textContent = error.message || "Sign-in failed.";
+  }).then(() => {
+    el.cloudSignInSubmit.disabled = false;
+  });
+}
+
+function renderCloudStatus(status) {
+  const signedIn = Boolean(status && status.signedIn);
+  el.cloudStatusButton.textContent = signedIn ? `Shared records: ${status.username}` : "This device only";
+  el.cloudStatusButton.dataset.state = signedIn ? "connected" : "local";
+  el.cloudStatusButton.title = signedIn
+    ? "Reading the shared Veri-Gate database. Click to sign out."
+    : "Records come from this device. Click to sign in to the shared database.";
+  if (!signedIn && ui.searchSource === "shared") {
+    ui.searchSource = "device";
+    runSearch(true);
+  }
+  renderSearchResults();
+}
+
+function startCloud() {
+  if (!window.VeriGateCloud) return;
+  window.VeriGateCloud.onChange(renderCloudStatus);
+  renderCloudStatus(window.VeriGateCloud.start());
 }
 
 // CR-V16: Patrick 2026-09-13 wants a printable search for "a criminal matter or even just as
@@ -2320,15 +2512,19 @@ function printSearch() {
   }
   const results = ui.searchResults || [];
   const shown = Math.min(results.length, ui.searchLimit || SEARCH_PAGE_SIZE);
+  const matching = typeof ui.searchTotal === "number" ? ui.searchTotal : results.length;
   const printedAt = new Date().toISOString();
   const criteria = ui.searchCriteria || searchCriteriaText();
   el.searchPrintFooter.innerHTML = [
     ["Search criteria", criteria],
     ["Search run", formatTimestamp(ui.searchRanAt || printedAt)],
-    ["Rows printed", `${shown} of ${results.length} matching movement${results.length === 1 ? "" : "s"}`],
+    // A printout that may end up in a termination file or a police report has to say which
+    // records it came from: the shared database, or only the device it was printed on.
+    ["Records from", ui.searchSource === "shared" ? "the shared Veri-Gate database" : "this device only"],
+    ["Rows printed", `${shown} of ${matching} matching movement${matching === 1 ? "" : "s"}`],
     ["Printed by", `${printedBy}, ${formatTimestamp(printedAt)}`]
   ].map(([label, value]) => `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join("");
-  addAudit("search_printed", `Search printed by ${printedBy}. Criteria: ${criteria}. Rows: ${shown} of ${results.length}.`, printedBy, el.filterLocation.value || "");
+  addAudit("search_printed", `Search printed by ${printedBy}. Criteria: ${criteria}. Rows: ${shown} of ${matching}. Source: ${ui.searchSource === "shared" ? "shared database" : "this device"}.`, printedBy, el.filterLocation.value || "");
   saveState();
   el.searchPrintStatus.textContent = "";
   if (typeof window.print === "function") window.print();
@@ -2337,11 +2533,15 @@ function printSearch() {
 function renderSearchResults() {
   const results = ui.searchResults || [];
   const shown = results.slice(0, ui.searchLimit || SEARCH_PAGE_SIZE);
-  const remaining = results.length - shown.length;
-  el.searchResultCount.textContent = results.length;
-  el.searchShowing.textContent = results.length ? `Showing ${shown.length} of ${results.length}.` : "";
-  el.searchMoreButton.classList.toggle("hidden", remaining <= 0);
-  el.searchMoreButton.textContent = `Show next ${Math.min(SEARCH_PAGE_SIZE, Math.max(remaining, 0))}`;
+  // Reading the shared database, the count comes from the server: the rows here are the pages
+  // fetched so far, and there may be more waiting behind the cursor.
+  const matching = typeof ui.searchTotal === "number" ? ui.searchTotal : results.length;
+  const remaining = ui.searchSource === "shared" ? Math.max(matching - shown.length, 0) : results.length - shown.length;
+  el.searchResultCount.textContent = matching;
+  el.searchShowing.textContent = matching ? `Showing ${shown.length} of ${matching}.` : "";
+  el.searchMoreButton.classList.toggle("hidden", ui.searchSource === "shared" ? !ui.searchCursor : remaining <= 0);
+  el.searchMoreButton.textContent = `Show next ${Math.min(SEARCH_PAGE_SIZE, Math.max(remaining, 0)) || SEARCH_PAGE_SIZE}`;
+  if (el.searchSourceNote && !ui.searchBusy) el.searchSourceNote.textContent = searchSourceText();
   el.searchResultsBody.innerHTML = shown.length ? shown.map((item) => `<tr>
     <td>${formatTimestamp(item.timestamp)}</td><td><span class="movement-chip ${item.direction.toLowerCase()}">${item.direction}</span></td><td>${escapeHtml(item.driverEmployee)}</td><td>${escapeHtml(item.driverName)}</td><td>${escapeHtml(entryMethodLabel(item.driverEntryMethod))}</td><td class="mono">${escapeHtml(item.vehicleBarcode || "-")}</td><td>${escapeHtml(entryMethodLabel(item.vehicleEntryMethod))}</td><td class="mono">${escapeHtml(item.vin)}</td><td>${escapeHtml(item.plate || "-")}</td><td>${escapeHtml(item.location)}${isHistoricalOnlyLocation(item.location) ? ` <span class="status-badge inactive">History only</span>` : ""}</td><td><span class="status-badge ${item.authorizationStatus === "Authorized" ? "authorized" : item.authorizationStatus === LOCATION_OVERRIDE_STATUS ? "provisional" : "unauthorized"}">${escapeHtml(item.authorizationStatus)}</span></td><td>${escapeHtml(item.note || "-")}</td><td>${escapeHtml(item.submittedBy)}</td>
   </tr>`).join("") : `<tr><td colspan="13" class="empty-cell">No transactions match these filters.</td></tr>`;

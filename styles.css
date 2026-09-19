@@ -54,6 +54,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .top-nav { display: flex; align-self: stretch; gap: 4px; }
 .nav-tab { border: 0; border-bottom: 3px solid transparent; padding: 0 12px; color: var(--muted); background: transparent; font-weight: 700; }
 .nav-tab:hover, .nav-tab.is-active { color: var(--green-deep); border-bottom-color: var(--green); }
+/* CR-V17 step 2: says whether the screen is showing this device's records or the shared database.
+   The scanner shell never shows it - the operator at the gate has nothing to decide about it. */
+.cloud-pill { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.cloud-pill::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: #b7c4bf; }
+.cloud-pill[data-state="connected"] { border-color: var(--green); color: var(--green-deep); }
+.cloud-pill[data-state="connected"]::before { background: var(--green); }
+.cloud-pill:hover { border-color: var(--green-deep); color: var(--green-deep); }
+body[data-shell="scanner"] .cloud-pill { display: none; }
+
 .top-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 .save-pill { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; white-space: nowrap; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #169A5A; }

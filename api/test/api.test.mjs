@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createHandler } from "../src/handler.mjs";
-import { buildMovementQuery, decodeCursor, encodeCursor, movementPage, MAX_PAGE_SIZE, PAGE_SIZE } from "../src/queries.mjs";
+import { buildMovementQuery, decodeCursor, encodeCursor, movementPage, referenceData, utc, MAX_PAGE_SIZE, PAGE_SIZE } from "../src/queries.mjs";
 
 const signedIn = { sub: "user-1", "cognito:groups": ["Supervisor"] };
 const request = (method, rawPath, { claims, query } = {}) => ({
@@ -110,4 +110,22 @@ test("a full page carries a cursor and the first page carries the total", async 
   const later = await movementPage(recordingDb(() => rows.slice(0, 3)), { before: page.next });
   assert.equal(later.next, null);
   assert.equal(later.total, undefined, "later pages do not recount");
+});
+
+// The Data API renders a timestamptz as "2026-09-18 22:59:47.718031": the right instant, in UTC,
+// with nothing to say so. A browser reads that as local time, so the first movements read back
+// four hours out of place. Every timestamp must leave the API as an explicit instant.
+test("every timestamp the API returns says it is UTC", () => {
+  const { sql } = buildMovementQuery({});
+  assert.match(sql, /to_char\(m\.occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS\.MS"Z"'\) as occurred_at/);
+  assert.match(sql, /as received_at/);
+  assert.equal(utc("x.created_at", "created_at"), `to_char(x.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as created_at`);
+});
+
+test("the reference lists carry the same explicit instants", async () => {
+  const seen = [];
+  await referenceData({ query: async (sql) => { seen.push(sql); return []; } });
+  const stamped = seen.filter((sql) => sql.includes("AT TIME ZONE 'UTC'"));
+  // locations, drivers, vehicles, devices and authorizations all carry a timestamp; approvers do not.
+  assert.equal(stamped.length, 5);
 });

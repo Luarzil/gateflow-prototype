@@ -1,11 +1,12 @@
 "use strict";
 
-const CACHE_NAME = "lot-watch-gateflow-v0.8-patrick-0913-static";
+const CACHE_NAME = "lot-watch-gateflow-v0.8-cloud-read-static";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
+  "./cloud.js",
   "./manifest.webmanifest",
   "./icon.svg"
 ];

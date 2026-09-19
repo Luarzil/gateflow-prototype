@@ -6,6 +6,12 @@ export const PAGE_SIZE = 50;
 export const MAX_PAGE_SIZE = 100;
 const BUSINESS_TIMEZONE = "America/New_York";
 
+// The Data API returns a timestamptz as "2026-09-18 22:59:47.718031" - the right instant, in UTC,
+// but with nothing to say so. A browser reads that as local time, which put every gate movement
+// hours out on the first read. Every timestamp therefore leaves here as an explicit UTC instant.
+export const utc = (expression, alias) =>
+  `to_char(${expression} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as ${alias}`;
+
 export class RequestError extends Error {
   constructor(message, status = 400, code = "bad_request") {
     super(message);
@@ -19,17 +25,21 @@ export class RequestError extends Error {
 // override switch.
 export async function referenceData(db) {
   const [locations, drivers, vehicles, devices, approvers, authorizations] = [
-    await db.query(`select name, active, historical_only, scan_override_enabled, scan_override_changed_by, scan_override_changed_at
+    await db.query(`select name, active, historical_only, scan_override_enabled, scan_override_changed_by,
+                           ${utc("scan_override_changed_at", "scan_override_changed_at")}
                       from locations order by name`),
-    await db.query(`select employee_number, name, license_expires::text as license_expires, active, updated_at
+    await db.query(`select employee_number, name, license_expires::text as license_expires, active,
+                           ${utc("updated_at", "updated_at")}
                       from drivers order by name`),
-    await db.query(`select id, assigned_barcode, vin, plate, make, model, year, color, active, created_source::text as created_source, barcode_needs_review, added_at
+    await db.query(`select id, assigned_barcode, vin, plate, make, model, year, color, active, created_source::text as created_source,
+                           barcode_needs_review, ${utc("added_at", "added_at")}
                       from vehicles order by assigned_barcode`),
-    await db.query(`select id, name, imei, type, assigned_location, status, active, last_used_at
+    await db.query(`select id, name, imei, type, assigned_location, status, active, ${utc("last_used_at", "last_used_at")}
                       from devices order by id`),
     await db.query(`select badge_id, name, role::text as role
                       from approvers where active order by badge_id`),
-    await db.query(`select id, client_id, driver_employee, duration, authorized_at, expires_at, authorized_by, authorized_role::text as authorized_role, scope_type
+    await db.query(`select id, client_id, driver_employee, duration, ${utc("authorized_at", "authorized_at")},
+                           ${utc("expires_at", "expires_at")}, authorized_by, authorized_role::text as authorized_role, scope_type
                       from authorizations where status = 'active' and expires_at > now() order by expires_at`)
   ];
   return { generatedAt: new Date().toISOString(), locations, drivers, vehicles, devices, approvers, authorizations };
@@ -82,7 +92,7 @@ export function buildMovementQuery(query = {}) {
   const sql = `select m.id, m.client_id, m.direction::text as direction, m.driver_employee, m.driver_name, m.vehicle_barcode, m.vin, m.plate,
                       m.location, m.authorization_status, m.note, m.submitted_by,
                       m.driver_entry_method::text as driver_entry_method, m.vehicle_entry_method::text as vehicle_entry_method,
-                      m.occurred_at, m.received_at, m.delayed, m.conflict
+                      ${utc("m.occurred_at", "occurred_at")}, ${utc("m.received_at", "received_at")}, m.delayed, m.conflict
                  from movements m
                  ${clause(where)}
                 order by m.occurred_at desc, m.id desc

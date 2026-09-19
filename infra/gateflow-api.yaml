@@ -218,11 +218,44 @@ Resources:
       Target: !Sub 'integrations/${LambdaIntegration}'
 
   # Every /v1 route needs a valid sign-in token; the function routes within it.
-  V1Route:
+  #
+  # These are listed one method at a time on purpose. A single 'ANY /v1/{proxy+}' route also
+  # matches the OPTIONS request a browser sends before a cross-origin call, and that request
+  # carries no token by design - so the authorizer rejected it and the console saw "no
+  # connection" instead of its records. Leaving OPTIONS unmatched lets API Gateway answer the
+  # preflight itself from the CORS settings above.
+  V1GetRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HttpApi
-      RouteKey: 'ANY /v1/{proxy+}'
+      RouteKey: 'GET /v1/{proxy+}'
+      AuthorizationType: JWT
+      AuthorizerId: !Ref CognitoAuthorizer
+      Target: !Sub 'integrations/${LambdaIntegration}'
+
+  V1PostRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'POST /v1/{proxy+}'
+      AuthorizationType: JWT
+      AuthorizerId: !Ref CognitoAuthorizer
+      Target: !Sub 'integrations/${LambdaIntegration}'
+
+  V1PutRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'PUT /v1/{proxy+}'
+      AuthorizationType: JWT
+      AuthorizerId: !Ref CognitoAuthorizer
+      Target: !Sub 'integrations/${LambdaIntegration}'
+
+  V1PatchRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'PATCH /v1/{proxy+}'
       AuthorizationType: JWT
       AuthorizerId: !Ref CognitoAuthorizer
       Target: !Sub 'integrations/${LambdaIntegration}'
