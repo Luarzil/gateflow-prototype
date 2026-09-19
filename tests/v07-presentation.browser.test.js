@@ -1,7 +1,6 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const http = require("node:http");
-const net = require("node:net");
 const os = require("node:os");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
@@ -9,15 +8,26 @@ const { spawn } = require("node:child_process");
 const root = path.resolve(__dirname, "..");
 const chromePath = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 
-function freePort() {
+// Listen on an OS-assigned port and keep it; closing and re-listening would let another process take it.
+function listenOnFreePort(server) {
   return new Promise((resolve, reject) => {
-    const server = net.createServer();
     server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const { port } = server.address();
-      server.close(() => resolve(port));
-    });
+    server.listen(0, "127.0.0.1", () => resolve(server.address().port));
   });
+}
+
+// Chrome started with --remote-debugging-port=0 binds its own port and writes it to DevToolsActivePort.
+async function waitForDevToolsPort(profile, chrome, attempts = 200) {
+  const file = path.join(profile, "DevToolsActivePort");
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (chrome.exitCode !== null || chrome.signalCode !== null) throw new Error(`Chrome exited before opening DevTools (code ${chrome.exitCode})`);
+    try {
+      const [port, browserPath] = fs.readFileSync(file, "utf8").split(/\r?\n/);
+      if (/^\d+$/.test(port) && browserPath) return Number(port);
+    } catch {}
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`Timed out waiting for ${file}`);
 }
 
 function staticServer() {
@@ -197,14 +207,13 @@ async function verifyRecoveryBehavior(cdp, url) {
 
 async function main() {
   assert.ok(fs.existsSync(chromePath), `Chrome is required for browser regression tests: ${chromePath}`);
-  const webPort = await freePort();
-  const debugPort = await freePort();
   const server = staticServer();
-  await new Promise((resolve, reject) => server.listen(webPort, "127.0.0.1", (error) => error ? reject(error) : resolve()));
+  const webPort = await listenOnFreePort(server);
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), "gateflow-v07-browser-"));
-  const chrome = spawn(chromePath, ["--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check", `--user-data-dir=${profile}`, `--remote-debugging-port=${debugPort}`, "--remote-allow-origins=*", "about:blank"], { stdio: "ignore" });
+  const chrome = spawn(chromePath, ["--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check", `--user-data-dir=${profile}`, "--remote-debugging-port=0", "--remote-allow-origins=*", "about:blank"], { stdio: "ignore" });
   let cdp;
   try {
+    const debugPort = await waitForDevToolsPort(profile, chrome);
     const pages = await waitForJson(`http://127.0.0.1:${debugPort}/json/list`);
     cdp = await connectCdp(pages.find((page) => page.type === "page").webSocketDebuggerUrl);
     await cdp.send("Page.enable");
@@ -223,14 +232,16 @@ async function main() {
     } else {
       chrome.kill();
     }
+    if (chrome.exitCode === null && chrome.signalCode === null) await new Promise((resolve) => chrome.once("exit", resolve));
     await new Promise((resolve) => server.close(resolve));
-    for (let attempt = 0; attempt < 20; attempt += 1) {
+    // Chrome's child processes can hold profile files for a moment after the browser exits on Windows.
+    for (let attempt = 0; attempt < 100; attempt += 1) {
       try {
         fs.rmSync(profile, { recursive: true, force: true });
         break;
       } catch (error) {
-        if (attempt === 19) throw error;
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        if (attempt === 99) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
     }
   }
