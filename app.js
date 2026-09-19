@@ -233,6 +233,7 @@ function cacheElements() {
     "vehicleEditId", "vehicleMake", "vehicleModel", "vehicleYear", "vehicleColor", "vehicleVin", "vehicleBarcode",
     "vehiclePlate", "vehicleActive", "vehicleMakeError", "vehicleModelError", "vehicleYearError", "vehicleColorError",
     "vehicleVinError", "vehicleBarcodeError", "vehicleFormStatus", "closeVehicleModalButton", "cancelVehicleButton", "vehicleInventoryToggle",
+    "labelModal", "labelModalHeading", "labelPreview", "labelModalStatus", "printLabelButton", "skipLabelButton", "labelPrintSheet",
     "openDeviceSetupButton", "deviceSetupModal", "closeDeviceSetupButton", "currentDeviceSelect", "floaterLocationFields", "floaterLocationSelect", "deviceSetupStatus", "confirmDeviceLocationButton", "changeFloaterLocationButton",
     "devicesTableBody", "deviceHistoryList", "addDeviceButton", "deviceModal", "deviceForm", "closeDeviceModalButton", "cancelDeviceButton", "deviceEditId", "deviceIdInput", "deviceNameInput", "deviceImeiInput", "deviceTypeInput", "deviceLocationInput", "deviceStatusInput", "devicePhoneInput", "deviceNotesInput", "deviceIdError", "deviceNameError", "deviceImeiError", "deviceLocationError", "deviceActionStatus",
     "driverProfileModal", "closeDriverProfileButton", "driverProfileHeading", "driverProfileBody", "profileEditDriverButton", "profileToggleDriverButton",
@@ -287,6 +288,10 @@ function bindEvents() {
   });
 
   el.driversTableBody.addEventListener("click", handleDriverTableAction);
+  el.driversTableBody.addEventListener("change", handleDriverActionMenu);
+  el.printLabelButton.addEventListener("click", printVehicleLabel);
+  el.skipLabelButton.addEventListener("click", closeLabelPrompt);
+  startTypingFieldWatch();
   el.authorizedDriversBody.addEventListener("click", handleDriverTableAction);
   el.deauthorizeAllButton.addEventListener("click", deauthorizeAllDrivers);
   el.driverRosterSearch.addEventListener("input", renderSupervisor);
@@ -338,7 +343,7 @@ function bindEvents() {
   el.desktopUserForm.addEventListener("submit", saveDesktopUser);
   el.desktopUsersTableBody.addEventListener("click", handleDesktopUserAction);
   [el.driverModal, el.vehicleModal, el.deviceModal, el.deviceSetupModal, el.driverProfileModal, el.feedbackModal, el.desktopUserModal].forEach((modal) => modal.addEventListener("click", (event) => { if (event.target === modal) closeManagedModal(modal); }));
-  document.addEventListener("keydown", (event) => { if (event.key === "Escape") { [el.driverModal, el.vehicleModal, el.deviceModal, el.deviceSetupModal, el.driverProfileModal, el.feedbackModal, el.desktopUserModal].forEach(closeManagedModal); } });
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") { [el.driverModal, el.vehicleModal, el.deviceModal, el.deviceSetupModal, el.driverProfileModal, el.feedbackModal, el.desktopUserModal].forEach(closeManagedModal); if (!el.labelModal.classList.contains("hidden")) closeLabelPrompt(); } });
 
   el.searchForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -2124,6 +2129,189 @@ function pageIsVisible() {
   return typeof document === "undefined" || document.visibilityState !== "hidden";
 }
 
+// --- CR-V18: Patrick's 2026-09-13 call, the screen changes ----------------------------------------
+
+// Patrick: "the only time we're going to need to print is when we're printing a barcode... once you
+// do the add vehicle... and you hit save vehicle, then another pop-up comes. Do you want to print it?"
+//
+// The barcode is drawn here, as Code 128 (code set B), which every handheld and wedge scanner reads.
+// No label printer is chosen yet, so this prints through the browser's own dialog to whatever printer
+// the console has, sized as a 4 x 2 inch label.
+const CODE128_PATTERNS = [
+  "212222", "222122", "222221", "121223", "121322", "131222", "122213", "122312", "132212", "221213",
+  "221312", "231212", "112232", "122132", "122231", "113222", "123122", "123221", "223211", "221132",
+  "221231", "213212", "223112", "312131", "311222", "321122", "321221", "312212", "322112", "322211",
+  "212123", "212321", "232121", "111323", "131123", "131321", "112313", "132113", "132311", "211313",
+  "231113", "231311", "112133", "112331", "132131", "113123", "113321", "133121", "313121", "211331",
+  "231131", "213113", "213311", "213131", "311123", "311321", "331121", "312113", "312311", "332111",
+  "314111", "221411", "431111", "111224", "111422", "121124", "121421", "141122", "141221", "112214",
+  "112412", "122114", "122411", "142112", "142211", "241211", "221114", "413111", "241112", "134111",
+  "111242", "121142", "121241", "114212", "124112", "124211", "411212", "421112", "421211", "212141",
+  "214121", "412121", "111143", "111341", "131141", "114113", "114311", "411113", "411311", "113141",
+  "114131", "311141", "411131", "211412", "211214", "211232"
+];
+const CODE128_START_B = 104;
+const CODE128_STOP = "2331112";
+
+// The symbol values for a text in code set B: start, one per character, checksum, stop.
+function code128Values(text) {
+  const values = [CODE128_START_B];
+  for (const character of String(text)) {
+    const code = character.charCodeAt(0);
+    if (code < 32 || code > 126) throw new Error(`Code 128 B cannot carry ${JSON.stringify(character)}.`);
+    values.push(code - 32);
+  }
+  const checksum = values.reduce((sum, value, index) => sum + value * (index === 0 ? 1 : index), 0) % 103;
+  return values.concat(checksum);
+}
+
+// Bar and space widths, in modules, starting with a bar.
+function code128Widths(text) {
+  return code128Values(text).map((value) => CODE128_PATTERNS[value]).join("") + CODE128_STOP;
+}
+
+function code128Svg(text, { module = 2, height = 70, quiet = 10 } = {}) {
+  const widths = code128Widths(text).split("").map(Number);
+  let x = quiet * module;
+  const bars = [];
+  widths.forEach((width, index) => {
+    if (index % 2 === 0) bars.push(`<rect x="${x}" y="0" width="${width * module}" height="${height}"/>`);
+    x += width * module;
+  });
+  const total = x + quiet * module;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${total} ${height}" width="${total}" height="${height}" role="img" aria-label="Barcode ${escapeHtml(text)}" shape-rendering="crispEdges"><rect width="${total}" height="${height}" fill="#fff"/><g fill="#000">${bars.join("")}</g></svg>`;
+}
+
+function labelHtml(vehicle) {
+  const details = [vehicle.year, vehicle.make, vehicle.model, vehicle.color].filter(Boolean).join(" ");
+  return `<div class="barcode-label">
+    <div class="barcode-label-bars">${code128Svg(vehicle.assignedBarcode)}</div>
+    <p class="barcode-label-code">${escapeHtml(vehicle.assignedBarcode)}</p>
+    ${vehicle.vin ? `<p class="barcode-label-meta">VIN ${escapeHtml(vehicle.vin)}</p>` : ""}
+    ${details ? `<p class="barcode-label-meta">${escapeHtml(details)}</p>` : ""}
+  </div>`;
+}
+
+function openLabelPrompt(vehicle) {
+  if (!vehicle || !el.labelModal) return;
+  ui.labelVehicleId = vehicle.id;
+  ui.modalTrigger = document.activeElement;
+  el.labelModalHeading.textContent = `Print the barcode label for ${vehicle.assignedBarcode}?`;
+  el.labelPreview.innerHTML = labelHtml(vehicle);
+  el.labelModalStatus.textContent = "";
+  el.labelModal.classList.remove("hidden");
+  window.setTimeout(() => el.printLabelButton.focus(), 20);
+}
+
+function closeLabelPrompt() {
+  ui.labelVehicleId = "";
+  closeManagedModal(el.labelModal);
+}
+
+function printVehicleLabel() {
+  const vehicle = state.vehicles.find((item) => item.id === ui.labelVehicleId);
+  if (!vehicle) { closeLabelPrompt(); return; }
+  el.labelPrintSheet.innerHTML = labelHtml(vehicle);
+  document.body.classList.add("printing-label");
+  addAudit("barcode_label_printed", `Barcode label printed for ${vehicle.assignedBarcode}.`, "Supervisor Console", "");
+  saveState();
+  const finished = () => {
+    document.body.classList.remove("printing-label");
+    el.labelPrintSheet.innerHTML = "";
+    window.removeEventListener("afterprint", finished);
+  };
+  window.addEventListener("afterprint", finished);
+  if (typeof window.print === "function") window.print();
+  // Some browsers never fire afterprint; the sheet must not stay hidden-but-armed.
+  window.setTimeout(finished, 1000);
+  closeLabelPrompt();
+}
+
+// Patrick: the driver rows' three green actions ("Edit, Mark... like 3 lines") should be "something
+// within the drop down, because this is going to end up having thousands of lines". One menu per row.
+// A menu is easy to set off by mistake - a slip of the mouse, or the arrow keys on a menu that has
+// focus - so anything that changes a driver asks first. Edit only opens the form.
+const DRIVER_ACTION_QUESTIONS = {
+  toggle: (driver) => driver.active ? `Mark ${driver.name} (${driver.employeeNumber}) inactive? Any authorization they hold is revoked.` : `Reactivate ${driver.name} (${driver.employeeNumber})?`,
+  authorize: (driver) => `Authorize ${driver.name} (${driver.employeeNumber}) for ${humanDuration(selectedDuration(el.authorizationDuration))}?`,
+  deauthorize: (driver) => `Revoke the authorization for ${driver.name} (${driver.employeeNumber})?`
+};
+
+function driverActionMenu(driver, auth, eligible) {
+  const options = [
+    `<option value="">Actions</option>`,
+    `<option value="edit">Edit</option>`,
+    `<option value="toggle">${driver.active ? "Mark inactive" : "Reactivate"}</option>`,
+    auth ? `<option value="deauthorize">Revoke authorization</option>` : `<option value="authorize"${eligible ? "" : " disabled"}>Authorize</option>`
+  ];
+  return `<select class="row-actions" data-driver-actions="${escapeHtml(driver.employeeNumber)}" aria-label="Actions for ${escapeHtml(driver.name)}">${options.join("")}</select>`;
+}
+
+function handleDriverActionMenu(event) {
+  const menu = event.target.closest("[data-driver-actions]");
+  if (!menu || !menu.value) return;
+  const action = menu.value;
+  const employeeNumber = menu.dataset.driverActions;
+  menu.value = "";
+  const driver = findDriverAny(employeeNumber);
+  if (!driver) return;
+  const question = DRIVER_ACTION_QUESTIONS[action];
+  if (question && typeof confirm === "function" && !confirm(question(driver))) return;
+  runDriverAction(action, driver);
+}
+
+// Patrick: "The keyboard is going to block the operator's ability to see what he's typing." When a
+// scanner field is opened for typing, it is kept in view above both the keyboard and the Continue
+// bar, and again whenever the keyboard changes the size of the screen.
+const SCANNER_TYPING_FIELDS = ["barcodeInput", "driverInput", "supervisorInput"];
+
+function keepTypingFieldVisible() {
+  const input = document.activeElement;
+  if (!input || !SCANNER_TYPING_FIELDS.includes(input.id) || input.getAttribute("inputmode") === "none") return;
+  const viewport = window.visualViewport;
+  const visibleBottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
+  const dock = document.querySelector(".wizard-step:not(.hidden) .wizard-actions") || null;
+  const dockRect = dock ? dock.getBoundingClientRect() : null;
+  const dockIsFloating = dock && window.getComputedStyle(dock).position === "fixed" && dockRect.height > 0;
+  const limit = Math.min(visibleBottom, dockIsFloating ? dockRect.top : visibleBottom) - 12;
+  const rect = input.getBoundingClientRect();
+  const top = viewport ? viewport.offsetTop + 8 : 8;
+  if (rect.bottom > limit) window.scrollBy(0, rect.bottom - limit);
+  else if (rect.top < top) window.scrollBy(0, rect.top - top);
+}
+
+function startTypingFieldWatch() {
+  const later = () => window.setTimeout(keepTypingFieldVisible, 60);
+  // The keyboard takes a moment to open, so look again once it has.
+  document.addEventListener("focusin", (event) => {
+    if (!SCANNER_TYPING_FIELDS.includes(event.target.id)) return;
+    later();
+    window.setTimeout(keepTypingFieldVisible, 350);
+    // Some keyboards are slower, and some phones settle their layout after the resize signal.
+    window.setTimeout(keepTypingFieldVisible, 700);
+  });
+  window.addEventListener("resize", later);
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", later);
+}
+
+// Patrick: "a search is going to look for a 4 digit date... I just want to make sure that it doesn't
+// cause a conflict." The date box is the browser's own picker, which lets a year run to six digits,
+// and a half-typed date reads as empty - so the search quietly ran across every date. A date must be
+// complete, with a four-digit year, before anything is searched.
+const SEARCH_DATE_MIN = "2020-01-01";
+const SEARCH_DATE_MAX = "2099-12-31";
+
+function searchDateProblem() {
+  const input = el.filterDate;
+  if (!input) return "";
+  const validity = input.validity || {};
+  if (validity.badInput) return "Finish the date, or clear it. The year has four digits, for example 09/13/2026.";
+  const value = input.value;
+  if (!value) return "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value < SEARCH_DATE_MIN || value > SEARCH_DATE_MAX) return "Use a date between 2020 and 2099, with a four-digit year.";
+  return "";
+}
+
 function findDriver(value) {
   const needle = normalizeEmployee(value);
   return state.drivers.find((driver) => normalizeEmployee(driver.employeeNumber) === needle && driver.active) || null;
@@ -2310,20 +2498,25 @@ function expirationForDuration(type, fromDate) {
 function handleDriverTableAction(event) {
   const button = event.target.closest("[data-driver-action]");
   if (!button) return;
-  const employeeNumber = button.dataset.driverEmployee;
-  const driver = findDriverAny(employeeNumber);
+  const driver = findDriverAny(button.dataset.driverEmployee);
   if (!driver) return;
-  if (button.dataset.driverAction === "authorize") {
+  runDriverAction(button.dataset.driverAction, driver);
+}
+
+// The same actions whether they come from a button or from a row's Actions menu (CR-V18).
+function runDriverAction(action, driver) {
+  const employeeNumber = driver.employeeNumber;
+  if (action === "authorize") {
     const result = authorizeDriver(driver, selectedDuration(el.authorizationDuration), "Supervisor Console", "", "user action");
     el.bulkActionStatus.textContent = result.ok ? `Authorized ${employeeNumber}.` : result.reason;
   }
-  if (button.dataset.driverAction === "deauthorize") {
+  if (action === "deauthorize") {
     revokeAuthorization(employeeNumber, "Supervisor Console");
     el.bulkActionStatus.textContent = `Revoked authorization for ${employeeNumber}.`;
   }
-  if (button.dataset.driverAction === "edit") openDriverModal(driver);
-  if (button.dataset.driverAction === "profile") openDriverProfile(driver);
-  if (button.dataset.driverAction === "toggle") {
+  if (action === "edit") openDriverModal(driver);
+  if (action === "profile") openDriverProfile(driver);
+  if (action === "toggle") {
     driver.active = !driver.active;
     driver.updatedAt = new Date().toISOString();
     driver.updatedBy = "Supervisor Console";
@@ -2645,6 +2838,8 @@ function saveVehicleForm(event) {
   if (invalid) return;
   const now = new Date().toISOString();
   const existing = state.vehicles.find((vehicle) => vehicle.id === vehicleId);
+  // CR-V18: a new barcode, or a changed one, needs a label on the car.
+  let labelFor = null;
   if (existing) {
     const barcodeChanged = existing.assignedBarcode !== fields.assignedBarcode;
     Object.assign(existing, fields, { updatedAt: now, updatedBy: "Supervisor Console" });
@@ -2653,14 +2848,17 @@ function saveVehicleForm(event) {
     if (existing.barcodeNeedsReview) { existing.barcodeNeedsReview = false; addAudit("typed_barcode_resolved", `Barcode review closed for ${existing.assignedBarcode} by editing the record.`, "Supervisor Console", ""); }
     addAudit("vehicle_edited", `Vehicle ${existing.id} edited.`, "Supervisor Console", "");
     if (barcodeChanged) addAudit("barcode_changed", `Vehicle ${existing.id} barcode changed to ${fields.assignedBarcode}.`, "Supervisor Console", "");
+    if (barcodeChanged) labelFor = existing;
   } else {
     const vehicle = { id: makeId("veh"), ...fields, createdAt: now, updatedAt: now, createdBy: "Supervisor Console", updatedBy: "Supervisor Console", removedAt: "", removedBy: "", reactivatedAt: "", inventoryStatus: COMPLETE_STATUS, createdSource: "supervisor", needsSupervisorCompletion: false, provisionalFromTxId: "", provisionalAt: "", completedBy: "", completedAt: "" };
     state.vehicles.push(vehicle);
     addAudit("vehicle_created", `Vehicle ${vehicle.id} created.`, "Supervisor Console", "");
     addAudit("barcode_assigned", `Barcode ${vehicle.assignedBarcode} assigned to ${vehicle.id}.`, "Supervisor Console", "");
+    labelFor = vehicle;
   }
   if (fields.vin.length !== 17) el.vehicleFormStatus.textContent = "VIN saved with a non-17-character warning.";
   saveState(); closeVehicleModal(); renderAll();
+  if (labelFor) openLabelPrompt(labelFor);
 }
 
 function handleVehicleTableAction(event) {
@@ -2958,7 +3156,9 @@ function renderSupervisor() {
     : `Check: this list has ${activeAuths.length}, but the roster shows ${rosterAuthorized} authorized. Refresh the page, and report it if the numbers still differ.`;
   el.authorizedDriversBody.innerHTML = activeAuths.length ? activeAuths.map((auth) => {
     const driver = findDriverAny(auth.driverEmployee);
-    return `<tr><td>${escapeHtml(auth.driverEmployee)}</td><td>${escapeHtml(driver ? driver.name : "Unknown driver")}</td><td>${escapeHtml(humanDuration(auth.type))}</td><td><span class="scope-label">All current locations</span></td><td>${escapeHtml(formatTimestamp(auth.expiresAt))}</td><td><button class="table-action danger-text" type="button" data-driver-action="deauthorize" data-driver-employee="${escapeHtml(auth.driverEmployee)}">Revoke</button></td></tr>`;
+    // CR-V18, Patrick: "the more narrow we can make these lines, the better" - four locations with
+    // 15 to 20 drivers each. One line per driver; the scope is the same for all, so it is said once above.
+    return `<tr><td><strong>${escapeHtml(driver ? driver.name : "Unknown driver")}</strong> <span class="muted mono">${escapeHtml(auth.driverEmployee)}</span></td><td>${escapeHtml(humanDuration(auth.type))}</td><td>${escapeHtml(formatTimestamp(auth.expiresAt))}</td><td><button class="table-action danger-text" type="button" data-driver-action="deauthorize" data-driver-employee="${escapeHtml(auth.driverEmployee)}">Revoke</button></td></tr>`;
   }).join("") : `<tr><td colspan="6" class="empty-cell">No active driver authorizations.</td></tr>`;
 
   const rosterNeedle = normalize(el.driverRosterSearch.value);
@@ -3045,7 +3245,7 @@ function renderDriverRow(driver) {
     <td><span class="status-badge ${auth ? "authorized" : "unauthorized"}">${auth ? "Auth" : "No auth"}</span></td>
     <td>${auth ? escapeHtml(humanDuration(auth.type)) : "-"}</td>
     <td>${auth ? escapeHtml(formatTimestamp(auth.expiresAt)) : "-"}</td>
-    <td class="action-stack"><button class="table-action" type="button" data-driver-action="edit" data-driver-employee="${escapeHtml(driver.employeeNumber)}">Edit</button><button class="table-action" type="button" data-driver-action="toggle" data-driver-employee="${escapeHtml(driver.employeeNumber)}">${driver.active ? "Mark inactive" : "Reactivate"}</button>${auth ? `<button class="table-action danger-text" type="button" data-driver-action="deauthorize" data-driver-employee="${escapeHtml(driver.employeeNumber)}">Revoke</button>` : `<button class="table-action success-text" type="button" data-driver-action="authorize" data-driver-employee="${escapeHtml(driver.employeeNumber)}" ${eligible ? "" : "disabled"}>Authorize</button>`}</td>
+    <td>${driverActionMenu(driver, auth, eligible)}</td>
   </tr>`;
 }
 
@@ -3175,6 +3375,12 @@ function cloudSearchFilters() {
 }
 
 function submitSearch() {
+  const dateProblem = searchDateProblem();
+  if (dateProblem) {
+    el.searchSourceNote.textContent = dateProblem;
+    el.filterDate.focus();
+    return;
+  }
   if (cloudReady()) {
     searchShared(true);
     return;
