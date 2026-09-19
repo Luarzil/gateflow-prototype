@@ -214,10 +214,16 @@
     });
   }
 
-  function request(path, query) {
+  function request(path, query, options) {
     return ready().then(function () {
       var url = CONFIG.api + path + (query ? "?" + query : "");
-      return fetch(url, { headers: { authorization: session.idToken }, cache: "no-store" }).then(function (response) {
+      var init = { headers: { authorization: session.idToken }, cache: "no-store" };
+      if (options && options.body !== undefined) {
+        init.method = options.method || "POST";
+        init.headers["content-type"] = "application/json";
+        init.body = JSON.stringify(options.body);
+      }
+      return fetch(url, init).then(function (response) {
         return response.text().then(function (text) {
           var payload = {};
           try { payload = text ? JSON.parse(text) : {}; } catch (error) { /* reported below */ }
@@ -320,6 +326,39 @@
     return request("/v1/reference", "");
   }
 
+  // Every movement carries an id made on the device. Sending the same one twice records it once,
+  // which is what makes retrying a dropped upload safe rather than a way to double the gate log.
+  function movementId() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") return "m-" + window.crypto.randomUUID();
+    return "m-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+  }
+
+  // The scanner decided at the gate; this sends what it recorded. The server stores it as it
+  // stands and says where its own records disagree, in "conflict" - it never quietly rewrites the
+  // decision, because the vehicle moved either way.
+  function recordMovement(movement) {
+    return request("/v1/movements", "", { method: "POST", body: movement }).then(function (payload) {
+      return {
+        id: payload.id,
+        clientId: payload.clientId,
+        alreadyRecorded: Boolean(payload.duplicate),
+        conflict: payload.conflict || "",
+        delayed: Boolean(payload.delayed),
+        vehicleAdded: Boolean(payload.vehicleAdded)
+      };
+    });
+  }
+
+  // What a flag on a movement means, in words a supervisor can act on.
+  function conflictText(conflict) {
+    if (conflict === "driver_inactive") return "the driver is marked inactive in the records";
+    if (conflict === "license_expired") return "the driver's license has expired";
+    if (conflict === "authorization_expired") return "the records show no authorization for that driver now";
+    if (conflict === "override_needs_scan") return "the location override covers scanned badges only";
+    if (conflict === "vehicle_removed") return "the vehicle has been removed from inventory";
+    return conflict ? "the records disagree with what the gate recorded" : "";
+  }
+
   window.VeriGateCloud = {
     config: CONFIG,
     // Restores a session left by a reload in the same tab. Called by the app on start.
@@ -338,6 +377,9 @@
     health: health,
     reference: reference,
     movements: movements,
+    recordMovement: recordMovement,
+    movementId: movementId,
+    conflictText: conflictText,
     // Exposed for the tests, which check these without a browser or a network.
     internals: { movementQuery: movementQuery, mapMovement: mapMovement, sessionFromAuthResult: sessionFromAuthResult, isSessionExpired: isSessionExpired, signInMessage: signInMessage, CloudError: CloudError }
   };

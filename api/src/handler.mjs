@@ -6,6 +6,7 @@
 
 import { createDb, isDatabaseWaking } from "./db.mjs";
 import { movementPage, referenceData, RequestError } from "./queries.mjs";
+import { recordMovement } from "./writes.mjs";
 
 export function createHandler({ db, stage = "dev", now = () => new Date() }) {
   return async function handle(event = {}) {
@@ -19,6 +20,13 @@ export function createHandler({ db, stage = "dev", now = () => new Date() }) {
         if (!claims || !claims.sub) return json(401, { error: "unauthorized", message: "Sign in first." });
         if (method === "GET" && path === "/v1/reference") return json(200, await referenceData(db));
         if (method === "GET" && path === "/v1/movements") return json(200, await movementPage(db, event.queryStringParameters || {}));
+        if (method === "POST" && path === "/v1/movements") {
+          const actor = String(claims["cognito:username"] || claims.sub || "");
+          const result = await recordMovement(db, readBody(event), { actor, now });
+          // A movement already recorded answers 200, not 201: a handheld retrying after a dropped
+          // signal must be able to tell "stored once" from "stored twice", and neither is an error.
+          return json(result.duplicate ? 200 : 201, result);
+        }
       }
 
       return json(404, { error: "not_found", message: `There is no ${method} ${path}.` });
@@ -36,6 +44,18 @@ export function createHandler({ db, stage = "dev", now = () => new Date() }) {
 async function health(db, stage, now) {
   const rows = await db.query("select version from schema_migrations order by version");
   return { service: "veri-gate-api", stage, database: "up", migrations: rows.map((row) => row.version), checkedAt: now().toISOString() };
+}
+
+// API Gateway hands the body through as text, base64 when it says so.
+function readBody(event) {
+  if (!event.body) return {};
+  const text = event.isBase64Encoded ? Buffer.from(event.body, "base64").toString("utf8") : event.body;
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (error) {
+    throw new RequestError("The request body is not JSON this API can read.");
+  }
 }
 
 function json(statusCode, body, headers = {}) {

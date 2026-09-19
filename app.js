@@ -1257,6 +1257,10 @@ function completeTransaction(draft) {
   const device = currentDevice();
   const transaction = {
     id: makeId("tx"),
+    // CR-V17 step 3: the id the shared database knows this movement by. It is made here, on the
+    // device, so an upload retried after a dropped signal is recognised instead of recorded twice.
+    clientId: window.VeriGateCloud ? window.VeriGateCloud.movementId() : makeId("m"),
+    sync: "local",
     timestamp: new Date().toISOString(),
     direction: draft.direction,
     driverEmployee: draft.driver.employeeNumber,
@@ -1312,6 +1316,52 @@ function completeTransaction(draft) {
   // transaction. The pre-submit review step (step 3) is unchanged — that is the real check.
   showScannerHome();
   setNotice(`Vehicle ${draft.direction} saved for ${transaction.driverName} / ${transaction.vehicleBarcode}${draft.override ? " under the location override" : ""}.`, "success");
+  uploadMovement(transaction);
+}
+
+// CR-V17 step 3: the movement is already saved on this device before this runs. Sending it to the
+// shared database is what lets another screen see it; if that fails, the record is not lost, it is
+// simply not shared yet. The queue that retries on its own is step 4.
+function uploadMovement(transaction) {
+  if (!cloudReady()) return;
+  const cloud = window.VeriGateCloud;
+  transaction.sync = "sending";
+  cloud.recordMovement({
+    clientId: transaction.clientId,
+    direction: transaction.direction,
+    driverEmployee: transaction.driverEmployee,
+    vehicleBarcode: transaction.vehicleBarcode,
+    location: transaction.location,
+    workingLocation: transaction.workingLocation || transaction.location,
+    authorizationStatus: transaction.authorizationStatus,
+    driverEntryMethod: transaction.driverEntryMethod,
+    vehicleEntryMethod: transaction.vehicleEntryMethod,
+    submittedBy: transaction.submittedBy,
+    note: transaction.note,
+    deviceId: transaction.deviceId,
+    occurredAt: transaction.timestamp
+  }).then((result) => {
+    transaction.sync = "shared";
+    transaction.serverId = result.id;
+    transaction.serverConflict = result.conflict || "";
+    if (result.conflict) {
+      // The vehicle moved either way. The disagreement is recorded for a supervisor to review,
+      // which is the only change the shared records allow on a movement that is already written.
+      addAudit("movement_flagged_by_records",
+        `Shared records flagged ${transaction.direction} for ${transaction.driverEmployee} / ${transaction.vehicleBarcode}: ${cloud.conflictText(result.conflict)}.`,
+        transaction.submittedBy, transaction.location);
+      setNotice(`Saved and shared, but flagged for review: ${cloud.conflictText(result.conflict)}.`, "warning");
+    } else if (!result.alreadyRecorded) {
+      setNotice(`Vehicle ${transaction.direction} saved for ${transaction.driverName} / ${transaction.vehicleBarcode}. In the shared records.`, "success");
+    }
+    saveState();
+    renderAll();
+  }).catch((error) => {
+    transaction.sync = "pending";
+    transaction.syncError = error.message;
+    saveState();
+    setNotice(`Saved on this device. Not in the shared records yet: ${error.message}`, "warning");
+  });
 }
 
 function findDriver(value) {

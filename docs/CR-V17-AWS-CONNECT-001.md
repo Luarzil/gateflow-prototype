@@ -189,3 +189,59 @@ run reported 0 rows for all eight statements.
   that reads from one place and writes to another would be lying about what it shows.
 - Roles are not enforced yet. The login is in the Admin group, but the API does not read the group
   claim until sign-in is finished in step 5.
+
+## Step 3 — scanners record into the shared database (2026-09-18)
+
+A movement submitted at the gate is now written to the shared database as well as to the device,
+so a second screen can see it. That is the other half of "the silo".
+
+### The rule this is built around
+
+The scanner decides at the gate, offline if it has to. The server stores that decision faithfully
+and says where its own records disagree - it never quietly rewrites it, because the vehicle moved
+either way. The disagreement is recorded in `conflict` for a supervisor to review, which is the
+only change an already-written movement allows.
+
+`api/src/writes.mjs`, `POST /v1/movements`:
+
+- **Sending the same movement twice records it once.** The device makes a `client_id` for every
+  movement; the column is unique, the duplicate is asked about before anything is written, and a
+  race that slips past that is caught by the insert itself. The answer is 201 for a new movement
+  and 200 for one already recorded, so a handheld can tell "stored once" from "stored twice", and
+  neither is an error.
+- **What the gate saw is written down as a snapshot**: driver name, VIN, plate, device name, type
+  and assigned location, so a printout made months later still reads as it did that day.
+- **An unknown barcode becomes a vehicle**, marked `inbound_scan` and tied back to the movement
+  that created it. A *typed* unknown barcode is flagged `barcode_needs_review`, because a typo
+  invents a vehicle (CR-V15).
+- **Flags** (`conflict`): `authorization_expired`, `driver_inactive`, `license_expired`,
+  `override_needs_scan` (the CR-V16 override covers scanned badges only), `vehicle_removed`. An
+  Unauthorized movement is never flagged - it already says what it is.
+- **`delayed`** is set when the movement was recorded more than five minutes before it arrived,
+  which is what an offline queue looks like.
+- An employee number that is not on the shared roster is refused, 422, and nothing is written.
+- The audit entry goes in with the movement, in the same transaction, carrying the movement's id
+  with `:movement` appended so a retry cannot double the trail either.
+
+### On the device
+
+`completeTransaction` saves locally first and then uploads - the local record never depends on the
+upload. On success the notice says the movement is in the shared records; on a flag it says what
+was flagged and writes it to the audit trail; on failure the movement stays on the device marked
+`pending` and the notice says it is not shared yet. The queue that retries on its own is step 4.
+
+### Verification, 2026-09-18 (live in Veri-Gate Dev)
+
+- A scan driven through the app's own screens (G0005 / E1001, Vehicle IN) arrived as movement 8
+  with the driver name, VIN, plate and device name filled in, and displayed at the New York gate
+  time it was recorded.
+- The same movement sent twice: one row, second answer `alreadyRecorded`.
+- An OUT claiming "Authorized" for a driver with no authorization: stored, flagged
+  `authorization_expired`.
+- An unknown barcode G0042: stored, vehicle created as `inbound_scan`, tied to movement 6.
+- A movement timed 20 hours earlier: stored with `delayed`.
+- Employee E9999: refused, "Employee E9999 is not in the shared roster."
+- `update movements set note = ...` on the new row: refused by the append-only trigger.
+- Search from the console then showed all 8 movements from the shared database.
+- Tests: 52 API tests (24 new for the write path), 231 static tests (12 new for the client),
+  both browser suites, validator 113/113.
