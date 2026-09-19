@@ -74,13 +74,16 @@ async function reload(cdp) {
 
 async function performMovement(cdp, driverMethod, vehicleMethod, sequence) {
   await evaluate(cdp, "document.querySelector('#startScanButton').click()");
+  // CR-V14 items 1 and 2: the manual-entry dialogs are gone. Tapping the field is the manual path,
+  // so "manual" fires a pointerdown first and "scanner_field" is a wedge scan landing in a field
+  // nobody touched. The four-way provenance matrix is unchanged; only how it is reached moved.
   if (vehicleMethod === "manual") {
-    await evaluate(cdp, `(() => { document.querySelector('#openManualBarcodeButton').click(); const input=document.querySelector('#manualBarcodeInput'); input.value='GFV-0001'; document.querySelector('#submitManualBarcodeButton').click(); })()`);
+    await evaluate(cdp, `(() => { const input=document.querySelector('#barcodeInput'); input.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true})); input.value='GFV-0001'; input.dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('#barcodeNext').click(); })()`);
   } else {
     await evaluate(cdp, `(() => { const input=document.querySelector('#barcodeInput'); input.value='GFV-0001'; input.dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('#barcodeNext').click(); })()`);
   }
   if (driverMethod === "manual") {
-    await evaluate(cdp, `(() => { document.querySelector('#openManualEmployeeButton').click(); const input=document.querySelector('#manualEmployeeInput'); input.value='1001'; document.querySelector('#submitManualEmployeeButton').click(); })()`);
+    await evaluate(cdp, `(() => { const input=document.querySelector('#driverInput'); input.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true})); input.value='1001'; input.dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('#driverNext').click(); })()`);
   } else {
     await evaluate(cdp, `(() => { const input=document.querySelector('#driverInput'); input.value='1001'; input.dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('#driverNext').click(); })()`);
   }

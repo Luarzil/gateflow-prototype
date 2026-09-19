@@ -28,7 +28,14 @@ test("password value is not stored in the desktop user object", excludes(app, "p
 test("drivers remain excluded from application login accounts", includes(html, "Drivers are operational records, not application login accounts."));
 test("ability matrix does not assign permissions to driver records", excludes(app, 'id: "drivers"'));
 test("driver profile management is named separately from driver accounts", includes(app, 'id: "driverProfiles"'));
-test("manual entry opener controls are visible", () => {
-  assert.ok(html.includes('id="openManualBarcodeButton"'), "missing vehicle manual entry control");
-  assert.ok(html.includes('id="openManualEmployeeButton"'), "missing driver manual entry control");
+// CR-V14 item 2, Patrick 2026-09-12: "Manual entry button can be removed... there is no need for
+// duplication with a manual key button." Tapping the field is the manual path now, so the button
+// and its dialog are gone and the entry path is recorded from the tap instead.
+test("manual entry is the field itself, not a separate control", () => {
+  assert.ok(!html.includes('id="openManualBarcodeButton"'), "vehicle manual entry button must be gone");
+  assert.ok(!html.includes('id="openManualEmployeeButton"'), "driver manual entry button must be gone");
+  assert.ok(!html.includes('id="manualBarcodeModal"'), "vehicle manual entry dialog must be gone");
+  assert.ok(!html.includes('id="manualEmployeeModal"'), "driver manual entry dialog must be gone");
+  assert.ok(app.includes('ui.vehicleEntryMethod = "manual"'), "tapping the barcode field must record manual entry");
+  assert.ok(app.includes('ui.driverEntryMethod = "manual"'), "tapping the driver field must record manual entry");
 });
