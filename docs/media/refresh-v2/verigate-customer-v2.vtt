@@ -1,0 +1,101 @@
+WEBVTT
+
+1
+00:00:00.280 --> 00:00:02.240
+Meet Veri Gate.
+
+2
+00:00:02.190 --> 00:00:08.750
+A practical way to record who is driving, which vehicle is moving, and when it passes through the gate.
+
+3
+00:00:08.750 --> 00:00:11.314
+Let's follow a typical movement.
+
+4
+00:00:12.155 --> 00:00:16.680
+First, scan the driver's badge, or enter their employee number.
+
+5
+00:00:16.630 --> 00:00:23.176
+The screen brings up the driver and their authorization status, so the operator has the context they need.
+
+6
+00:00:23.988 --> 00:00:26.889
+Next, scan the vehicle barcode.
+
+7
+00:00:26.839 --> 00:00:30.744
+For a known vehicle, its details appear on screen.
+
+8
+00:00:30.744 --> 00:00:36.891
+If it is new to inventory, Veri Gate adds a record automatically as the movement is processed.
+
+9
+00:00:37.738 --> 00:00:41.619
+Choose in or out, review the movement, and submit.
+
+10
+00:00:41.569 --> 00:00:46.904
+The record includes the driver, vehicle, gate, device, and time.
+
+11
+00:00:46.904 --> 00:00:51.350
+The scanner then returns to the start, ready for the next vehicle.
+
+12
+00:00:52.197 --> 00:00:56.103
+A newly added vehicle can leave through the normal process.
+
+13
+00:00:56.053 --> 00:00:59.378
+Missing inventory details do not hold it up.
+
+14
+00:00:59.378 --> 00:01:03.772
+The usual driver authorization and license checks still apply.
+
+15
+00:01:04.613 --> 00:01:10.414
+When a driver needs temporary authorization, a Fleet Lead or higher role can approve it.
+
+16
+00:01:10.364 --> 00:01:15.789
+The prototype records that decision, keeping the exception connected to the movement.
+
+17
+00:01:16.613 --> 00:01:20.829
+The desktop console brings the operational records together.
+
+18
+00:01:20.779 --> 00:01:27.931
+Supervisors can manage drivers, update vehicle details, and review the devices assigned to each location.
+
+19
+00:01:28.738 --> 00:01:35.763
+When a question comes up later, search the movement history by driver, vehicle, location, or date.
+
+20
+00:01:35.713 --> 00:01:39.192
+The details captured at the gate are there to review.
+
+21
+00:01:40.030 --> 00:01:46.140
+This review build runs on Android and stores records on the device, including without a signal.
+
+22
+00:01:46.090 --> 00:01:51.077
+Shared cloud data and automatic synchronization are still being developed.
+
+23
+00:01:51.077 --> 00:01:54.917
+For now, it is ready to explore the gate workflow.
+
+24
+00:01:55.738 --> 00:01:57.492
+Veri Gate.
+
+25
+00:01:57.442 --> 00:02:02.288
+A focused workflow at the gate, and a clearer record to work from afterward.

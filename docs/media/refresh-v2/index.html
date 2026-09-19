@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Veri-Gate | Video Review</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f4f7f6;color:#152321;font:16px/1.5 "Segoe UI",Arial,sans-serif}header{background:#152321;color:#f4f7f6;padding:25px max(24px,calc((100vw - 1120px)/2));border-bottom:4px solid #16a365}header strong{font-size:25px}header span{margin-left:20px;color:#abc0b8}main{max-width:1170px;margin:auto;padding:30px 25px}nav{display:flex;gap:24px;border-bottom:1px solid #c4d5cc;margin-bottom:28px}button{font:600 16px "Segoe UI",sans-serif;background:none;color:#52695f;border:0;border-bottom:3px solid transparent;padding:12px 0;cursor:pointer}button[aria-selected=true]{color:#087747;border-color:#087747}h1{font-size:28px;line-height:1.2;margin:0 0 8px}p{color:#52695f;margin:0 0 20px}video{display:block;width:100%;aspect-ratio:16/9;background:#152321;border-radius:4px}footer{display:flex;gap:24px;flex-wrap:wrap;padding:20px 0}a{color:#087747;text-underline-offset:4px}details{margin-top:20px;border-top:1px solid #c4d5cc;padding:20px 0}summary{cursor:pointer}details a{display:inline-block;margin:16px 22px 0 0}[hidden]{display:none!important}@media(max-width:600px){header span{display:block;margin:4px 0 0}main{padding:22px 14px}h1{font-size:24px}nav{gap:20px}footer{gap:15px}}
+</style>
+</head>
+<body>
+<header><strong>Veri-Gate</strong><span>Video review / Edition 02</span></header>
+<main>
+<nav role="tablist" aria-label="Videos">
+<button id="customer-tab" role="tab" aria-controls="customer" aria-selected="true">Customer introduction</button>
+<button id="walkthrough-tab" role="tab" aria-controls="walkthrough" aria-selected="false" tabindex="-1">Patrick's walkthrough</button>
+</nav>
+<section id="customer" role="tabpanel" aria-labelledby="customer-tab">
+<h1>A clearer record of every movement.</h1>
+<p>Customer introduction &middot; Female neural narration &middot; 1080p</p>
+<video controls preload="metadata" playsinline poster="customer/01.png"><source src="verigate-customer-v2.mp4" type="video/mp4"><track kind="captions" src="verigate-customer-v2.vtt" srclang="en" label="English"></video>
+<footer><a href="verigate-customer-v2.mp4" download>Download video</a><a href="customer-script.md">Narration script</a><a href="verigate-customer-v2.srt" download>Subtitles</a></footer>
+</section>
+<section id="walkthrough" role="tabpanel" aria-labelledby="walkthrough-tab" hidden>
+<h1>The latest gate workflow, step by step.</h1>
+<p>Patrick's review &middot; Female neural narration &middot; 1080p</p>
+<video controls preload="metadata" playsinline poster="walkthrough/01.png"><source src="verigate-walkthrough-v2.mp4" type="video/mp4"><track kind="captions" src="verigate-walkthrough-v2.vtt" srclang="en" label="English"></video>
+<footer><a href="verigate-walkthrough-v2.mp4" download>Download video</a><a href="walkthrough-script.md">Narration script</a><a href="verigate-walkthrough-v2.srt" download>Subtitles</a></footer>
+</section>
+<details><summary>Original editions</summary><a href="../verigate-customer.webm">Original customer video</a><a href="../verigate-v08-demo.webm">Original Patrick walkthrough</a></details>
+</main>
+<script>
+const tabs=[...document.querySelectorAll('[role=tab]')];
+function select(tab){document.querySelectorAll('video').forEach(v=>v.pause());tabs.forEach(t=>{const active=t===tab;t.setAttribute('aria-selected',String(active));t.tabIndex=active?0:-1;document.getElementById(t.getAttribute('aria-controls')).hidden=!active;});}
+tabs.forEach((tab,i)=>{tab.onclick=()=>select(tab);tab.onkeydown=e=>{if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();const next=tabs[(i+1)%tabs.length];select(next);next.focus();}};});
+</script>
+</body>
+</html>

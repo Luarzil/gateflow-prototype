@@ -1,0 +1,107 @@
+1
+00:00:00,280 --> 00:00:03,374
+Here is the updated Veri Gate walkthrough.
+
+2
+00:00:03,324 --> 00:00:09,768
+We will follow a vehicle through the gate, then look at the inventory and user changes from your latest feedback.
+
+3
+00:00:10,613 --> 00:00:12,677
+Start with the driver.
+
+4
+00:00:12,627 --> 00:00:19,044
+Scan the badge or enter the employee number, confirm the record, and continue to the vehicle barcode.
+
+5
+00:00:19,863 --> 00:00:22,932
+This barcode is not in inventory yet.
+
+6
+00:00:22,882 --> 00:00:26,013
+The workflow accepts it and continues.
+
+7
+00:00:26,013 --> 00:00:31,104
+When the movement is processed, the vehicle is added as ordinary inventory.
+
+8
+00:00:31,947 --> 00:00:36,459
+Choose the direction, review the details, and submit the movement.
+
+9
+00:00:36,409 --> 00:00:41,847
+After recording it, the scanner returns to the start, ready for the next driver.
+
+10
+00:00:42,697 --> 00:00:46,487
+The same vehicle can leave through the usual driver checks.
+
+11
+00:00:46,437 --> 00:00:49,465
+There is no inventory completion block.
+
+12
+00:00:49,465 --> 00:00:54,568
+A barcode first encountered on exit is also added and logged in this version.
+
+13
+00:00:55,405 --> 00:01:00,948
+In the console, Vehicles Added By Scan shows which records originated at the gate.
+
+14
+00:01:00,898 --> 00:01:04,545
+Supervisors can fill in missing details later.
+
+15
+00:01:04,545 --> 00:01:08,320
+Those details do not delay the vehicle's next movement.
+
+16
+00:01:09,155 --> 00:01:11,850
+Users now have an Edit action.
+
+17
+00:01:11,800 --> 00:01:16,813
+It opens their existing details, and saving updates that same user.
+
+18
+00:01:16,813 --> 00:01:20,962
+Changes to the user's role are recorded in the audit history.
+
+19
+00:01:21,822 --> 00:01:24,968
+The separate Manager role has been removed.
+
+20
+00:01:24,918 --> 00:01:33,152
+The available roles are Scanner, Fleet Lead, Supervisor, and Admin. Existing Manager user records convert to Admin.
+
+21
+00:01:33,152 --> 00:01:38,255
+These are still prototype accounts; secure login is part of the backend work.
+
+22
+00:01:39,113 --> 00:01:44,617
+For a driver authorization override, the approver must be a Fleet Lead or above.
+
+23
+00:01:44,567 --> 00:01:47,299
+A Scanner role cannot approve it.
+
+24
+00:01:47,299 --> 00:01:52,016
+The driver checks remain in place alongside the new inventory behavior.
+
+25
+00:01:52,863 --> 00:01:56,666
+Finally, the movement stays in the searchable history.
+
+26
+00:01:56,616 --> 00:02:00,173
+The Android package includes these same revisions.
+
+27
+00:02:00,173 --> 00:02:06,114
+This remains a device-local review build, with shared data and synchronization still ahead.

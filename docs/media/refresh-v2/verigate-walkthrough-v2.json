@@ -1,0 +1,106 @@
+{
+  "voice": "en-US-JennyNeural",
+  "duration": 126.66666666666667,
+  "scenes": [
+    {
+      "start": 0,
+      "duration": 10.333333333333334,
+      "frame": "d/01-scanner-home.png",
+      "title": "A smoother\ngate workflow.",
+      "takeaway": "Veri-Gate V0.8 / latest review revision",
+      "narration": "Here is the updated Veri Gate walkthrough. We will follow a vehicle through the gate, then look at the inventory and user changes from your latest feedback.",
+      "chapter": "PATRICK / REVIEW EDITION",
+      "layout": "phone"
+    },
+    {
+      "start": 10.333,
+      "duration": 9.25,
+      "frame": "d/02-driver-entry.png",
+      "title": "Driver first.",
+      "takeaway": "Scan or enter the employee number.",
+      "narration": "Start with the driver. Scan the badge or enter the employee number, confirm the record, and continue to the vehicle barcode.",
+      "chapter": "01 / SCAN",
+      "layout": "phone"
+    },
+    {
+      "start": 19.583,
+      "duration": 12.083333333333334,
+      "frame": "d/03-unknown-vehicle.png",
+      "title": "New barcode?\nKeep going.",
+      "takeaway": "Inventory is created during the movement.",
+      "narration": "This barcode is not in inventory yet. The workflow accepts it and continues. When the movement is processed, the vehicle is added as ordinary inventory.",
+      "chapter": "01 / SCAN",
+      "layout": "phone"
+    },
+    {
+      "start": 31.667,
+      "duration": 10.75,
+      "frame": "d/04-movement-choice.png",
+      "title": "Choose the\ndirection.",
+      "takeaway": "IN or OUT, followed by review and submit.",
+      "narration": "Choose the direction, review the details, and submit the movement. After recording it, the scanner returns to the start, ready for the next driver.",
+      "chapter": "02 / RECORD",
+      "layout": "phone"
+    },
+    {
+      "start": 42.417,
+      "duration": 12.708333333333334,
+      "frame": "d/06-unknown-out.png",
+      "title": "The exit\nis recorded too.",
+      "takeaway": "Normal driver and license checks still apply.",
+      "narration": "The same vehicle can leave through the usual driver checks. There is no inventory completion block. A barcode first encountered on exit is also added and logged in this version.",
+      "chapter": "02 / RECORD",
+      "layout": "phone"
+    },
+    {
+      "start": 55.125,
+      "duration": 13.75,
+      "frame": "d/08-gate-log.png",
+      "title": "See what arrived.",
+      "takeaway": "Vehicles Added By Scan preserves their origin.",
+      "narration": "In the console, Vehicles Added By Scan shows which records originated at the gate. Supervisors can fill in missing details later. Those details do not delay the vehicle's next movement.",
+      "chapter": "03 / REVIEW",
+      "layout": "desktop"
+    },
+    {
+      "start": 68.875,
+      "duration": 12.666666666666666,
+      "frame": "d/10-user-edit.png",
+      "title": "Edit existing\nusers.",
+      "takeaway": "Update the existing record, without a duplicate.",
+      "narration": "Users now have an Edit action. It opens their existing details, and saving updates that same user. Changes to the user's role are recorded in the audit history.",
+      "chapter": "04 / MANAGE",
+      "layout": "user"
+    },
+    {
+      "start": 81.542,
+      "duration": 17.291666666666668,
+      "frame": "d/10-user-edit.png",
+      "title": "One Admin\nrole.",
+      "takeaway": "Scanner / Fleet Lead / Supervisor / Admin",
+      "narration": "The separate Manager role has been removed. The available roles are Scanner, Fleet Lead, Supervisor, and Admin. Existing Manager user records convert to Admin. These are still prototype accounts; secure login is part of the backend work.",
+      "chapter": "04 / MANAGE",
+      "layout": "user"
+    },
+    {
+      "start": 98.833,
+      "duration": 13.75,
+      "frame": "d/11-override-role.png",
+      "title": "Approval has\na clear threshold.",
+      "takeaway": "Fleet Lead or above for temporary authorization.",
+      "narration": "For a driver authorization override, the approver must be a Fleet Lead or above. A Scanner role cannot approve it. The driver checks remain in place alongside the new inventory behavior.",
+      "chapter": "05 / AUTHORIZE",
+      "layout": "phone"
+    },
+    {
+      "start": 112.583,
+      "duration": 14.083333333333334,
+      "frame": "d/12-search.png",
+      "title": "Review the history.",
+      "takeaway": "The movement remains available to search.",
+      "narration": "Finally, the movement stays in the searchable history. The Android package includes these same revisions. This remains a device-local review build, with shared data and synchronization still ahead.",
+      "chapter": "06 / FOLLOW THROUGH",
+      "layout": "desktop"
+    }
+  ]
+}
