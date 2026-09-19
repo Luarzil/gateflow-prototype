@@ -8,6 +8,7 @@ import { createDb, isDatabaseWaking } from "./db.mjs";
 import { movementPage, referenceData, RequestError } from "./queries.mjs";
 import { recordMovement } from "./writes.mjs";
 import { groupsFrom, recordChange } from "./changes.mjs";
+import { recordAuditEntries } from "./audit.mjs";
 
 export function createHandler({ db, stage = "dev", now = () => new Date() }) {
   return async function handle(event = {}) {
@@ -30,6 +31,9 @@ export function createHandler({ db, stage = "dev", now = () => new Date() }) {
         }
         // A change to a driver, vehicle, authorization or override switch. Same rule: 200 for one
         // already recorded.
+        // History entries a device wrote, in batches. 201 whether new or already recorded: the device
+        // only needs to know the server has them.
+        if (method === "POST" && path === "/v1/audit-events") return json(201, await recordAuditEntries(db, readBody(event), { actor, now }));
         if (method === "POST" && path === "/v1/changes") {
           const result = await recordChange(db, readBody(event), { actor, groups: groupsFrom(claims), now });
           return json(result.duplicate ? 200 : 201, result);

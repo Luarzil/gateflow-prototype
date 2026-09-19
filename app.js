@@ -819,12 +819,32 @@ function pruneSharedHistory(keepDays) {
     if (confirmedAndOld) trimmed.add(item.clientId);
     return !confirmedAndOld;
   });
-  if (trimmed.size) state.auditEvents = state.auditEvents.filter((event) => !(event.movementClientId && trimmed.has(event.movementClientId)));
+  const auditBefore = state.auditEvents.length;
+  state.auditEvents = state.auditEvents.filter((event) => {
+    if (event.movementClientId && trimmed.has(event.movementClientId)) return false;
+    // An entry the shared records confirmed is kept for the same window as a movement.
+    return !(event.sync === "shared" && new Date(event.timestamp).getTime() < cutoff);
+  });
+  const auditTrimmed = auditBefore - state.auditEvents.length;
+  // Every driver needs an authorization every day, so ended ones pile up as fast as movements did.
+  // One the shared records hold, and that ended more than three days ago, is only history, and the
+  // server keeps it. Nothing still waiting to be sent is touched.
+  const endedCutoff = Date.now() - AUTHORIZATION_HISTORY_DAYS * 86400000;
+  const waitingKeys = new Set((state.outbox || []).filter((item) => SYNC_WAITING.includes(item.sync)).map((item) => item.key));
+  const authorizationsBefore = state.authorizations.length;
+  state.authorizations = state.authorizations.filter((auth) => {
+    const ended = auth.status !== "active" || new Date(auth.expiresAt).getTime() < Date.now();
+    const endedAt = new Date(auth.revokedAt || auth.expiresAt).getTime();
+    const old = ended && auth.shared === true && endedAt < endedCutoff && !waitingKeys.has(sharedKey("authorization", auth.id));
+    if (old && state.refShadow) delete state.refShadow[sharedKey("authorization", auth.id)];
+    return !old;
+  });
+  const authorizationsTrimmed = authorizationsBefore - state.authorizations.length;
   // A change the shared records have is only kept a day, long enough for another tab to learn it was
   // sent. What it changed lives on in the records themselves.
   const changesBefore = (state.outbox || []).length;
   if (changesBefore) state.outbox = state.outbox.filter((item) => !(item.sync === "shared" && new Date(item.sharedAt || item.queuedAt).getTime() < Date.now() - SHARED_CHANGE_KEEP_MS));
-  return trimmed.size + (changesBefore - (state.outbox || []).length);
+  return trimmed.size + auditTrimmed + authorizationsTrimmed + (changesBefore - (state.outbox || []).length);
 }
 
 // Movements and audit entries are only ever added, so taking in everything another tab saved loses
@@ -849,6 +869,7 @@ function mergeRecords(key, incoming) {
       return;
     }
     // Another tab may already have sent this movement: take its word rather than send it again.
+    if (key === "auditEvents" && (SYNC_RANK[item.sync] || 0) > (SYNC_RANK[mine.sync] || 0)) mine.sync = item.sync;
     if (key === "transactions" && (SYNC_RANK[item.sync] || 0) > (SYNC_RANK[mine.sync] || 0)) {
       mine.sync = item.sync;
       mine.serverId = item.serverId;
@@ -1517,7 +1538,7 @@ function markRefused(transaction, error) {
 }
 
 function syncDevice() {
-  if (syncQueue().length === 0) return Promise.resolve(null);
+  if (syncQueue().length === 0 && waitingAuditEntries().length === 0) return Promise.resolve(null);
   if (syncRunning || !cloudReady()) {
     renderSyncStatus();
     return Promise.resolve(null);
@@ -1546,10 +1567,13 @@ function syncDevice() {
     if (summary.stopped && latest && latest.sync === "pending") {
       setNotice(`Saved on this device. Not in the shared records yet: ${reason} It will be sent automatically.`, "warning");
     }
-    return summary;
+    // History entries last: nothing waits on them, and the entries the queue itself just wrote
+    // (a flag, a refusal) go in the same pass.
+    return summary.stopped ? summary : sendAuditEntries().then(() => summary);
   }).catch((error) => {
     // A bug in a handler must never lose a movement: anything mid-send goes back to waiting.
     waiting.forEach((item) => { if (item.sync === "sending") item.sync = "pending"; });
+    state.auditEvents.forEach((item) => { if (item.sync === "sending") item.sync = "pending"; });
     return { sent: 0, refused: 0, stopped: { action: "retry", error } };
   }).then((summary) => {
     syncRunning = false;
@@ -1612,7 +1636,7 @@ function startSync() {
   // A movement that was mid-send when the app closed was never confirmed, so it is sent again.
   // The device id makes that safe: if it did arrive, the server says so and nothing is doubled.
   let recovered = 0;
-  state.transactions.concat(state.outbox || []).forEach((item) => {
+  state.transactions.concat(state.outbox || [], state.auditEvents).forEach((item) => {
     if (item.sync === "sending") { item.sync = "pending"; recovered += 1; }
   });
   if (recovered) saveState();
@@ -1624,7 +1648,7 @@ function startSync() {
     if (mergeFromStorage()) renderAll();
   });
   setInterval(() => {
-    if (syncQueue().length) syncDevice();
+    if (syncQueue().length || waitingAuditEntries().length) syncDevice();
     else if (pullIsDue() && pageIsVisible()) pullReference();
   }, SYNC_RETRY_MS);
   // Coming back to a console left in another window: catch up at once rather than within five minutes.
@@ -1651,6 +1675,29 @@ function startSync() {
 const REFERENCE_PULL_MS = 5 * 60000;
 const SHARED_CHANGE_KEEP_MS = 86400000;
 const SHARED_KIND_ORDER = ["driver", "vehicle", "authorization", "location"];
+const AUTHORIZATION_HISTORY_DAYS = 3;
+const AUDIT_BATCH = 50;
+
+function waitingAuditEntries() {
+  return state.auditEvents.filter((event) => SYNC_WAITING.includes(event.sync)).reverse();
+}
+
+// The device's history entries, oldest first, 50 to a request. A batch the server will never accept
+// is set aside rather than retried forever; one that could not get through stops until next time.
+function sendAuditEntries() {
+  const cloud = window.VeriGateCloud;
+  const batch = waitingAuditEntries().slice(0, AUDIT_BATCH);
+  if (!batch.length || !cloud || typeof cloud.recordAuditEntries !== "function") return Promise.resolve();
+  batch.forEach((event) => { event.sync = "sending"; });
+  const entries = batch.map((event) => ({ clientId: event.id, type: event.type, description: event.description, actor: event.actor, location: event.location, source: event.source, occurredAt: event.timestamp }));
+  return cloud.recordAuditEntries(entries).then(() => {
+    batch.forEach((event) => { event.sync = "shared"; });
+    return sendAuditEntries();
+  }, (error) => {
+    const refused = cloud.failureAction(error) === "refuse";
+    batch.forEach((event) => { event.sync = refused ? "refused" : "pending"; });
+  });
+}
 
 function isoOrEmpty(value) {
   if (!value) return "";
@@ -1711,9 +1758,37 @@ function sharingChanges() {
   return !IN_TEST_HARNESS && Boolean(window.VeriGateCloud);
 }
 
+// What is remembered about each record's last shared state: a fingerprint, not a copy. With the whole
+// vehicle inventory on every phone, a copy of each record doubled what the phone had to hold. A
+// vehicle's also carries its barcode, since a change of barcode has to say what it was before.
+function fingerprint(text) {
+  let first = 0x811c9dc5;
+  let second = 0x01000193;
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+    first = Math.imul(first ^ code, 0x01000193) >>> 0;
+    second = Math.imul(second ^ code, 0x5bd1e995) >>> 0;
+  }
+  return first.toString(36) + second.toString(36);
+}
+
+function shadowValue(kind, record) {
+  const print = fingerprint(JSON.stringify(record));
+  return kind === "vehicle" ? `${print}|${record.assignedBarcode}` : print;
+}
+
+// Bookkeeping from the build that stored whole records is read in the new form, unchanged in meaning.
+function currentShadow(kind, key) {
+  const stored = state.refShadow[key];
+  if (typeof stored === "string" && stored.startsWith("{")) {
+    try { state.refShadow[key] = shadowValue(kind, JSON.parse(stored)); } catch (error) { delete state.refShadow[key]; }
+  }
+  return state.refShadow[key];
+}
+
 // Marks a record as agreeing with the shared records, so it is not sent back as a change.
 function settleShared(kind, item) {
-  state.refShadow[sharedKey(kind, SHARED_KINDS[kind].id(item))] = JSON.stringify(SHARED_KINDS[kind].record(item));
+  state.refShadow[sharedKey(kind, SHARED_KINDS[kind].id(item))] = shadowValue(kind, SHARED_KINDS[kind].record(item));
 }
 
 // Only what the server needs beyond the record itself: which shared vehicle this is, and who
@@ -1722,8 +1797,8 @@ function changeData(kind, item, record, before) {
   const data = { ...record };
   if (kind === "vehicle") {
     data.serverId = item.serverId || null;
-    const previous = before ? JSON.parse(before) : null;
-    if (previous && previous.assignedBarcode !== record.assignedBarcode) data.previousBarcode = previous.assignedBarcode;
+    const previousBarcode = before ? String(before).split("|")[1] : "";
+    if (previousBarcode && previousBarcode !== record.assignedBarcode) data.previousBarcode = previousBarcode;
   }
   if (kind === "authorization") {
     data.approverBadge = approverBadgeFrom(item.authorizedBy);
@@ -1751,8 +1826,8 @@ function recordLocalChanges() {
     items.forEach((item) => {
       const key = sharedKey(kind, spec.id(item));
       const record = spec.record(item);
-      const print = JSON.stringify(record);
-      const before = state.refShadow[key];
+      const print = shadowValue(kind, record);
+      const before = currentShadow(kind, key);
       if (before === print) return;
       state.refShadow[key] = print;
       if (first) return;
@@ -1796,6 +1871,10 @@ function markChangeShared(change, result) {
   change.sharedAt = new Date().toISOString();
   change.outcome = result.outcome;
   change.syncError = "";
+  if (change.kind === "authorization") {
+    const auth = state.authorizations.find((item) => item.id === change.data.id);
+    if (auth) auth.shared = true;
+  }
   if (result.outcome === "superseded") {
     // Not an error: another device changed the same record later, and the later edit stands. The
     // next read brings it here, replacing this device's older one.
@@ -1969,6 +2048,7 @@ function applyReference(reference, startedAt) {
       Object.assign(auth, fields, { updatedAt: now });
       changed += 1;
     }
+    auth.shared = true;
     settleShared("authorization", auth);
   });
   // An authorization this device holds as active that the shared records do not list is one they
@@ -2804,6 +2884,9 @@ function addAudit(type, description, actor, location, source = "user action") {
     location,
     source
   };
+  // Sent to the shared records like everything else, so that a blocked OUT or a denied approval is
+  // not evidence held on one phone only, and so the phone can clear it once the server has it.
+  if (sharingChanges()) event.sync = "local";
   state.auditEvents.unshift(event);
   // Returned so a movement's own entries can be tied to it, and trimmed with it once the shared
   // records hold both.

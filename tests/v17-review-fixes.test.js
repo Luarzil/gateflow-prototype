@@ -53,7 +53,7 @@ test("only movements the shared database has confirmed are ever trimmed", () => 
 
 test("a movement's audit entries are tied to it, and trimmed with it and never before it", () => {
   assert.ok(app.includes("event.movementClientId = transaction.clientId;"));
-  assert.ok(app.includes("!(event.movementClientId && trimmed.has(event.movementClientId))"));
+  assert.ok(app.includes("if (event.movementClientId && trimmed.has(event.movementClientId)) return false;"));
   assert.ok(app.includes("flagged.movementClientId = transaction.clientId;"));
   assert.ok(app.includes("refusal.movementClientId = transaction.clientId;"));
 });

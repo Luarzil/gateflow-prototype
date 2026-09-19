@@ -165,7 +165,7 @@ test("the queue runs when the signal returns, on sign-in, after a scan, and ever
   assert.ok(app.includes('window.addEventListener("online", () => { syncDevice(); });'));
   assert.ok(app.includes("if (status.signedIn) syncDevice().then(() => pullReference());"));
   // Since the shared drivers and vehicles: the minute check sends movements and changes alike.
-  assert.match(app, /setInterval\(\(\) => \{\r?\n\s*if \(syncQueue\(\)\.length\) syncDevice\(\);/);
+  assert.match(app, /setInterval\(\(\) => \{\r?\n\s*if \(syncQueue\(\)\.length \|\| waitingAuditEntries\(\)\.length\) syncDevice\(\);/);
   assert.ok(app.includes("const SYNC_RETRY_MS = 60000;"));
 });
 

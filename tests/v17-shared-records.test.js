@@ -49,18 +49,18 @@ function sandbox({ harness = false } = {}) {
   vm.createContext(context);
   const helpers = [
     "dateKey", "normalize", "normalizeScanOverride", "canonicalEmployeeId", "canonicalVehicleBarcode", "normalizeLocationName",
-    "canonicalSupervisorId", "findDriverAny", "normalizeEmployee", "normalizeVehicle", "queuedMovements", "refusedMovements"
+    "canonicalSupervisorId", "findDriverAny", "normalizeEmployee", "normalizeVehicle", "queuedMovements", "refusedMovements", "pruneSharedHistory", "makeId"
   ].map(functionSource).join("\n");
   const constants = ["SCAN_CREATED_SOURCE", "COMPLETE_STATUS", "SYNC_WAITING", "SYNC_RANK", "TEMP_AUTHORIZATION_DURATION", "AUTHORIZATION_DURATIONS", "DESKTOP_USER_ROLES", "OVERRIDE_MIN_ROLE"].map(constantSource).join("\n");
   vm.runInContext(`${constants}
     ${helpers}
-    function addAudit(type, description) { const event = { type, description }; state.auditEvents.unshift(event); return event; }
+    ${functionSource("addAudit")}
     function setNotice(message, tone) { notices.push({ message, tone }); }
     function cloudReady() { return true; }
     function saveState() { recordLocalChanges(); }
     function renderAll() {}
     ${app.slice(SECTION_START, SECTION_END)}
-    this.api = { recordLocalChanges, syncQueue, applyReference, mergeChanges, queuedChanges, changePayload, markChangeRefused, normalizeVehicle, differs };`, context);
+    this.api = { recordLocalChanges, syncQueue, applyReference, mergeChanges, queuedChanges, changePayload, markChangeRefused, markChangeShared, normalizeVehicle, differs, pruneSharedHistory, addAudit, waitingAuditEntries };`, context);
   return context;
 }
 
@@ -302,4 +302,77 @@ test("a vehicle with blank details keeps them blank when the app loads, rather t
   // Records from before V0.6 had no such fields at all; they still get the demo details.
   const legacy = box.api.normalizeVehicle({ id: "veh-y", assignedBarcode: "G0002" }, 1);
   assert.equal(legacy.make, "Toyota");
+});
+
+// --- what a phone keeps (added after the owner asked whether it could still fill up) -----------
+
+const DAY = 24 * HOUR;
+const endedAuthorization = (id, overrides = {}) => ({ id, driverEmployee: "E1001", type: "9_hours", validFrom: new Date(Date.now() - 6 * DAY).toISOString(), expiresAt: new Date(Date.now() - 6 * DAY + 9 * HOUR).toISOString(), status: "expired", authorizedBy: "Supervisor Console", ...overrides });
+
+test("an ended authorization the shared records hold is cleared after three days; one they do not hold is kept", () => {
+  const box = started();
+  box.state.authorizations.push(
+    endedAuthorization("auth-shared-old", { shared: true }),
+    endedAuthorization("auth-never-sent"),
+    endedAuthorization("auth-shared-recent", { shared: true, validFrom: new Date(Date.now() - DAY).toISOString(), expiresAt: new Date(Date.now() - DAY + 9 * HOUR).toISOString() })
+  );
+  box.api.pruneSharedHistory(14);
+  const ids = box.state.authorizations.map((auth) => auth.id);
+  assert.ok(!ids.includes("auth-shared-old"), "the server keeps it");
+  assert.ok(ids.includes("auth-never-sent"), "this device may hold the only copy");
+  assert.ok(ids.includes("auth-shared-recent"), "still inside the window 'revoked today' relies on");
+  assert.ok(ids.includes("auth-001"), "a running authorization is never touched");
+});
+
+test("an old ended authorization with a change still waiting to go is kept until it has gone", () => {
+  const box = started();
+  box.state.authorizations.push(endedAuthorization("auth-waiting", { shared: true, status: "revoked", revokedAt: new Date(Date.now() - 5 * DAY).toISOString() }));
+  box.api.recordLocalChanges();
+  box.api.pruneSharedHistory(14);
+  assert.ok(box.state.authorizations.some((auth) => auth.id === "auth-waiting"));
+});
+
+test("history entries are queued for the shared records, and cleared only once they are there and old", () => {
+  const box = started();
+  const recent = box.api.addAudit("blocked_out", "Vehicle OUT blocked.", "Linden Scanner", "Linden");
+  assert.equal(recent.sync, "local");
+  const old = { id: "audit-old", timestamp: new Date(Date.now() - 20 * DAY).toISOString(), type: "blocked_out", description: "old", sync: "shared" };
+  const oldUnsent = { ...old, id: "audit-old-unsent", sync: "pending" };
+  const legacy = { ...old, id: "audit-legacy", sync: undefined };
+  box.state.auditEvents.push(old, oldUnsent, legacy);
+  assert.deepEqual(box.api.waitingAuditEntries().map((event) => event.id), [oldUnsent.id, recent.id], "oldest first");
+  box.api.pruneSharedHistory(14);
+  const ids = box.state.auditEvents.map((event) => event.id);
+  assert.ok(!ids.includes("audit-old"));
+  assert.ok(ids.includes("audit-old-unsent"), "never before the server has it");
+  assert.ok(ids.includes("audit-legacy"), "entries from before sharing are this device's only copy");
+});
+
+test("inside the validator, history entries are never queued either", () => {
+  const box = started({ harness: true });
+  assert.equal(box.api.addAudit("blocked_out", "x", "y", "z").sync, undefined);
+});
+
+test("what is remembered about each record is a short fingerprint, not a copy", () => {
+  const box = started();
+  const stored = box.state.refShadow["vehicle:veh-001"];
+  assert.ok(stored.length < 40, `got ${stored.length} characters`);
+  assert.match(stored, /\|G0001$/);
+});
+
+test("bookkeeping stored by the previous build is read as meaning the same, so nothing is resent", () => {
+  const box = started();
+  const vehicle = box.state.vehicles[0];
+  box.state.refShadow = {
+    "driver:E1001": JSON.stringify({ employeeNumber: "E1001", name: "Nina Patel", licenseExpires: "2027-01-10", active: true }),
+    "driver:E1003": JSON.stringify({ employeeNumber: "E1003", name: "Tyrone Brooks", licenseExpires: "2026-12-01", active: true }),
+    "vehicle:veh-001": JSON.stringify({ id: "veh-001", assignedBarcode: "G0001", vin: vehicle.vin, plate: vehicle.plate, make: "Ford", model: "Transit", year: 2022, color: "White", active: true, barcodeNeedsReview: false, createdSource: "supervisor" })
+  };
+  Object.keys(box.state.refShadow).length;
+  box.state.authorizations = [];
+  box.state.locations = [];
+  assert.equal(box.api.recordLocalChanges(), 0);
+  vehicle.assignedBarcode = "G0102";
+  box.api.recordLocalChanges();
+  assert.equal(box.api.queuedChanges()[0].data.previousBarcode, "G0001", "the barcode it had survives the conversion");
 });

@@ -381,6 +381,12 @@
     });
   }
 
+  // The history entries a device writes, up to 50 at a time. Each keeps the device's id for it, so
+  // a batch resent after a dropped signal adds nothing twice.
+  function recordAuditEntries(entries) {
+    return request("/v1/audit-events", "", { method: "POST", body: { entries: entries } });
+  }
+
   // --- the offline queue (step 4) ---------------------------------------------------------------
   //
   // Patrick, on how long a gate can be without signal: "could be minutes or days", and "Enterprise
@@ -466,6 +472,7 @@
     recordMovement: recordMovement,
     movementId: movementId,
     recordChange: recordChange,
+    recordAuditEntries: recordAuditEntries,
     changeId: changeId,
     conflictText: conflictText,
     drainQueue: drainQueue,

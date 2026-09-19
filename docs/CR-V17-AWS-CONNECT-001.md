@@ -393,3 +393,34 @@ and 101.
   Supervisor's, and the server enforces roles only for the override switch.
 - The whole reference list is read each time. Fine for hundreds of vehicles; thousands will want
   reading only what changed since the last read.
+
+## What a phone keeps, finished (2026-09-19)
+
+The owner asked whether the phone-filling problem from the review was fully solved. It was not.
+Movements were trimmed, but two other things still grew without limit, measured in the browser:
+
+| On the phone | Size | Added | Before | Now |
+|---|---|---|---|---|
+| Movement | ~920 B | each scan | cleared 14 days after the server confirms it | same |
+| Ended authorization, its "expired" entry and its bookkeeping | ~950 B | every authorized driver, every day, every device | kept forever | cleared 3 days after it ended, once the server holds it |
+| Other history entries (blocked OUT, approvals, printed searches…) | ~280 B | as they happen | kept forever, and **only on that phone** | sent to the server, cleared 14 days after |
+| Bookkeeping per shared record | ~240 B | per driver, vehicle, authorization | a copy of each record | a ~20-character fingerprint |
+
+At 150 authorized drivers a day the second row alone filled a phone in about five weeks.
+
+- History entries now go to `POST /v1/audit-events` in batches of 50 (migration `006_device_audit`
+  adds `uploaded_by`). Before this they were evidence held on one phone only - a blocked OUT, an
+  approval refused to a badge below Fleet Lead - which a printout for a termination or a police
+  matter could not include. A resend adds nothing twice; a clock a day ahead is recorded at arrival
+  and says so.
+- Nothing unsent is ever cleared. Entries written before this build, and authorizations the server
+  never had, are kept: the device may hold the only copy.
+- Bookkeeping stored by the previous build converts in place; nothing is resent. Proven on the
+  console already signed in: 6 changes before the reload, 6 after, none waiting.
+
+Live check: a blocked OUT for E1003 at Division Street reached `audit_events` (row 141) with the
+scanner, location and `uploaded_by = raul`.
+
+Tests: 397 Node tests (API 97, device 300). Eight more rules broken on purpose, all caught. One run of
+`v07-presentation.browser.test.js` failed under load and passed alone and in two full reruns - a
+timing flake in the browser suite, not this change.
