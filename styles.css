@@ -383,12 +383,25 @@ tbody tr:last-child td { border-bottom: 0; }
 .barcode-label-code { margin: 0; font: 800 20px/1.1 ui-monospace, Consolas, monospace; letter-spacing: 2px; }
 .barcode-label-meta { margin: 0; font-size: 11px; }
 .label-print-sheet { display: none; }
+/* CR-V17 step 5: what a role may not do is not offered. */
+.role-hidden { display: none !important; }
+/* The console waits for a sign-in; nothing behind it is shown or usable. */
+.console-gate { display: grid; place-items: center; min-height: 60vh; padding: 24px 16px; }
+.console-gate-card { max-width: 460px; }
+body.console-locked main > .view, body.console-locked .top-nav { display: none !important; }
+.demo-banner { margin: 0 0 12px; padding: 8px 12px; border-radius: 8px; background: #fff4d6; color: #6b4b00; font-size: 13px; font-weight: 700; }
+.phone-signin-link { margin-top: 10px; padding: 4px 0; border: 0; background: transparent; color: var(--muted); font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
+.login-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; align-items: end; margin: 10px 0; }
+.login-password { margin: 10px 0; padding: 12px; border: 2px solid var(--green); border-radius: 8px; background: #f2fbf6; }
+.login-password-value { margin: 6px 0 10px; font-size: 22px; font-weight: 800; letter-spacing: 1px; user-select: all; }
 .vehicle-toolbar { grid-template-columns: minmax(260px, 1fr) minmax(160px, 220px); }
 .modal-wide { width: min(760px, calc(100vw - 28px)); }
 .modal-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .modal-panel form { display: grid; gap: 12px; }
 .modal-panel .form-row { display: grid; gap: 5px; }
 .modal-panel .field-status:not(:empty) { color: #a22b2b; min-height: 1em; }
+/* A status that is not an error, such as whether a phone is signed in. */
+.modal-panel .field-status.neutral:not(:empty) { color: var(--ink, #1f2a26); font-weight: 700; }
 
 @media (max-width: 1050px) {
   .supervisor-driver-grid { grid-template-columns: 1fr; }

@@ -42,6 +42,7 @@ function sandbox({ harness = false } = {}) {
     document: { visibilityState: "visible" },
     navigator: { onLine: true },
     IN_TEST_HARNESS: harness,
+    DEMO_MODE: false,
     notices,
     ui: {},
     state: null

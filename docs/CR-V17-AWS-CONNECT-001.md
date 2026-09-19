@@ -424,3 +424,80 @@ scanner, location and `uploaded_by = raul`.
 Tests: 397 Node tests (API 97, device 300). Eight more rules broken on purpose, all caught. One run of
 `v07-presentation.browser.test.js` failed under load and passed alone and in two full reruns - a
 timing flake in the browser suite, not this change.
+
+## Step 5 — sign-in and roles (2026-09-19)
+
+Decided by the owner: one login per gate phone, signed in once by the Admin and kept; the console
+cannot be used without signing in; the Admin makes logins inside the app.
+
+### Who may do what (enforced by the server, `api/src/roles.mjs`)
+
+| Login | May |
+|---|---|
+| Gate phone (Device) or Scanner | read what the gate needs, record movements and history, add a vehicle met at the gate, send a Fleet Lead's badge approval (the badge's rank is checked against the shared approver list) |
+| Fleet Lead | also search the gate log, and grant or revoke authorizations |
+| Supervisor | also add and edit drivers and vehicles |
+| Admin | also the location override switches, and logins |
+
+A login with no role can do nothing and is told to ask the Admin. A console authorization is recorded
+with the signed-in person's role, never the role a device claims. A gate phone never edits a vehicle
+the shared records hold; its attempt is recorded as superseded rather than shown as a refusal. The
+console hides what a role may not do (`data-needs`), so nobody is offered a button the server refuses.
+
+### Logins (`api/src/users.mjs`, Users tab)
+
+The Admin creates a login with a name, a login name and a role; the server creates it in Cognito with
+no email and returns a 14-character temporary password once, shown to the Admin to hand over. The
+first sign-in makes the person (or the Admin, for a phone) choose their own. The Admin can change a
+role, turn a login off (which also signs it out everywhere at once) or on, and issue a new temporary
+password. The Admin cannot change their own login there, so the only Admin cannot lock themselves out.
+Each is written to the shared history; no password ever is. The Lambda may manage users in this pool
+only, and cannot delete one.
+
+### Phones
+
+**Phone sign-in**, at the foot of the scanner home, is where the Admin signs a phone in. The session
+is kept on the phone, and the refresh lasts 180 days (was 30). A phone whose sign-in lapses keeps
+scanning and keeps its records; its waiting line says to ask the Admin.
+
+### The console
+
+Signed out, the console shows only a sign-in screen. Everything is recorded under the signed-in
+person instead of "Supervisor Console". **Demo mode** (`?demo=1`, linked from the review site and
+from the sign-in screen) needs no login, is labelled on screen, keeps its records in separate storage
+and never connects to the shared records - so a demo in the same browser as a real console cannot
+hand it made-up changes to upload, the way the validator leaked rows on 2026-09-18.
+
+### Faults found and fixed on the way
+
+- **An offline phone signed itself out.** The sign-in token lasts an hour. A refresh tried with no
+  signal failed, and the app treated any failed refresh as "sign-in refused", so any phone offline for
+  over an hour came back signed out, needing the Admin. Only Cognito refusing now ends a session.
+- **"Not allowed" signed people out.** The client treated a 403 as an expired sign-in. Harmless while
+  the server never sent one; with roles, a Fleet Lead touching a driver would have been thrown out.
+  Only a 401 signs out now; a 403 is a refusal with its reason.
+- **A phone's routine "replaced" mark was refused.** After a gate approval the phone marks the
+  driver's older authorization replaced; the server checked the phone's rank as if it were granting,
+  and refused. Caught by a test before deployment.
+- Signing out on purpose now also revokes the refresh token at Cognito.
+
+### Verification, 2026-09-19 (live in Veri-Gate Dev)
+
+- The owner created login **d0001** (Gate phone) in the Users tab and signed a phone tab in with it.
+  The temporary password was never seen by anyone but him.
+- As d0001: an IN with an unknown vehicle G0901 was recorded (movement 102, `uploaded_by = d0001`;
+  vehicle 69, `inbound_scan`, linked to 102). Searching the log was refused ("Only a Fleet Lead or
+  above can search the gate log"), and so was editing a driver - and the phone stayed signed in.
+- After a reload the phone was still signed in as d0001.
+- History: "Login d0001 (Division Gate Scanner) created as Device by raul." - no password.
+- A new console tab showed only the sign-in screen; with `?demo=1` it opened, labelled, and a driver
+  edited there left the real records untouched and queued nothing.
+- The AWS change was previewed first: five resources updated in place, none replaced, the user pool
+  untouched.
+
+Tests: 448 (API 122, device 326), validator 113/113. Thirteen rules broken on purpose; the first run
+missed one (a phone revoking an existing authorization was stopped only by a second check), so a test
+was added and all thirteen are caught. The APK was rebuilt; its web files are byte-identical.
+
+The two browser suites still fail now and then when every test file runs at once (a port collision
+in the suites themselves); run one file at a time, all 326 device tests pass.

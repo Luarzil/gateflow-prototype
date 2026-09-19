@@ -14,9 +14,13 @@
 //      replaced or expire. That is what lets a movement be judged as of the moment it happened.
 //   4. Only an Admin can move a location's override switch (Patrick, 2026-09-13: "under manager
 //      authority only"; there is one Admin, not a Manager and an Admin).
+//   5. Each change is allowed by the sender's role (step 5). Drivers and vehicles are a Supervisor's;
+//      authorizations a Fleet Lead's. A gate phone may add a vehicle it met at the gate and send a
+//      Fleet Lead's badge approval, whose rank is checked here - nothing else.
 
 import { RequestError } from "./queries.mjs";
 import { canonicalBarcode } from "./writes.mjs";
+import { ADMIN, FLEET_LEAD, GATE, ROLE_NAMES, SUPERVISOR, requireRank, roleOf } from "./roles.mjs";
 
 const KINDS = ["driver", "vehicle", "authorization", "location"];
 const DURATIONS = ["9_hours", "12_hours", "today", "48_hours", "3_days"];
@@ -94,7 +98,8 @@ export function readDriver(data) {
   };
 }
 
-async function applyDriver(db, change, actor, transactionId) {
+async function applyDriver(db, change, actor, who, transactionId) {
+  requireRank(who.groups, SUPERVISOR, "add or edit drivers");
   const driver = readDriver(change.data);
   const [current] = await db.query(
     `select (changed_at is not null and changed_at > CAST(:at AS timestamptz)) as newer from drivers where employee_number = :employee`,
@@ -153,9 +158,19 @@ async function findVehicle(db, vehicle, transactionId) {
   return null;
 }
 
-async function applyVehicle(db, change, actor, transactionId) {
+async function applyVehicle(db, change, actor, who, transactionId) {
   const vehicle = { ...readVehicle(change.data), effectiveAt: change.effectiveAt };
   const row = await findVehicle(db, vehicle, transactionId);
+  if (who.rank < SUPERVISOR) {
+    // A gate phone adds the vehicles it meets at the gate, exactly as the movement upload does. It
+    // never edits one: if the shared records already hold the car, theirs stands, and the phone is
+    // told so quietly rather than shown a refusal for something the operator never did.
+    if (row) {
+      await db.execute("update vehicles set client_id = :clientId where id = CAST(:rowId AS bigint) and client_id is null", { clientId: vehicle.id, rowId: Number(row.id) }, transactionId);
+      return { key: vehicle.assignedBarcode, outcome: "superseded", summary: `Vehicle ${vehicle.assignedBarcode}: already in the shared records, which stand.` };
+    }
+    if (vehicle.createdSource !== "inbound_scan") requireRank(who.groups, SUPERVISOR, "add or edit vehicles");
+  }
   if (row && row.newer) return { key: vehicle.assignedBarcode, outcome: "superseded", summary: `Vehicle ${vehicle.assignedBarcode}: a newer edit was already in the shared records.` };
 
   // "Assigned Barcode must be unique and is never reused" (CR-V14). Two consoles that each gave the
@@ -236,24 +251,34 @@ function endedAt(auth, change) {
   return new Date(at).toISOString();
 }
 
-async function applyAuthorization(db, change, actor, transactionId) {
+async function applyAuthorization(db, change, actor, who, transactionId) {
   const auth = readAuthorization(change.data);
+  // At the gate a phone sends the approval a Fleet Lead's badge gave, and the "replaced" mark on the
+  // authorization it superseded. Anything else is a Fleet Lead's to do.
+  const gateApproval = Boolean(auth.approverBadge) && auth.status === "active";
+  const gateBookkeeping = auth.status === "replaced";
+  if (who.rank < FLEET_LEAD && !gateApproval && !gateBookkeeping) requireRank(who.groups, FLEET_LEAD, "grant or revoke an authorization");
   const [driver] = await db.query("select employee_number from drivers where employee_number = :employee", { employee: auth.driverEmployee }, transactionId);
   if (!driver) throw new RequestError(`Employee ${auth.driverEmployee} is not in the shared roster.`, 422, "unknown_driver");
 
   // A badge approval at the gate is checked against the shared approver list, not the device's word.
   // The rank rule itself is also a database constraint (approver_rank, 001).
-  let role = auth.authorizedRole;
+  // Granted at a console, it is the signed-in person's role that counts, not what the device says.
+  let role = ROLE_NAMES[roleOf(who.groups)] || auth.authorizedRole;
   if (auth.approverBadge) {
     const [approver] = await db.query("select role::text as role, active from approvers where badge_id = :badge", { badge: auth.approverBadge }, transactionId);
     if (approver) role = approver.role;
   }
-  if (role === "Scanner") throw new RequestError(`${auth.authorizedBy} holds Scanner and cannot grant an authorization. Fleet Lead or above is required.`, 403, "approver_rank");
 
   const [existing] = await db.query("select id, status from authorizations where client_id = :id", { id: auth.id }, transactionId);
   const summaries = [];
+  // A phone marking replaced an authorization the shared records never had: the new one already
+  // replaced whatever they did have, so there is nothing to write.
+  if (!existing && gateBookkeeping && who.rank < FLEET_LEAD) return { key: auth.driverEmployee, outcome: "superseded", summary: `Driver ${auth.driverEmployee}: nothing to replace in the shared records.` };
 
   if (!existing) {
+    // Only a new grant needs the granter's rank; ending one is a change of status, checked above.
+    if (role === "Scanner") throw new RequestError(`${auth.authorizedBy} holds Scanner and cannot grant an authorization. Fleet Lead or above is required.`, 403, "approver_rank");
     await db.execute(
       `insert into authorizations (client_id, driver_employee, duration, valid_from, expires_at, status, authorized_by, authorized_role,
                                    authorized_at, revoked_by, revoked_at, revocation_reason, location, action_location)
@@ -306,8 +331,8 @@ async function applyAuthorization(db, change, actor, transactionId) {
 
 // --- location override switches ----------------------------------------------------
 
-async function applyLocation(db, change, actor, groups, transactionId) {
-  if (!groups.includes("Admin")) throw new RequestError("Only an Admin can change a location's override switch.", 403, "admin_only");
+async function applyLocation(db, change, actor, who, transactionId) {
+  if (who.rank < ADMIN) throw new RequestError("Only an Admin can change a location's override switch.", 403, "admin_only");
   const name = text(change.data.name, 120);
   const override = change.data.scanOverride && typeof change.data.scanOverride === "object" ? change.data.scanOverride : null;
   if (!name || !override) throw new RequestError("A location change needs the location's name and its override switch.");
@@ -327,6 +352,7 @@ async function applyLocation(db, change, actor, groups, transactionId) {
 // --- the change itself ------------------------------------------------------------
 
 export async function recordChange(db, body, { actor = "", groups = [], now = () => new Date() } = {}) {
+  const who = { groups, rank: requireRank(groups, GATE, "send changes to the shared records") };
   const change = readChangeBody(body, now());
 
   const [already] = await db.query("select id, outcome from reference_changes where client_id = :clientId", { clientId: change.clientId });
@@ -334,10 +360,10 @@ export async function recordChange(db, body, { actor = "", groups = [], now = ()
 
   return db.transaction(async (transactionId) => {
     let result;
-    if (change.kind === "driver") result = await applyDriver(db, change, actor, transactionId);
-    else if (change.kind === "vehicle") result = await applyVehicle(db, change, actor, transactionId);
-    else if (change.kind === "authorization") result = await applyAuthorization(db, change, actor, transactionId);
-    else result = await applyLocation(db, change, actor, groups, transactionId);
+    if (change.kind === "driver") result = await applyDriver(db, change, actor, who, transactionId);
+    else if (change.kind === "vehicle") result = await applyVehicle(db, change, actor, who, transactionId);
+    else if (change.kind === "authorization") result = await applyAuthorization(db, change, actor, who, transactionId);
+    else result = await applyLocation(db, change, actor, who, transactionId);
 
     const [row] = await db.query(
       `insert into reference_changes (client_id, kind, record_key, data, outcome, occurred_at, uploaded_by)

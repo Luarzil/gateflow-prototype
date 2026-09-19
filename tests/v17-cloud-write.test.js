@@ -108,7 +108,7 @@ test("each flag reads as a sentence, and an unknown one still reads as something
 // --- the app around it ----------------------------------------------------
 
 test("every movement is saved with a device-made id and a sharing state", () => {
-  assert.ok(app.includes("clientId: IN_TEST_HARNESS ? undefined : window.VeriGateCloud ? window.VeriGateCloud.movementId() : makeId(\"m\")"));
+  assert.ok(app.includes("clientId: IN_TEST_HARNESS || DEMO_MODE ? undefined : window.VeriGateCloud ? window.VeriGateCloud.movementId() : makeId(\"m\")"));
   assert.ok(app.includes('sync: "local"'));
 });
 

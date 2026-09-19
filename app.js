@@ -14,7 +14,20 @@
     not needed for this workflow.
 */
 
-const STORAGE_KEY = "lot-watch.gateflow.v0.7.state";
+// CR-V17 step 5: the review site shows Patrick the app without a login. ?demo=1 opens that mode for
+// the tab. Its records are kept apart from the real ones (their own storage), and it never connects
+// to the shared records: a demo session in the same browser as a real console must not be able to
+// hand the console its made-up changes to upload, the way the validator's test records leaked on
+// 2026-09-18.
+const DEMO_MODE = (() => {
+  try {
+    if (new URLSearchParams(window.location.search).has("demo")) window.sessionStorage.setItem("veri-gate.demo", "1");
+    return window.sessionStorage.getItem("veri-gate.demo") === "1";
+  } catch (error) {
+    return false;
+  }
+})();
+const STORAGE_KEY = DEMO_MODE ? "lot-watch.gateflow.v0.7.state.demo" : "lot-watch.gateflow.v0.7.state";
 const PRE_CALL_MIGRATION_BACKUP_KEY = "lot-watch.gateflow.v0.7.pre-call-migration";
 const V06_STORAGE_KEY = "lot-watch.gateflow.v0.6.state";
 const V05_STORAGE_KEY = "lot-watch.gateflow.v0.5.state";
@@ -234,6 +247,10 @@ function cacheElements() {
     "vehiclePlate", "vehicleActive", "vehicleMakeError", "vehicleModelError", "vehicleYearError", "vehicleColorError",
     "vehicleVinError", "vehicleBarcodeError", "vehicleFormStatus", "closeVehicleModalButton", "cancelVehicleButton", "vehicleInventoryToggle",
     "labelModal", "labelModalHeading", "labelPreview", "labelModalStatus", "printLabelButton", "skipLabelButton", "labelPrintSheet",
+    "consoleGate", "consoleGateStatus", "consoleGateSignInButton", "demoBanner", "loginsPanel", "prototypeUsersPanel", "loginForm", "loginNameInput",
+    "loginUsernameInput", "loginRoleInput", "loginFormStatus", "loginPasswordBox", "loginPasswordText", "loginPasswordValue", "hideLoginPasswordButton",
+    "loginsTableBody", "phoneSignInOpenButton", "phoneSignInModal", "closePhoneSignInButton", "phoneSignInStatus", "phoneSignInFields", "phoneUsername",
+    "phonePassword", "phoneNewPasswordRow", "phoneNewPassword", "phoneSignInButton", "phoneSignInMessage", "phoneSignOutButton",
     "openDeviceSetupButton", "deviceSetupModal", "closeDeviceSetupButton", "currentDeviceSelect", "floaterLocationFields", "floaterLocationSelect", "deviceSetupStatus", "confirmDeviceLocationButton", "changeFloaterLocationButton",
     "devicesTableBody", "deviceHistoryList", "addDeviceButton", "deviceModal", "deviceForm", "closeDeviceModalButton", "cancelDeviceButton", "deviceEditId", "deviceIdInput", "deviceNameInput", "deviceImeiInput", "deviceTypeInput", "deviceLocationInput", "deviceStatusInput", "devicePhoneInput", "deviceNotesInput", "deviceIdError", "deviceNameError", "deviceImeiError", "deviceLocationError", "deviceActionStatus",
     "driverProfileModal", "closeDriverProfileButton", "driverProfileHeading", "driverProfileBody", "profileEditDriverButton", "profileToggleDriverButton",
@@ -292,6 +309,14 @@ function bindEvents() {
   el.printLabelButton.addEventListener("click", printVehicleLabel);
   el.skipLabelButton.addEventListener("click", closeLabelPrompt);
   startTypingFieldWatch();
+  el.consoleGateSignInButton.addEventListener("click", openCloudSignIn);
+  el.loginForm.addEventListener("submit", submitNewLogin);
+  el.loginsTableBody.addEventListener("change", handleLoginAction);
+  el.hideLoginPasswordButton.addEventListener("click", hideTemporaryPassword);
+  el.phoneSignInOpenButton.addEventListener("click", () => { ui.modalTrigger = el.phoneSignInOpenButton; renderPhoneSignIn(); el.phoneSignInModal.classList.remove("hidden"); });
+  el.closePhoneSignInButton.addEventListener("click", () => { ui.phoneChallenge = null; el.phonePassword.value = ""; el.phoneNewPassword.value = ""; closeManagedModal(el.phoneSignInModal); });
+  el.phoneSignInButton.addEventListener("click", submitPhoneSignIn);
+  el.phoneSignOutButton.addEventListener("click", signPhoneOut);
   el.authorizedDriversBody.addEventListener("click", handleDriverTableAction);
   el.deauthorizeAllButton.addEventListener("click", deauthorizeAllDrivers);
   el.driverRosterSearch.addEventListener("input", renderSupervisor);
@@ -343,7 +368,7 @@ function bindEvents() {
   el.desktopUserForm.addEventListener("submit", saveDesktopUser);
   el.desktopUsersTableBody.addEventListener("click", handleDesktopUserAction);
   [el.driverModal, el.vehicleModal, el.deviceModal, el.deviceSetupModal, el.driverProfileModal, el.feedbackModal, el.desktopUserModal].forEach((modal) => modal.addEventListener("click", (event) => { if (event.target === modal) closeManagedModal(modal); }));
-  document.addEventListener("keydown", (event) => { if (event.key === "Escape") { [el.driverModal, el.vehicleModal, el.deviceModal, el.deviceSetupModal, el.driverProfileModal, el.feedbackModal, el.desktopUserModal].forEach(closeManagedModal); if (!el.labelModal.classList.contains("hidden")) closeLabelPrompt(); } });
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") { [el.driverModal, el.vehicleModal, el.deviceModal, el.deviceSetupModal, el.driverProfileModal, el.feedbackModal, el.desktopUserModal].forEach(closeManagedModal); if (!el.labelModal.classList.contains("hidden")) closeLabelPrompt(); if (!el.phoneSignInModal.classList.contains("hidden")) { ui.phoneChallenge = null; closeManagedModal(el.phoneSignInModal); } } });
 
   el.searchForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -1399,7 +1424,7 @@ function completeTransaction(draft) {
     // CR-V17 step 3: the id the shared database knows this movement by. It is made here, on the
     // device, so an upload retried after a dropped signal is recognised instead of recorded twice.
     // Never inside the test harness: a movement with no id can never be queued or uploaded.
-    clientId: IN_TEST_HARNESS ? undefined : window.VeriGateCloud ? window.VeriGateCloud.movementId() : makeId("m"),
+    clientId: IN_TEST_HARNESS || DEMO_MODE ? undefined : window.VeriGateCloud ? window.VeriGateCloud.movementId() : makeId("m"),
     sync: "local",
     timestamp: new Date().toISOString(),
     direction: draft.direction,
@@ -1623,7 +1648,7 @@ function renderSyncStatus() {
     // internet). The last failed attempt is the better guide than the phone's own opinion.
     const lastFailure = queue.map((item) => item.syncError).find(Boolean);
     const why = !cloudReady()
-      ? "Sign in to send them."
+      ? ui.shell === "scanner" ? "This phone is not signed in; ask the Admin (Phone sign-in, below)." : "Sign in to send them."
       : typeof navigator !== "undefined" && navigator.onLine === false
         ? "They will be sent when the signal returns."
         : lastFailure
@@ -1760,7 +1785,7 @@ function sharedKey(kind, id) {
 
 function sharingChanges() {
   // Never inside the validator: its test records must not become anybody's shared records.
-  return !IN_TEST_HARNESS && Boolean(window.VeriGateCloud);
+  return !IN_TEST_HARNESS && !DEMO_MODE && Boolean(window.VeriGateCloud);
 }
 
 // What is remembered about each record's last shared state: a fingerprint, not a copy. With the whole
@@ -2213,7 +2238,7 @@ function printVehicleLabel() {
   if (!vehicle) { closeLabelPrompt(); return; }
   el.labelPrintSheet.innerHTML = labelHtml(vehicle);
   document.body.classList.add("printing-label");
-  addAudit("barcode_label_printed", `Barcode label printed for ${vehicle.assignedBarcode}.`, "Supervisor Console", "");
+  addAudit("barcode_label_printed", `Barcode label printed for ${vehicle.assignedBarcode}.`, consoleActor(), "");
   saveState();
   const finished = () => {
     document.body.classList.remove("printing-label");
@@ -2238,12 +2263,17 @@ const DRIVER_ACTION_QUESTIONS = {
 };
 
 function driverActionMenu(driver, auth, eligible) {
+  // Step 5: only what this login's role may do. A Fleet Lead authorizes and revokes; a Supervisor
+  // also edits.
+  const supervisor = typeof allowed !== "function" || allowed("supervisor");
+  const fleetLead = typeof allowed !== "function" || allowed("fleetLead");
   const options = [
     `<option value="">Actions</option>`,
-    `<option value="edit">Edit</option>`,
-    `<option value="toggle">${driver.active ? "Mark inactive" : "Reactivate"}</option>`,
-    auth ? `<option value="deauthorize">Revoke authorization</option>` : `<option value="authorize"${eligible ? "" : " disabled"}>Authorize</option>`
-  ];
+    supervisor ? `<option value="edit">Edit</option>` : "",
+    supervisor ? `<option value="toggle">${driver.active ? "Mark inactive" : "Reactivate"}</option>` : "",
+    !fleetLead ? "" : auth ? `<option value="deauthorize">Revoke authorization</option>` : `<option value="authorize"${eligible ? "" : " disabled"}>Authorize</option>`
+  ].filter(Boolean);
+  if (options.length === 1) return `<span class="field-status">-</span>`;
   return `<select class="row-actions" data-driver-actions="${escapeHtml(driver.employeeNumber)}" aria-label="Actions for ${escapeHtml(driver.name)}">${options.join("")}</select>`;
 }
 
@@ -2310,6 +2340,202 @@ function searchDateProblem() {
   if (!value) return "";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value < SEARCH_DATE_MIN || value > SEARCH_DATE_MAX) return "Use a date between 2020 and 2099, with a four-digit year.";
   return "";
+}
+
+// --- CR-V17 step 5: sign-in and roles ------------------------------------------------------------
+//
+// Decided by the owner, 2026-09-19:
+//   - each gate phone has a login of its own, signed in once by the Admin, and stays signed in;
+//   - the console cannot be used without signing in, and what is done is recorded under that name;
+//   - the Admin makes the logins, inside the app.
+//
+// The server enforces every rule here (api/src/roles.mjs). The console only stops offering what the
+// server would refuse, so nobody is shown a refusal for a button they should never have had.
+
+const RANK_NEEDED = { admin: 4, supervisor: 3, fleetLead: 2 };
+
+function cloudStatusNow() {
+  return window.VeriGateCloud && !IN_TEST_HARNESS && !DEMO_MODE ? window.VeriGateCloud.status() : null;
+}
+
+// Who is doing this, for the history. Signed in, it is the person; otherwise the console's old name,
+// which is what the validator and demo mode still use.
+function consoleActor() {
+  const status = cloudStatusNow();
+  if (!status || !status.signedIn) return "Supervisor Console";
+  return status.name && status.name !== status.username ? `${status.name} (${status.username})` : status.username;
+}
+
+// Demo mode, the validator and a build without the cloud client see everything, as before step 5.
+function currentRank() {
+  const status = cloudStatusNow();
+  if (!status || DEMO_MODE) return RANK_NEEDED.admin;
+  return status.signedIn ? status.rank : 0;
+}
+
+function allowed(level) {
+  return currentRank() >= RANK_NEEDED[level];
+}
+
+function consoleNeedsSignIn() {
+  return ui.shell === "console" && Boolean(window.VeriGateCloud) && !IN_TEST_HARNESS && !DEMO_MODE && !cloudReady();
+}
+
+// Anything marked data-needs="supervisor" (and so on) is shown only to that role or above.
+function applyRoleVisibility() {
+  document.querySelectorAll("[data-needs]").forEach((node) => {
+    node.classList.toggle("role-hidden", !allowed(node.dataset.needs));
+  });
+  // A tab that disappeared must not stay open underneath.
+  const open = document.getElementById(ui.activeSupervisorSection || "");
+  if (open && open.classList.contains("role-hidden")) showSupervisorSection("driversSection");
+}
+
+function renderConsoleGate() {
+  if (!el.consoleGate) return;
+  const needs = consoleNeedsSignIn();
+  el.consoleGate.classList.toggle("hidden", !needs);
+  document.body.classList.toggle("console-locked", needs);
+  el.demoBanner.classList.toggle("hidden", !(DEMO_MODE && ui.shell === "console"));
+  const status = cloudStatusNow();
+  el.consoleGateStatus.textContent = status && status.message ? status.message : "";
+}
+
+// --- the Admin's logins -----------------------------------------------------------------------------
+
+const LOGIN_ROLES = [["Supervisor", "Supervisor"], ["FleetLead", "Fleet Lead"], ["Scanner", "Scanner (person)"], ["Device", "Gate phone"], ["Admin", "Admin"]];
+
+function loginRoleLabel(role) {
+  const found = LOGIN_ROLES.find(([value]) => value === role);
+  return found ? found[1] : "No role";
+}
+
+function sharedLoginsActive() {
+  return cloudReady() && allowed("admin") && !DEMO_MODE;
+}
+
+function renderLoginsPanel() {
+  if (!el.loginsPanel) return;
+  const shared = sharedLoginsActive();
+  el.loginsPanel.classList.toggle("hidden", !shared);
+  el.prototypeUsersPanel.classList.toggle("hidden", shared);
+  if (!shared) return;
+  const logins = ui.logins || [];
+  el.loginsTableBody.innerHTML = logins.length ? logins.map((login) => {
+    const self = window.VeriGateCloud.status().username === login.username;
+    const state = !login.enabled ? `<span class="status-badge inactive">Off</span>` : login.status === "FORCE_CHANGE_PASSWORD" ? `<span class="status-badge provisional" title="Has not signed in yet with the temporary password">Not used yet</span>` : `<span class="status-badge authorized">Active</span>`;
+    const actions = self ? `<span class="field-status">This is you</span>` : `<select class="row-actions" data-login-actions="${escapeHtml(login.username)}" aria-label="Actions for ${escapeHtml(login.username)}">
+        <option value="">Actions</option>
+        ${LOGIN_ROLES.filter(([value]) => value !== login.role).map(([value, label]) => `<option value="role:${value}">Make ${escapeHtml(label)}</option>`).join("")}
+        <option value="reset">New temporary password</option>
+        <option value="${login.enabled ? "off" : "on"}">${login.enabled ? "Turn off" : "Turn back on"}</option>
+      </select>`;
+    return `<tr><td class="mono">${escapeHtml(login.username)}</td><td>${escapeHtml(login.name || "-")}</td><td>${escapeHtml(loginRoleLabel(login.role))}</td><td>${state}</td><td>${actions}</td></tr>`;
+  }).join("") : `<tr><td colspan="5" class="empty-cell">${ui.loginsError ? escapeHtml(ui.loginsError) : "Reading the logins..."}</td></tr>`;
+}
+
+function loadLogins() {
+  if (!sharedLoginsActive()) return Promise.resolve();
+  return window.VeriGateCloud.users().then((logins) => {
+    ui.logins = logins;
+    ui.loginsError = "";
+  }, (error) => {
+    ui.loginsError = error.message;
+  }).then(renderLoginsPanel);
+}
+
+// A temporary password is shown once, here, for the Admin to hand over, and never stored.
+function showTemporaryPassword(username, password, what) {
+  el.loginPasswordBox.classList.remove("hidden");
+  el.loginPasswordText.textContent = `${what} Give ${username} this temporary password. They choose their own the first time they sign in. It is shown only now.`;
+  el.loginPasswordValue.textContent = password;
+}
+
+function hideTemporaryPassword() {
+  el.loginPasswordBox.classList.add("hidden");
+  el.loginPasswordValue.textContent = "";
+}
+
+function submitNewLogin(event) {
+  event.preventDefault();
+  const input = { name: el.loginNameInput.value.trim(), username: el.loginUsernameInput.value.trim(), role: el.loginRoleInput.value };
+  el.loginFormStatus.textContent = "Creating the login...";
+  window.VeriGateCloud.createUser(input).then((created) => {
+    el.loginForm.reset();
+    el.loginFormStatus.textContent = "";
+    showTemporaryPassword(created.username, created.temporaryPassword, `Login ${created.username} created as ${loginRoleLabel(created.role)}.`);
+    return loadLogins();
+  }, (error) => {
+    el.loginFormStatus.textContent = error.message;
+  });
+}
+
+function handleLoginAction(event) {
+  const menu = event.target.closest("[data-login-actions]");
+  if (!menu || !menu.value) return;
+  const action = menu.value;
+  const username = menu.dataset.loginActions;
+  menu.value = "";
+  let input;
+  let question;
+  if (action.startsWith("role:")) { input = { role: action.slice(5) }; question = `Make ${username} a ${loginRoleLabel(input.role)}?`; }
+  if (action === "reset") { input = { resetPassword: true }; question = `Give ${username} a new temporary password? Their current password stops working, and they are signed out everywhere.`; }
+  if (action === "off") { input = { enabled: false }; question = `Turn off ${username}? They are signed out everywhere at once. A phone with this login keeps its records and sends them once it is signed in again.`; }
+  if (action === "on") { input = { enabled: true }; question = `Turn ${username} back on?`; }
+  if (!input || (typeof confirm === "function" && !confirm(question))) return;
+  window.VeriGateCloud.updateUser(username, input).then((result) => {
+    if (result.temporaryPassword) showTemporaryPassword(username, result.temporaryPassword, "New temporary password made.");
+    setNotice(`Login ${username} updated.`, "success");
+    return loadLogins();
+  }, (error) => {
+    setNotice(error.message, "danger");
+  });
+}
+
+// --- signing a gate phone in ------------------------------------------------------------------------
+
+function renderPhoneSignIn() {
+  if (!el.phoneSignInStatus) return;
+  const status = cloudStatusNow();
+  const signedIn = Boolean(status && status.signedIn);
+  el.phoneSignInStatus.textContent = !window.VeriGateCloud ? "The shared records are not available in this build."
+    : signedIn ? `Signed in to the shared records as ${status.username}${status.remembered ? ", and stays signed in" : " for this session only"}.`
+    : "Not signed in. Movements are kept on this phone until it is.";
+  el.phoneSignInFields.classList.toggle("hidden", signedIn);
+  el.phoneSignOutButton.classList.toggle("hidden", !signedIn);
+  el.phoneNewPasswordRow.classList.toggle("hidden", !ui.phoneChallenge);
+  el.phoneSignInButton.textContent = ui.phoneChallenge ? "Set password and sign in" : "Sign this phone in";
+}
+
+function submitPhoneSignIn() {
+  const cloud = window.VeriGateCloud;
+  if (!cloud) return;
+  el.phoneSignInMessage.textContent = "Signing in...";
+  const attempt = ui.phoneChallenge
+    ? cloud.completeNewPassword(ui.phoneChallenge.username, el.phoneNewPassword.value, ui.phoneChallenge.challengeSession, { remember: true })
+    : cloud.signIn(el.phoneUsername.value.trim(), el.phonePassword.value, { remember: true });
+  attempt.then((result) => {
+    el.phonePassword.value = "";
+    el.phoneNewPassword.value = "";
+    if (result && result.challenge === "NEW_PASSWORD_REQUIRED") {
+      ui.phoneChallenge = result;
+      el.phoneSignInMessage.textContent = "This login needs a new password. Choose one and keep it with the phone's records; it is needed again in six months.";
+      renderPhoneSignIn();
+      el.phoneNewPassword.focus();
+      return;
+    }
+    ui.phoneChallenge = null;
+    el.phoneSignInMessage.textContent = "";
+    renderPhoneSignIn();
+  }, (error) => {
+    el.phoneSignInMessage.textContent = error.message;
+  });
+}
+
+function signPhoneOut() {
+  if (typeof confirm === "function" && !confirm("Sign this phone out of the shared records? It keeps scanning, and keeps its movements until it is signed in again.")) return;
+  window.VeriGateCloud.signOut();
+  renderPhoneSignIn();
 }
 
 function findDriver(value) {
@@ -2507,11 +2733,11 @@ function handleDriverTableAction(event) {
 function runDriverAction(action, driver) {
   const employeeNumber = driver.employeeNumber;
   if (action === "authorize") {
-    const result = authorizeDriver(driver, selectedDuration(el.authorizationDuration), "Supervisor Console", "", "user action");
+    const result = authorizeDriver(driver, selectedDuration(el.authorizationDuration), consoleActor(), "", "user action");
     el.bulkActionStatus.textContent = result.ok ? `Authorized ${employeeNumber}.` : result.reason;
   }
   if (action === "deauthorize") {
-    revokeAuthorization(employeeNumber, "Supervisor Console");
+    revokeAuthorization(employeeNumber, consoleActor());
     el.bulkActionStatus.textContent = `Revoked authorization for ${employeeNumber}.`;
   }
   if (action === "edit") openDriverModal(driver);
@@ -2519,9 +2745,9 @@ function runDriverAction(action, driver) {
   if (action === "toggle") {
     driver.active = !driver.active;
     driver.updatedAt = new Date().toISOString();
-    driver.updatedBy = "Supervisor Console";
-    if (!driver.active) revokeAuthorization(employeeNumber, "Supervisor Console", "Driver deactivated");
-    addAudit(driver.active ? "driver_reactivated" : "driver_deactivated", `Driver ${employeeNumber} ${driver.active ? "reactivated" : "deactivated"}.`, "Supervisor Console", "");
+    driver.updatedBy = consoleActor();
+    if (!driver.active) revokeAuthorization(employeeNumber, consoleActor(), "Driver deactivated");
+    addAudit(driver.active ? "driver_reactivated" : "driver_deactivated", `Driver ${employeeNumber} ${driver.active ? "reactivated" : "deactivated"}.`, consoleActor(), "");
     el.bulkActionStatus.textContent = `${employeeNumber} marked ${driver.active ? "active" : "inactive"}.`;
   }
   saveState();
@@ -2536,7 +2762,7 @@ function deauthorizeAllDrivers() {
   }
   const ok = typeof confirm === "function" ? confirm(`Revoke ${active.length} active driver authorizations?`) : true;
   if (!ok) return;
-  active.forEach((auth) => revokeAuthorization(auth.driverEmployee, "Supervisor Console", "Bulk revocation"));
+  active.forEach((auth) => revokeAuthorization(auth.driverEmployee, consoleActor(), "Bulk revocation"));
   saveState();
   renderAll();
   setNotice("All active driver authorizations revoked.", "warning");
@@ -2555,7 +2781,7 @@ function bulkAuthorizeDrivers() {
   const blocked = [];
   selected.forEach((checkbox) => {
     const driver = findDriverAny(checkbox.value);
-    const result = authorizeDriver(driver, bulkDuration, "Supervisor Console", "", "bulk action");
+    const result = authorizeDriver(driver, bulkDuration, consoleActor(), "", "bulk action");
     if (result.ok) successful += 1;
     else blocked.push(`${checkbox.value}: ${result.reason}`);
   });
@@ -2566,6 +2792,7 @@ function bulkAuthorizeDrivers() {
 
 function showSupervisorSection(sectionId) {
   ui.activeSupervisorSection = sectionId;
+  if (sectionId === "usersSection") loadLogins();
   document.querySelectorAll(".supervisor-section").forEach((section) => {
     const active = section.id === sectionId;
     section.hidden = !active;
@@ -2726,7 +2953,7 @@ function saveDesktopUser(event) {
       };
       el.desktopUserPassword.value = "";
       const roleNote = previousRole === existing.role ? "" : ` Role changed from ${previousRole} to ${existing.role}.`;
-      addAudit("desktop_user_edited", `Desktop user ${existing.id} edited.${roleNote}`, "Supervisor Console", existing.scope || "");
+      addAudit("desktop_user_edited", `Desktop user ${existing.id} edited.${roleNote}`, consoleActor(), existing.scope || "");
       ui.editingUserId = null;
       saveState();
       renderAll();
@@ -2745,7 +2972,7 @@ function saveDesktopUser(event) {
   };
   state.desktopUsers.push(normalizeDesktopUser({ id: nextId, name, username, role: el.desktopUserRole.value, active: true, scope: el.desktopUserScope.value, credentialPrototype, abilities: collectDesktopAbilities() }));
   el.desktopUserPassword.value = "";
-  addAudit("desktop_user_created", `Desktop user ${nextId} created as ${el.desktopUserRole.value}; credential fields are prototype-only and password value was not saved.`, "Supervisor Console", el.desktopUserScope.value);
+  addAudit("desktop_user_created", `Desktop user ${nextId} created as ${el.desktopUserRole.value}; credential fields are prototype-only and password value was not saved.`, consoleActor(), el.desktopUserScope.value);
   saveState();
   closeDesktopUserModal();
   renderAll();
@@ -2768,12 +2995,12 @@ function saveDriverForm(event) {
   const now = new Date().toISOString();
   const existing = originalEmployee ? findDriverAny(originalEmployee) : null;
   if (existing) {
-    existing.name = name; existing.licenseExpires = new Date(`${licenseExpires}T12:00:00`).toISOString(); existing.active = el.driverActive.value === "true"; existing.updatedAt = now; existing.updatedBy = "Supervisor Console";
-    if (!existing.active) revokeAuthorization(existing.employeeNumber, "Supervisor Console", "Driver marked inactive during edit");
-    addAudit("driver_edited", `Driver ${existing.employeeNumber} edited.`, "Supervisor Console", "");
+    existing.name = name; existing.licenseExpires = new Date(`${licenseExpires}T12:00:00`).toISOString(); existing.active = el.driverActive.value === "true"; existing.updatedAt = now; existing.updatedBy = consoleActor();
+    if (!existing.active) revokeAuthorization(existing.employeeNumber, consoleActor(), "Driver marked inactive during edit");
+    addAudit("driver_edited", `Driver ${existing.employeeNumber} edited.`, consoleActor(), "");
   } else {
-    state.drivers.push({ employeeNumber, name, licenseExpires: new Date(`${licenseExpires}T12:00:00`).toISOString(), active: el.driverActive.value === "true", createdAt: now, updatedAt: now, createdBy: "Supervisor Console", updatedBy: "Supervisor Console" });
-    addAudit("driver_created", `Driver ${employeeNumber} created.`, "Supervisor Console", "");
+    state.drivers.push({ employeeNumber, name, licenseExpires: new Date(`${licenseExpires}T12:00:00`).toISOString(), active: el.driverActive.value === "true", createdAt: now, updatedAt: now, createdBy: consoleActor(), updatedBy: consoleActor() });
+    addAudit("driver_created", `Driver ${employeeNumber} created.`, consoleActor(), "");
   }
   saveState(); closeDriverModal(); renderAll();
 }
@@ -2842,18 +3069,18 @@ function saveVehicleForm(event) {
   let labelFor = null;
   if (existing) {
     const barcodeChanged = existing.assignedBarcode !== fields.assignedBarcode;
-    Object.assign(existing, fields, { updatedAt: now, updatedBy: "Supervisor Console" });
+    Object.assign(existing, fields, { updatedAt: now, updatedBy: consoleActor() });
     // CR-V15: a supervisor who has opened and saved the record has looked at the barcode, so the
     // review flag is settled here too rather than lingering after it has been dealt with.
-    if (existing.barcodeNeedsReview) { existing.barcodeNeedsReview = false; addAudit("typed_barcode_resolved", `Barcode review closed for ${existing.assignedBarcode} by editing the record.`, "Supervisor Console", ""); }
-    addAudit("vehicle_edited", `Vehicle ${existing.id} edited.`, "Supervisor Console", "");
-    if (barcodeChanged) addAudit("barcode_changed", `Vehicle ${existing.id} barcode changed to ${fields.assignedBarcode}.`, "Supervisor Console", "");
+    if (existing.barcodeNeedsReview) { existing.barcodeNeedsReview = false; addAudit("typed_barcode_resolved", `Barcode review closed for ${existing.assignedBarcode} by editing the record.`, consoleActor(), ""); }
+    addAudit("vehicle_edited", `Vehicle ${existing.id} edited.`, consoleActor(), "");
+    if (barcodeChanged) addAudit("barcode_changed", `Vehicle ${existing.id} barcode changed to ${fields.assignedBarcode}.`, consoleActor(), "");
     if (barcodeChanged) labelFor = existing;
   } else {
-    const vehicle = { id: makeId("veh"), ...fields, createdAt: now, updatedAt: now, createdBy: "Supervisor Console", updatedBy: "Supervisor Console", removedAt: "", removedBy: "", reactivatedAt: "", inventoryStatus: COMPLETE_STATUS, createdSource: "supervisor", needsSupervisorCompletion: false, provisionalFromTxId: "", provisionalAt: "", completedBy: "", completedAt: "" };
+    const vehicle = { id: makeId("veh"), ...fields, createdAt: now, updatedAt: now, createdBy: consoleActor(), updatedBy: consoleActor(), removedAt: "", removedBy: "", reactivatedAt: "", inventoryStatus: COMPLETE_STATUS, createdSource: "supervisor", needsSupervisorCompletion: false, provisionalFromTxId: "", provisionalAt: "", completedBy: "", completedAt: "" };
     state.vehicles.push(vehicle);
-    addAudit("vehicle_created", `Vehicle ${vehicle.id} created.`, "Supervisor Console", "");
-    addAudit("barcode_assigned", `Barcode ${vehicle.assignedBarcode} assigned to ${vehicle.id}.`, "Supervisor Console", "");
+    addAudit("vehicle_created", `Vehicle ${vehicle.id} created.`, consoleActor(), "");
+    addAudit("barcode_assigned", `Barcode ${vehicle.assignedBarcode} assigned to ${vehicle.id}.`, consoleActor(), "");
     labelFor = vehicle;
   }
   if (fields.vin.length !== 17) el.vehicleFormStatus.textContent = "VIN saved with a non-17-character warning.";
@@ -2879,8 +3106,8 @@ function handleVehicleTableAction(event) {
 function confirmVehicleBarcode(vehicle) {
   vehicle.barcodeNeedsReview = false;
   vehicle.updatedAt = new Date().toISOString();
-  vehicle.updatedBy = "Supervisor Console";
-  addAudit("typed_barcode_confirmed", `Barcode ${vehicle.assignedBarcode} was confirmed correct by a supervisor.`, "Supervisor Console", "");
+  vehicle.updatedBy = consoleActor();
+  addAudit("typed_barcode_confirmed", `Barcode ${vehicle.assignedBarcode} was confirmed correct by a supervisor.`, consoleActor(), "");
   saveState(); renderAll();
 }
 
@@ -2888,9 +3115,9 @@ function setVehicleInventoryState(vehicle, restoring) {
   const prompt = restoring ? `Restore ${vehicle.assignedBarcode} to active inventory?` : `Remove ${vehicle.assignedBarcode} from inventory? It will remain searchable but cannot be scanned for new movements.`;
   if (typeof confirm === "function" && !confirm(prompt)) return false;
   vehicle.active = restoring;
-  vehicle.updatedAt = new Date().toISOString(); vehicle.updatedBy = "Supervisor Console";
-  if (restoring) { vehicle.reactivatedAt = vehicle.updatedAt; addAudit("vehicle_restored", `Vehicle ${vehicle.assignedBarcode} restored to inventory.`, "Supervisor Console", ""); }
-  else { vehicle.removedAt = vehicle.updatedAt; vehicle.removedBy = "Supervisor Console"; addAudit("vehicle_removed_from_inventory", `Vehicle ${vehicle.assignedBarcode} removed from inventory.`, "Supervisor Console", ""); }
+  vehicle.updatedAt = new Date().toISOString(); vehicle.updatedBy = consoleActor();
+  if (restoring) { vehicle.reactivatedAt = vehicle.updatedAt; addAudit("vehicle_restored", `Vehicle ${vehicle.assignedBarcode} restored to inventory.`, consoleActor(), ""); }
+  else { vehicle.removedAt = vehicle.updatedAt; vehicle.removedBy = consoleActor(); addAudit("vehicle_removed_from_inventory", `Vehicle ${vehicle.assignedBarcode} removed from inventory.`, consoleActor(), ""); }
   return true;
 }
 
@@ -2954,9 +3181,9 @@ function toggleDriverFromProfile() {
   const driver = findDriverAny(ui.profileEmployee);
   if (!driver) return;
   driver.active = !driver.active;
-  driver.updatedAt = new Date().toISOString(); driver.updatedBy = "Supervisor Console";
-  if (!driver.active) revokeAuthorization(driver.employeeNumber, "Supervisor Console", "Driver deactivated");
-  addAudit(driver.active ? "driver_reactivated" : "driver_deactivated", `Driver ${driver.employeeNumber} ${driver.active ? "reactivated" : "deactivated"} from profile.`, "Supervisor Console", "");
+  driver.updatedAt = new Date().toISOString(); driver.updatedBy = consoleActor();
+  if (!driver.active) revokeAuthorization(driver.employeeNumber, consoleActor(), "Driver deactivated");
+  addAudit(driver.active ? "driver_reactivated" : "driver_deactivated", `Driver ${driver.employeeNumber} ${driver.active ? "reactivated" : "deactivated"} from profile.`, consoleActor(), "");
   saveState(); closeDriverProfile(); renderAll();
 }
 
@@ -2993,7 +3220,7 @@ function prepareFloaterLocationChange() {
   if (!ok) return;
   state.floaterLocationConfirmed = false;
   resetFlow();
-  addAudit("floater_location_change_started", `Floater ${device.id} location change started.`, "Supervisor Console", state.workingLocation);
+  addAudit("floater_location_change_started", `Floater ${device.id} location change started.`, consoleActor(), state.workingLocation);
   saveState(); updateDeviceSetupFields();
 }
 
@@ -3009,14 +3236,14 @@ function confirmDeviceLocation() {
     const unfinishedScan = ui.activeFlow === "scan" && Boolean(ui.validatedDriverEmployee || el.driverInput.value || el.barcodeInput.value || ui.direction || ui.pendingOverride);
     if ((switchingDevice || changingLocation) && typeof confirm === "function" && !confirm(`Use fixed device ${device.id} at ${device.assignedLocation}?${unfinishedScan ? " The unfinished scan will be reset." : ""}`)) return;
     state.currentDeviceId = device.id; state.workingLocation = device.assignedLocation; state.floaterLocationConfirmed = false;
-    addAudit("fixed_device_selected", `Fixed device ${device.id} selected at ${device.assignedLocation}.`, "Supervisor Console", device.assignedLocation);
+    addAudit("fixed_device_selected", `Fixed device ${device.id} selected at ${device.assignedLocation}.`, consoleActor(), device.assignedLocation);
   } else {
     const location = el.floaterLocationSelect.value;
     if (!activeLocations().some((item) => item.name === location)) { el.deviceSetupStatus.textContent = "Choose an active location before confirming the floater device."; return; }
     if (typeof confirm === "function" && !confirm(`Confirm floater device at ${location}?`)) return;
     const oldLocation = state.workingLocation;
     state.currentDeviceId = device.id; state.workingLocation = location; state.floaterLocationConfirmed = true;
-    addAudit("floater_location_confirmed", `Floater ${device.id} location confirmed from ${oldLocation} to ${location}.`, "Supervisor Console", location);
+    addAudit("floater_location_confirmed", `Floater ${device.id} location confirmed from ${oldLocation} to ${location}.`, consoleActor(), location);
   }
   resetFlow(); saveState(); populateLocationControls(); renderAll(); closeDeviceSetup(); setNotice(`Device ready: ${currentDevice().id} at ${state.workingLocation}.`, "success");
 }
@@ -3046,9 +3273,9 @@ function saveDeviceForm(event) {
   if (type === "Fixed" && !activeLocations().some((location) => location.name === assignedLocation)) { el.deviceLocationError.textContent = "Fixed device requires one active location."; invalid = true; }
   if (invalid) return;
   const now = new Date().toISOString(); const existing = state.devices.find((device) => device.id === existingId);
-  const fields = { id, name, imei, type, assignedLocation, status, active: status !== "Inactive", phone: el.devicePhoneInput.value.trim(), notes: el.deviceNotesInput.value.trim(), updatedAt: now, updatedBy: "Supervisor Console" };
-  if (existing) { const oldLocation = existing.assignedLocation; if (existing.type === "Fixed" && type === "Fixed" && oldLocation !== assignedLocation && typeof confirm === "function" && !confirm(`Reassign fixed device ${id} from ${oldLocation} to ${assignedLocation}?`)) return; Object.assign(existing, fields); if (existing.id === state.currentDeviceId && existing.type === "Fixed") { state.workingLocation = existing.assignedLocation; state.floaterLocationConfirmed = false; } addAudit("device_edited", `Device ${id} edited.`, "Supervisor Console", assignedLocation); if (oldLocation !== assignedLocation) addAudit("fixed_device_reassigned", `Device ${id} reassigned from ${oldLocation || "unassigned"} to ${assignedLocation || "floater"}.`, "Supervisor Console", assignedLocation); }
-  else { state.devices.push({ ...fields, createdAt: now, lastUsedAt: "", lastTransactionLocation: "", createdBy: "Supervisor Console" }); addAudit("device_created", `Device ${id} created.`, "Supervisor Console", assignedLocation); }
+  const fields = { id, name, imei, type, assignedLocation, status, active: status !== "Inactive", phone: el.devicePhoneInput.value.trim(), notes: el.deviceNotesInput.value.trim(), updatedAt: now, updatedBy: consoleActor() };
+  if (existing) { const oldLocation = existing.assignedLocation; if (existing.type === "Fixed" && type === "Fixed" && oldLocation !== assignedLocation && typeof confirm === "function" && !confirm(`Reassign fixed device ${id} from ${oldLocation} to ${assignedLocation}?`)) return; Object.assign(existing, fields); if (existing.id === state.currentDeviceId && existing.type === "Fixed") { state.workingLocation = existing.assignedLocation; state.floaterLocationConfirmed = false; } addAudit("device_edited", `Device ${id} edited.`, consoleActor(), assignedLocation); if (oldLocation !== assignedLocation) addAudit("fixed_device_reassigned", `Device ${id} reassigned from ${oldLocation || "unassigned"} to ${assignedLocation || "floater"}.`, consoleActor(), assignedLocation); }
+  else { state.devices.push({ ...fields, createdAt: now, lastUsedAt: "", lastTransactionLocation: "", createdBy: consoleActor() }); addAudit("device_created", `Device ${id} created.`, consoleActor(), assignedLocation); }
   saveState(); populateLocationControls(); closeDeviceModal(); renderAll();
 }
 
@@ -3059,8 +3286,8 @@ function handleDeviceTableAction(event) {
   if (button.dataset.deviceAction === "history") { el.deviceActionStatus.textContent = `${device.id}: last used ${device.lastUsedAt ? formatTimestamp(device.lastUsedAt) : "never"}; last transaction location ${device.lastTransactionLocation || "-"}.`; return; }
   const activate = button.dataset.deviceAction === "reactivate";
   if (typeof confirm === "function" && !confirm(`${activate ? "Reactivate" : "Mark inactive"} device ${device.id}?`)) return;
-  device.active = activate; device.status = activate ? "Active" : "Inactive"; device.updatedAt = new Date().toISOString(); device.updatedBy = "Supervisor Console";
-  addAudit(activate ? "device_reactivated" : "device_inactivated", `Device ${device.id} ${activate ? "reactivated" : "marked inactive"}.`, "Supervisor Console", device.assignedLocation);
+  device.active = activate; device.status = activate ? "Active" : "Inactive"; device.updatedAt = new Date().toISOString(); device.updatedBy = consoleActor();
+  addAudit(activate ? "device_reactivated" : "device_inactivated", `Device ${device.id} ${activate ? "reactivated" : "marked inactive"}.`, consoleActor(), device.assignedLocation);
   saveState(); renderAll();
 }
 
@@ -3101,6 +3328,10 @@ function renderAll() {
   runSearch(false);
   renderSearchResults();
   renderSyncStatus();
+  renderConsoleGate();
+  renderLoginsPanel();
+  renderPhoneSignIn();
+  applyRoleVisibility();
 }
 
 function renderScannerContext() {
@@ -3158,7 +3389,7 @@ function renderSupervisor() {
     const driver = findDriverAny(auth.driverEmployee);
     // CR-V18, Patrick: "the more narrow we can make these lines, the better" - four locations with
     // 15 to 20 drivers each. One line per driver; the scope is the same for all, so it is said once above.
-    return `<tr><td><strong>${escapeHtml(driver ? driver.name : "Unknown driver")}</strong> <span class="muted mono">${escapeHtml(auth.driverEmployee)}</span></td><td>${escapeHtml(humanDuration(auth.type))}</td><td>${escapeHtml(formatTimestamp(auth.expiresAt))}</td><td><button class="table-action danger-text" type="button" data-driver-action="deauthorize" data-driver-employee="${escapeHtml(auth.driverEmployee)}">Revoke</button></td></tr>`;
+    return `<tr><td><strong>${escapeHtml(driver ? driver.name : "Unknown driver")}</strong> <span class="muted mono">${escapeHtml(auth.driverEmployee)}</span></td><td>${escapeHtml(humanDuration(auth.type))}</td><td>${escapeHtml(formatTimestamp(auth.expiresAt))}</td><td><button class="table-action danger-text" type="button" data-needs="fleetLead" data-driver-action="deauthorize" data-driver-employee="${escapeHtml(auth.driverEmployee)}">Revoke</button></td></tr>`;
   }).join("") : `<tr><td colspan="6" class="empty-cell">No active driver authorizations.</td></tr>`;
 
   const rosterNeedle = normalize(el.driverRosterSearch.value);
@@ -3225,7 +3456,7 @@ function handleDesktopUserAction(event) {
   }
   if (button.dataset.userAction !== "reset") return;
   user.credentialPrototype = { ...(user.credentialPrototype || {}), passwordStatus: "reset_invite_pending", resetRequired: true, updatedAt: new Date().toISOString() };
-  addAudit("desktop_user_password_reset_marked", `Desktop user ${user.id} marked for prototype password reset. No reset email was sent.`, "Supervisor Console", user.scope || "");
+  addAudit("desktop_user_password_reset_marked", `Desktop user ${user.id} marked for prototype password reset. No reset email was sent.`, consoleActor(), user.scope || "");
   saveState();
   renderAll();
 }
@@ -3288,8 +3519,8 @@ function handleLocationOverrideAction(event) {
     ? `Turn ON the scanned-badge override at ${location.name}? A driver whose badge is scanned there can leave without a daily authorization.`
     : `Turn OFF the scanned-badge override at ${location.name}? Daily authorization will be required again.`;
   if (typeof confirm === "function" && !confirm(question)) return;
-  location.scanOverride = { enabled: turningOn, changedBy: "Admin Console", changedAt: new Date().toISOString() };
-  addAudit(turningOn ? "location_override_enabled" : "location_override_disabled", `Scanned-badge override turned ${turningOn ? "on" : "off"} at ${location.name}.`, "Admin Console", location.name);
+  location.scanOverride = { enabled: turningOn, changedBy: consoleActor(), changedAt: new Date().toISOString() };
+  addAudit(turningOn ? "location_override_enabled" : "location_override_disabled", `Scanned-badge override turned ${turningOn ? "on" : "off"} at ${location.name}.`, consoleActor(), location.name);
   saveState();
   renderAll();
 }
@@ -3359,7 +3590,7 @@ function showMoreSearchResults() {
 // --- CR-V17 step 2: reading the shared database ---------------------------
 
 function cloudReady() {
-  return Boolean(window.VeriGateCloud && window.VeriGateCloud.status().signedIn);
+  return !DEMO_MODE && Boolean(window.VeriGateCloud && window.VeriGateCloud.status().signedIn);
 }
 
 // The search fields, in the names the API uses. The date box is already a YYYY-MM-DD value.
@@ -3530,10 +3761,18 @@ function renderCloudStatus(status) {
 }
 
 function startCloud() {
-  if (!window.VeriGateCloud || IN_TEST_HARNESS) return;
+  if (!window.VeriGateCloud || IN_TEST_HARNESS || DEMO_MODE) {
+    // No shared records here, so no pill offering to sign in to them.
+    if (DEMO_MODE && el.cloudStatusButton) el.cloudStatusButton.classList.add("hidden");
+    return;
+  }
   startSync();
   window.VeriGateCloud.onChange((status) => {
     renderCloudStatus(status);
+    renderConsoleGate();
+    applyRoleVisibility();
+    renderPhoneSignIn();
+    if (status.signedIn) loadLogins(); else ui.logins = null;
     // Signing in is the moment a device that recorded offline can finally send its backlog, and
     // then take in the shared records.
     if (status.signedIn) syncDevice().then(() => pullReference());

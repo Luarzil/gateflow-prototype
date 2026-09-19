@@ -134,6 +134,6 @@ test("switching the override is confirmed and recorded", () => {
   assert.ok(app.includes('turningOn ? "location_override_enabled" : "location_override_disabled"'));
 });
 
-test("the override has its own Admin tab", includes(html, 'data-supervisor-section="adminSection">Admin</button>'));
+test("the override has its own Admin tab", includes(html, 'data-supervisor-section="adminSection" data-needs="admin">Admin</button>'));
 
 test("the Fleet Lead block is otherwise unchanged", includes(app, "blockOutForSupervisor(draft.driver, override.explanation);"));
