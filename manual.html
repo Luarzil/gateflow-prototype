@@ -40,6 +40,7 @@
 <body>
 <header><div class="wrap"><h1>Veri-Gate V0.8 operator manual</h1><p>How the app works, and how to try each rule</p></div></header>
 <main><a class="back" href="review.html">&larr; Back to the review page</a>
+<h1>Veri-Gate V0.8 — Operator Manual</h1>
 <p><strong>Review build.</strong> Data is stored in the browser or on the phone only. Nothing is shared between</p>
 <p>devices yet, and nothing connects to a server. That comes next.</p>
 <hr>
@@ -57,7 +58,7 @@
 <hr>
 <h2>Test values for review</h2>
 <table><thead><tr><th>Employee</th><th>Name</th><th>State</th></tr></thead><tbody><tr><td><code>E1001</code></td><td>Nina Patel</td><td>Authorized</td></tr><tr><td><code>E1002</code></td><td>Marcus Reed</td><td>Authorized, licence expires within 30 days</td></tr><tr><td><code>E1003</code></td><td>Tyrone Brooks</td><td><strong>Not</strong> authorized — use to see the blocked path</td></tr><tr><td><code>E1004</code></td><td>Maria Torres</td><td>Authorized</td></tr><tr><td><code>E1005</code></td><td>Phil Grant</td><td><strong>Licence expired</strong> — always blocked for OUT</td></tr></tbody></table>
-<table><thead><tr><th>Vehicle barcode</th><th>Vehicle</th></tr></thead><tbody><tr><td><code>G0001</code></td><td>2022 Ford Transit, white, TRK-8877</td></tr><tr><td><code>G0002</code></td><td>2021 Toyota Camry, silver, NJK-2214</td></tr><tr><td><code>G0003</code></td><td>2019 Ford Fusion, blue, YARD-104</td></tr><tr><td><strong>Any unused code</strong> (e.g. <code>G9001</code>)</td><td>Not in inventory — use to see provisional creation</td></tr></tbody></table>
+<table><thead><tr><th>Vehicle barcode</th><th>Vehicle</th></tr></thead><tbody><tr><td><code>G0001</code></td><td>2022 Ford Transit, white, TRK-8877</td></tr><tr><td><code>G0002</code></td><td>2021 Toyota Camry, silver, NJK-2214</td></tr><tr><td><code>G0003</code></td><td>2019 Ford Fusion, blue, YARD-104</td></tr><tr><td><strong>Any unused code</strong> (e.g. <code>G9001</code>)</td><td>Not in inventory — use to see it added automatically</td></tr></tbody></table>
 <table><thead><tr><th>Approver</th><th>Role</th><th>Can approve an override?</th></tr></thead><tbody><tr><td><code>S1001</code> Morgan Lee</td><td>Supervisor</td><td>Yes</td></tr><tr><td><code>S2040</code> Jordan Wells</td><td>Fleet Lead</td><td>Yes</td></tr><tr><td><code>S3090</code> Casey Rowe</td><td>Scanner</td><td><strong>No</strong> — deliberately below the line</td></tr></tbody></table>
 <hr>
 <h2>The scanner, step by step</h2>
@@ -76,22 +77,30 @@
 <p>record shows whether each value was scanned or typed.</p>
 <hr>
 <h2>What is new in V0.8</h2>
-<h3>Unknown vehicles arriving are accepted</h3>
-<p>Scan a barcode that is not in inventory, choose <strong>Vehicle IN</strong>, and it goes through. The vehicle</p>
-<p>is created automatically. The operator is not asked to approve anything and is not interrupted.</p>
-<p><em>Try it:</em> driver <code>E1001</code>, barcode <code>G9001</code>, Vehicle IN.</p>
-<h3>The same vehicle cannot leave</h3>
-<p>Try <code>G9001</code> again with <strong>Vehicle OUT</strong>. It is refused:</p>
-<blockquote>Vehicle OUT blocked. Vehicle G9001 has an incomplete inventory record. A supervisor must complete the vehicle record first.</blockquote>
-<p><strong>The driver being authorized does not matter.</strong> Being allowed in never means being authorized</p>
-<p>out. There is no supervisor override for this block, because the missing information is about the</p>
-<p>vehicle, not the driver.</p>
-<h3>Supervisors see what needs completing</h3>
-<p><strong>Supervisor → Vehicles → Vehicles Awaiting Completion.</strong> Every auto-created vehicle is listed</p>
-<p>with what is missing and a <strong>Complete record</strong> action. Fill in the details and the vehicle</p>
-<p>becomes normal inventory — and can then leave.</p>
+<h3>Unknown vehicles are added automatically</h3>
+<p>Scan a barcode that is not in inventory and the movement goes through. The vehicle is added to</p>
+<p>inventory exactly as if a supervisor had entered it. The operator is not asked to approve</p>
+<p>anything and is not interrupted.</p>
+<p>This works in <strong>both directions</strong>. Vehicles move around a national inventory constantly, so a</p>
+<p>vehicle nobody has seen before is ordinary traffic, not an exception. It comes in like any other</p>
+<p>vehicle and it leaves like any other vehicle. The purpose is the log.</p>
+<p><em>Try it:</em> driver <code>E1001</code>, barcode <code>G9001</code>, Vehicle IN. Then run the same barcode again with</p>
+<p>Vehicle OUT — it goes straight through and both movements are recorded.</p>
+<h3>The gate log shows what arrived on its own</h3>
+<p><strong>Supervisor → Vehicles → Vehicles Added By Scan.</strong> Every vehicle the gate added automatically</p>
+<p>is listed here, with any details still blank.</p>
+<p>This is a <strong>record, not a task list</strong>. Nothing is waiting on a supervisor and nothing is held up.</p>
+<p>A supervisor can fill in the make, model and plate whenever they get to it, using the same Edit</p>
+<p>button as any other vehicle. The vehicle works either way.</p>
+<h3>Users can be edited</h3>
+<p>Every row in <strong>Supervisor → Users</strong> has an <strong>Edit</strong> button. It opens the same form used to add a</p>
+<p>user, pre-filled, and saving updates that user in place rather than creating a duplicate. A role</p>
+<p>change is recorded in the audit trail.</p>
+<p>Roles are <strong>Scanner, Fleet Lead, Supervisor, Admin</strong>. There is no separate Manager role — one</p>
+<p>Admin account is issued, and that admin creates everyone else.</p>
 <h3>Overrides require Fleet Lead or above</h3>
-<p>When a driver is not authorized, Vehicle OUT is blocked and an approver ID is requested.</p>
+<p>When a driver is not authorized, Vehicle OUT is blocked and an approver ID is requested. This is</p>
+<p>about the <strong>driver</strong>, not the vehicle.</p>
 <p><em>Try it:</em> driver <code>E1003</code>, vehicle <code>G0003</code>, Vehicle OUT, then enter <code>S3090</code>. It is refused:</p>
 <blockquote>S3090 / Casey Rowe holds Scanner and cannot approve a Vehicle OUT override. Fleet Lead or above is required.</blockquote>
 <p>Enter <code>S2040</code> instead and it is approved for nine hours. Both the approval and the refusal are</p>

@@ -37,7 +37,7 @@ link on it once.
 | `G0001` | 2022 Ford Transit, white, TRK-8877 |
 | `G0002` | 2021 Toyota Camry, silver, NJK-2214 |
 | `G0003` | 2019 Ford Fusion, blue, YARD-104 |
-| **Any unused code** (e.g. `G9001`) | Not in inventory — use to see provisional creation |
+| **Any unused code** (e.g. `G9001`) | Not in inventory — use to see it added automatically |
 
 | Approver | Role | Can approve an override? |
 |---|---|---|
@@ -65,33 +65,41 @@ record shows whether each value was scanned or typed.
 
 ## What is new in V0.8
 
-### Unknown vehicles arriving are accepted
+### Unknown vehicles are added automatically
 
-Scan a barcode that is not in inventory, choose **Vehicle IN**, and it goes through. The vehicle
-is created automatically. The operator is not asked to approve anything and is not interrupted.
+Scan a barcode that is not in inventory and the movement goes through. The vehicle is added to
+inventory exactly as if a supervisor had entered it. The operator is not asked to approve
+anything and is not interrupted.
 
-*Try it:* driver `E1001`, barcode `G9001`, Vehicle IN.
+This works in **both directions**. Vehicles move around a national inventory constantly, so a
+vehicle nobody has seen before is ordinary traffic, not an exception. It comes in like any other
+vehicle and it leaves like any other vehicle. The purpose is the log.
 
-### The same vehicle cannot leave
+*Try it:* driver `E1001`, barcode `G9001`, Vehicle IN. Then run the same barcode again with
+Vehicle OUT — it goes straight through and both movements are recorded.
 
-Try `G9001` again with **Vehicle OUT**. It is refused:
+### The gate log shows what arrived on its own
 
-> Vehicle OUT blocked. Vehicle G9001 has an incomplete inventory record. A supervisor must
-> complete the vehicle record first.
+**Supervisor → Vehicles → Vehicles Added By Scan.** Every vehicle the gate added automatically
+is listed here, with any details still blank.
 
-**The driver being authorized does not matter.** Being allowed in never means being authorized
-out. There is no supervisor override for this block, because the missing information is about the
-vehicle, not the driver.
+This is a **record, not a task list**. Nothing is waiting on a supervisor and nothing is held up.
+A supervisor can fill in the make, model and plate whenever they get to it, using the same Edit
+button as any other vehicle. The vehicle works either way.
 
-### Supervisors see what needs completing
+### Users can be edited
 
-**Supervisor → Vehicles → Vehicles Awaiting Completion.** Every auto-created vehicle is listed
-with what is missing and a **Complete record** action. Fill in the details and the vehicle
-becomes normal inventory — and can then leave.
+Every row in **Supervisor → Users** has an **Edit** button. It opens the same form used to add a
+user, pre-filled, and saving updates that user in place rather than creating a duplicate. A role
+change is recorded in the audit trail.
+
+Roles are **Scanner, Fleet Lead, Supervisor, Admin**. There is no separate Manager role — one
+Admin account is issued, and that admin creates everyone else.
 
 ### Overrides require Fleet Lead or above
 
-When a driver is not authorized, Vehicle OUT is blocked and an approver ID is requested.
+When a driver is not authorized, Vehicle OUT is blocked and an approver ID is requested. This is
+about the **driver**, not the vehicle.
 
 *Try it:* driver `E1003`, vehicle `G0003`, Vehicle OUT, then enter `S3090`. It is refused:
 

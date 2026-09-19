@@ -79,10 +79,19 @@ const BUSINESS_TIMEZONE = "America/New_York";
 const LICENSE_VALID_THROUGH_PRINTED_DATE = true;
 const ENTRY_METHODS = ["scanner_field", "manual"];
 const LEGACY_ENTRY_METHOD = "legacy_unknown";
-// CR-V08-BETA-CRITICAL-APP-001: provisional inventory state for auto-created inbound vehicles.
-const PROVISIONAL_STATUS = "provisional";
+// CR-V11-PATRICK-FEEDBACK-001. Patrick, 2026-09-06: a vehicle that is not in inventory is
+// normal traffic, not an exception. Cars move around Enterprise national inventory constantly.
+// It is let in like any other vehicle, added to the database as if a supervisor had added it,
+// and it leaves like any other vehicle. "The whole purpose is to create a log."
+//
+// So there is no provisional state and no gate. What is kept is the provenance: which vehicles
+// arrived on their own rather than being entered by a person. That is the log, and it costs
+// nothing because it blocks nothing.
 const COMPLETE_STATUS = "complete";
-const DESKTOP_USER_ROLES = ["Scanner", "Fleet Lead", "Supervisor", "Manager", "Admin"];
+const SCAN_CREATED_SOURCE = "inbound_scan";
+// One Admin, not a Manager and an Admin. Patrick, 2026-09-06: "we issue 1 admin and they
+// create and give the users out with authority."
+const DESKTOP_USER_ROLES = ["Scanner", "Fleet Lead", "Supervisor", "Admin"];
 // CR-V08-BETA-CRITICAL-APP-002 (081526 v7 edit #10): the OUT override is restricted to
 // Fleet Lead and above. DESKTOP_USER_ROLES is ordered by seniority, so its index is the rank.
 // Before this change the approver list carried no role at all and any listed ID could approve.
@@ -111,6 +120,7 @@ let storageAvailable = true;
 const el = {};
 const ui = {
   shell: "console",
+  editingUserId: null,
   activeView: "scannerView",
   direction: null,
   step: 0,
@@ -180,7 +190,7 @@ function cacheElements() {
     "openDeviceSetupButton", "deviceSetupModal", "closeDeviceSetupButton", "currentDeviceSelect", "floaterLocationFields", "floaterLocationSelect", "deviceSetupStatus", "confirmDeviceLocationButton", "changeFloaterLocationButton",
     "devicesTableBody", "deviceHistoryList", "addDeviceButton", "deviceModal", "deviceForm", "closeDeviceModalButton", "cancelDeviceButton", "deviceEditId", "deviceIdInput", "deviceNameInput", "deviceImeiInput", "deviceTypeInput", "deviceLocationInput", "deviceStatusInput", "devicePhoneInput", "deviceNotesInput", "deviceIdError", "deviceNameError", "deviceImeiError", "deviceLocationError", "deviceActionStatus",
     "driverProfileModal", "closeDriverProfileButton", "driverProfileHeading", "driverProfileBody", "profileEditDriverButton", "profileToggleDriverButton",
-    "openScannerFeedbackButton", "openSupervisorFeedbackButton", "feedbackModal", "feedbackForm", "feedbackEyebrow", "feedbackName", "feedbackNote", "feedbackDetailsRow", "feedbackDetails", "feedbackContext", "closeFeedbackButton", "cancelFeedbackButton", "desktopUsersTableBody", "addDesktopUserButton", "desktopUserModal", "desktopUserForm", "desktopUserName", "desktopUserUsername", "desktopUserPassword", "desktopUserResetRequired", "desktopUserRole", "desktopUserScope", "desktopAbilityGrid", "desktopUserNameError", "desktopUserUsernameError", "closeDesktopUserButton", "cancelDesktopUserButton"
+    "openScannerFeedbackButton", "openSupervisorFeedbackButton", "feedbackModal", "feedbackForm", "feedbackEyebrow", "feedbackName", "feedbackNote", "feedbackDetailsRow", "feedbackDetails", "feedbackContext", "closeFeedbackButton", "cancelFeedbackButton", "desktopUsersTableBody", "addDesktopUserButton", "desktopUserModal", "desktopUserHeading", "desktopUserForm", "desktopUserName", "desktopUserUsername", "desktopUserPassword", "desktopUserResetRequired", "desktopUserRole", "desktopUserScope", "desktopAbilityGrid", "desktopUserNameError", "desktopUserUsernameError", "closeDesktopUserButton", "cancelDesktopUserButton"
   ].forEach((id) => {
     el[id] = document.getElementById(id);
   });
@@ -274,7 +284,7 @@ function bindEvents() {
   el.closeFeedbackButton.addEventListener("click", closeFeedbackModal);
   el.cancelFeedbackButton.addEventListener("click", closeFeedbackModal);
   el.feedbackForm.addEventListener("submit", submitFeedback);
-  el.addDesktopUserButton.addEventListener("click", openDesktopUserModal);
+  el.addDesktopUserButton.addEventListener("click", () => openDesktopUserModal());
   el.closeDesktopUserButton.addEventListener("click", closeDesktopUserModal);
   el.cancelDesktopUserButton.addEventListener("click", closeDesktopUserModal);
   el.desktopUserForm.addEventListener("submit", saveDesktopUser);
@@ -355,7 +365,7 @@ function createSeedState() {
     feedback: [],
     desktopUsers: [
       seedDesktopUser("U0001", "Avery Morgan", "avery.morgan", "Admin", "All locations", "Assign"),
-      seedDesktopUser("U0002", "Jordan Wells", "jordan.wells", "Manager", "All locations", "View only")
+      seedDesktopUser("U0002", "Jordan Wells", "jordan.wells", "Supervisor", "All locations", "View only")
     ]
   };
 }
@@ -539,7 +549,9 @@ function normalizeDesktopUser(user, index = 0) {
 
 function normalizeDesktopRole(role) {
   const value = String(role || "").trim();
-  if (value === "Owner / System Administrator") return "Admin";
+  // CR-V11: Manager and Admin were never meant to be two roles. Patrick, 2026-09-06: "we issue
+  // 1 admin and they create and give the users out with authority." Stored Managers become Admin.
+  if (value === "Owner / System Administrator" || value === "Manager") return "Admin";
   return DESKTOP_USER_ROLES.includes(value) ? value : "Scanner";
 }
 
@@ -595,11 +607,11 @@ function normalizeVehicle(vehicle, index) {
     assignedBarcode: canonicalVehicleBarcode(vehicle.assignedBarcode, index),
     vin: normalize(vehicle.vin), plate: normalize(vehicle.plate), make: vehicle.make || demo[0], model: vehicle.model || demo[1], year: Number(vehicle.year || demo[2]), color: vehicle.color || demo[3], active: vehicle.active !== false,
     createdAt: vehicle.createdAt || now, updatedAt: vehicle.updatedAt || now, createdBy: vehicle.createdBy || "V0.5 migration", updatedBy: vehicle.updatedBy || "V0.5 migration", removedAt: vehicle.removedAt || "", removedBy: vehicle.removedBy || "", reactivatedAt: vehicle.reactivatedAt || "",
-    // CR-V08-BETA-CRITICAL-APP-001: records without an inventory status predate provisional
-    // inventory and are treated as complete. Nothing existing becomes provisional retroactively.
-    inventoryStatus: vehicle.inventoryStatus === PROVISIONAL_STATUS ? PROVISIONAL_STATUS : COMPLETE_STATUS,
+    // CR-V11: provisional inventory is gone. Any record previously held as provisional becomes
+    // an ordinary vehicle on load, so nothing stays stuck from the earlier build.
+    inventoryStatus: COMPLETE_STATUS,
     createdSource: vehicle.createdSource || "migration",
-    needsSupervisorCompletion: vehicle.inventoryStatus === PROVISIONAL_STATUS ? vehicle.needsSupervisorCompletion !== false : false,
+    needsSupervisorCompletion: false,
     provisionalFromTxId: vehicle.provisionalFromTxId || "",
     provisionalAt: vehicle.provisionalAt || "",
     completedBy: vehicle.completedBy || "",
@@ -607,18 +619,20 @@ function normalizeVehicle(vehicle, index) {
   };
 }
 
-function isProvisionalVehicle(vehicle) {
-  return Boolean(vehicle) && vehicle.inventoryStatus === PROVISIONAL_STATUS;
+// Provenance only. This never gates a movement; it answers "did a person add this, or did it
+// just turn up at the gate?"
+function isScannerAddedVehicle(vehicle) {
+  return Boolean(vehicle) && vehicle.createdSource === SCAN_CREATED_SOURCE;
 }
 
-function provisionalVehicles() {
-  return state.vehicles.filter(isProvisionalVehicle);
+function scannerAddedVehicles() {
+  return state.vehicles.filter(isScannerAddedVehicle);
 }
 
 // Single creation point for auto-created inbound inventory. Duplicate-safe: the canonical
 // barcode is the natural key, so a re-scan of the same unknown barcode returns the existing
 // record instead of creating a second one.
-function createProvisionalVehicle(barcode, context) {
+function createScannedVehicle(barcode, context) {
   const canonical = canonicalVehicleBarcode(barcode);
   if (!canonical) return null;
   const existing = findVehicleByBarcode(canonical);
@@ -632,9 +646,9 @@ function createProvisionalVehicle(barcode, context) {
     createdAt: now, updatedAt: now,
     createdBy: context.actor, updatedBy: context.actor,
     removedAt: "", removedBy: "", reactivatedAt: "",
-    inventoryStatus: PROVISIONAL_STATUS,
-    createdSource: "inbound_scan",
-    needsSupervisorCompletion: true,
+    inventoryStatus: COMPLETE_STATUS,
+    createdSource: SCAN_CREATED_SOURCE,
+    needsSupervisorCompletion: false,
     provisionalFromTxId: context.transactionId || "",
     provisionalAt: now,
     completedBy: "", completedAt: ""
@@ -982,11 +996,9 @@ function updateBarcodeStatus() {
   if (!value) {
     el.barcodeStatus.textContent = "Awaiting vehicle barcode scan.";
   } else if (!vehicle) {
-    // CR-V08-BETA-CRITICAL-APP-001: an unknown barcode is no longer an error. It is added to
-    // inventory on Vehicle IN. Neutral tone and no setNotice, so the operator is not interrupted.
-    el.barcodeStatus.textContent = `${value}: not in inventory. It will be added on Vehicle IN. Vehicle OUT is not available until a supervisor completes the record.`;
-  } else if (isProvisionalVehicle(vehicle)) {
-    el.barcodeStatus.textContent = `${vehicle.assignedBarcode}: incomplete inventory record awaiting supervisor completion. Vehicle IN is allowed; Vehicle OUT is blocked.`;
+    // CR-V11: an unknown barcode is ordinary traffic. It is added to inventory and the movement
+    // continues in either direction. Neutral tone and no setNotice: the operator is not stopped.
+    el.barcodeStatus.textContent = `${value}: not in inventory. It will be added automatically.`;
   } else if (!vehicle.active) {
     el.barcodeStatus.textContent = "Vehicle is inactive and cannot be used for a new movement.";
   } else {
@@ -1071,21 +1083,15 @@ function startTransaction() {
   const draft = readTransactionDraft();
   if (!draft) return;
 
-  // CR-V08-BETA-CRITICAL-APP-001 — "Allowed IN != Authorized OUT".
-  // This gate is deliberately evaluated BEFORE the driver license and authorization checks so
-  // that no driver-level approval, including a supervisor override, can release a vehicle whose
-  // inventory record is unknown or incomplete. The vehicle is a separate authorization subject.
-  if (draft.direction === "OUT" && (!draft.vehicle || isProvisionalVehicle(draft.vehicle))) {
-    blockOutForIncompleteVehicle(draft);
-    return;
-  }
-  if (draft.direction === "IN" && !draft.vehicle) {
-    draft.vehicle = createProvisionalVehicle(draft.barcode, { actor: currentStationIdentity() });
+  // CR-V11: an unknown barcode is added to inventory and the movement proceeds, in either
+  // direction. There is no gate, because the point is the log, not a checkpoint.
+  if (!draft.vehicle) {
+    draft.vehicle = createScannedVehicle(draft.barcode, { actor: currentStationIdentity() });
     if (!draft.vehicle) {
       setNotice("Vehicle barcode could not be read. Re-scan the vehicle.", "danger");
       return;
     }
-    draft.provisionalCreated = true;
+    draft.scannerCreated = true;
   }
 
   const license = licenseStatus(draft.driver);
@@ -1102,25 +1108,6 @@ function startTransaction() {
     return;
   }
   completeTransaction(draft);
-}
-
-// CR-V08-BETA-CRITICAL-APP-001: a vehicle-level OUT block. Unlike blockOutForSupervisor this
-// offers no override path, because the missing information is about the vehicle, not the driver.
-// Clearing it requires a supervisor to complete the inventory record in the Supervisor area.
-function blockOutForIncompleteVehicle(draft) {
-  const known = Boolean(draft.vehicle);
-  const reason = known
-    ? `Vehicle ${draft.barcode} has an incomplete inventory record.`
-    : `Vehicle ${draft.barcode} is not in inventory.`;
-  addAudit(
-    "blocked_out_incomplete_vehicle",
-    `${reason} Vehicle OUT blocked. Driver ${draft.driver.employeeNumber} was not the cause; the vehicle record must be completed by a supervisor.`,
-    currentStationIdentity(),
-    draft.location
-  );
-  saveState();
-  renderAll();
-  setNotice(`Vehicle OUT blocked. ${reason} A supervisor must complete the vehicle record first.`, "danger");
 }
 
 function blockOutForSupervisor(driver) {
@@ -1241,11 +1228,11 @@ function completeTransaction(draft) {
   state.transactions.unshift(transaction);
   // CR-V08-BETA-CRITICAL-APP-001: bind the provisional record to the inbound event that created
   // it, so the audit trail shows where an auto-created vehicle came from.
-  if (draft.provisionalCreated) {
+  if (draft.scannerCreated) {
     draft.vehicle.provisionalFromTxId = transaction.id;
     addAudit(
-      "provisional_vehicle_created",
-      `Provisional inventory record created for ${draft.vehicle.assignedBarcode} from inbound scan. Transaction ${transaction.id}; entry path: ${entryMethodLabel(draft.vehicleEntryMethod)}; device ${transaction.deviceName || transaction.deviceId || "unassigned"}; operator ${transaction.submittedBy}. Vehicle OUT remains blocked until a supervisor completes the record.`,
+      "vehicle_added_by_scan",
+      `Vehicle ${draft.vehicle.assignedBarcode} was not in inventory and was added automatically from a gate scan. Transaction ${transaction.id}; entry path: ${entryMethodLabel(draft.vehicleEntryMethod)}; device ${transaction.deviceName || transaction.deviceId || "unassigned"}; operator ${transaction.submittedBy}.`,
       currentStationIdentity(),
       draft.location
     );
@@ -1548,17 +1535,28 @@ function submitFeedback(event) {
   setNotice("Feedback saved on this device for review.", "success");
 }
 
-function openDesktopUserModal() {
+// CR-V11 (081526 v7 item #1). Patrick, 2026-09-06: "there is no way to edit the users once
+// their created". The same modal now serves both cases; ui.editingUserId decides which.
+function openDesktopUserModal(user = null) {
   ui.modalTrigger = document.activeElement;
   el.desktopUserForm.reset();
   el.desktopUserNameError.textContent = "";
   el.desktopUserUsernameError.textContent = "";
-  renderDesktopAbilityControls(defaultDesktopAbilities());
+  ui.editingUserId = user ? user.id : null;
+  el.desktopUserHeading.textContent = user ? `Edit ${user.name}` : "Add desktop user";
+  if (user) {
+    el.desktopUserName.value = user.name || "";
+    el.desktopUserUsername.value = user.username || "";
+    el.desktopUserRole.value = normalizeDesktopRole(user.role);
+    el.desktopUserScope.value = user.scope || "All locations";
+    el.desktopUserResetRequired.value = user.credentialPrototype && user.credentialPrototype.resetRequired ? "true" : "false";
+  }
+  renderDesktopAbilityControls(user ? user.abilities : defaultDesktopAbilities());
   el.desktopUserModal.classList.remove("hidden");
   window.setTimeout(() => el.desktopUserName.focus(), 20);
 }
 
-function closeDesktopUserModal() { closeManagedModal(el.desktopUserModal); }
+function closeDesktopUserModal() { ui.editingUserId = null; closeManagedModal(el.desktopUserModal); }
 
 function renderDesktopAbilityControls(abilities) {
   if (!el.desktopAbilityGrid) return;
@@ -1597,10 +1595,40 @@ function saveDesktopUser(event) {
     shake(el.desktopUserUsername);
     return;
   }
-  if ((state.desktopUsers || []).some((user) => normalizeUsername(user.username) === username)) {
+  // A user editing their own record must not collide with themselves.
+  if ((state.desktopUsers || []).some((user) => normalizeUsername(user.username) === username && user.id !== ui.editingUserId)) {
     el.desktopUserUsernameError.textContent = "Username must be unique.";
     shake(el.desktopUserUsername);
     return;
+  }
+
+  if (ui.editingUserId) {
+    const existing = state.desktopUsers.find((user) => user.id === ui.editingUserId);
+    if (existing) {
+      const previousRole = existing.role;
+      Object.assign(existing, {
+        name,
+        username,
+        role: normalizeDesktopRole(el.desktopUserRole.value),
+        scope: el.desktopUserScope.value,
+        abilities: collectDesktopAbilities()
+      });
+      existing.credentialPrototype = {
+        ...(existing.credentialPrototype || {}),
+        resetRequired: el.desktopUserResetRequired.value === "true",
+        updatedAt: new Date().toISOString()
+      };
+      el.desktopUserPassword.value = "";
+      const roleNote = previousRole === existing.role ? "" : ` Role changed from ${previousRole} to ${existing.role}.`;
+      addAudit("desktop_user_edited", `Desktop user ${existing.id} edited.${roleNote}`, "Supervisor Console", existing.scope || "");
+      ui.editingUserId = null;
+      saveState();
+      renderAll();
+      closeDesktopUserModal();
+      setNotice(`${existing.name} updated.`, "success");
+      return;
+    }
+    ui.editingUserId = null;
   }
   const nextId = `U${String((state.desktopUsers || []).length + 1).padStart(4, "0")}`;
   const now = new Date().toISOString();
@@ -1675,18 +1703,7 @@ function saveVehicleForm(event) {
   const existing = state.vehicles.find((vehicle) => vehicle.id === vehicleId);
   if (existing) {
     const barcodeChanged = existing.assignedBarcode !== fields.assignedBarcode;
-    const wasProvisional = isProvisionalVehicle(existing);
     Object.assign(existing, fields, { updatedAt: now, updatedBy: "Supervisor Console" });
-    // CR-V08-BETA-CRITICAL-APP-001: the form already requires make, model, color, VIN and
-    // barcode, so a successful save is exactly the completion step Patrick asked for. Saving
-    // it clears provisional state and is what unblocks Vehicle OUT for this record.
-    if (wasProvisional) {
-      existing.inventoryStatus = COMPLETE_STATUS;
-      existing.needsSupervisorCompletion = false;
-      existing.completedBy = "Supervisor Console";
-      existing.completedAt = now;
-      addAudit("provisional_vehicle_completed", `Provisional inventory record ${existing.assignedBarcode} completed by supervisor. Vehicle OUT is now permitted for this vehicle.`, "Supervisor Console", "");
-    }
     addAudit("vehicle_edited", `Vehicle ${existing.id} edited.`, "Supervisor Console", "");
     if (barcodeChanged) addAudit("barcode_changed", `Vehicle ${existing.id} barcode changed to ${fields.assignedBarcode}.`, "Supervisor Console", "");
   } else {
@@ -1718,16 +1735,16 @@ function handleVehicleTableAction(event) {
 // CR-V08-BETA-CRITICAL-APP-001: the supervisor work queue for auto-created inbound vehicles.
 function renderIncompleteInventory() {
   if (!el.incompleteInventoryBody) return;
-  const pending = provisionalVehicles();
+  const pending = scannerAddedVehicles();
   el.incompleteInventoryCount.textContent = String(pending.length);
   el.incompleteInventoryPanel.classList.toggle("hidden", pending.length === 0);
   el.incompleteInventoryBody.innerHTML = pending.length
     ? pending.map((vehicle) => {
       const missing = [["VIN", vehicle.vin], ["Make", vehicle.make], ["Model", vehicle.model], ["Year", vehicle.year], ["Color", vehicle.color], ["Plate", vehicle.plate]]
         .filter(([, value]) => !value).map(([label]) => label).join(", ");
-      return `<tr><td class="mono">${escapeHtml(vehicle.assignedBarcode)}</td><td>${escapeHtml(formatTimestamp(vehicle.provisionalAt))}</td><td>${escapeHtml(missing || "None")}</td><td><button class="table-action" type="button" data-vehicle-action="edit" data-vehicle-id="${escapeHtml(vehicle.id)}">Complete record</button></td></tr>`;
+      return `<tr><td class="mono">${escapeHtml(vehicle.assignedBarcode)}</td><td>${escapeHtml(formatTimestamp(vehicle.provisionalAt))}</td><td>${escapeHtml(missing || "None")}</td><td><button class="table-action" type="button" data-vehicle-action="edit" data-vehicle-id="${escapeHtml(vehicle.id)}">Edit</button></td></tr>`;
     }).join("")
-    : `<tr><td colspan="4" class="empty-cell">No vehicles are awaiting completion.</td></tr>`;
+    : `<tr><td colspan="4" class="empty-cell">No vehicles have been added by a gate scan yet.</td></tr>`;
 }
 
 function renderVehicles() {
@@ -1740,7 +1757,7 @@ function renderVehicles() {
     const haystack = [vehicle.assignedBarcode, vehicle.vin, vehicle.plate, vehicle.make, vehicle.model, vehicle.year, vehicle.color].join(" ").toUpperCase();
     return matchesStatus && (!needle || haystack.includes(needle));
   });
-  el.vehiclesTableBody.innerHTML = vehicles.length ? vehicles.map((vehicle) => `<tr><td class="mono">${escapeHtml(vehicle.assignedBarcode)}</td><td>${escapeHtml(vehicle.year)}</td><td>${escapeHtml(vehicle.make)}</td><td>${escapeHtml(vehicle.model)}</td><td>${escapeHtml(vehicle.color)}</td><td class="mono">${escapeHtml(vehicle.vin)}</td><td>${escapeHtml(vehicle.plate || "-")}</td><td><span class="status-badge ${vehicle.active ? "authorized" : "inactive"}">${vehicle.active ? "Active" : "Inactive"}</span>${isProvisionalVehicle(vehicle) ? ` <span class="status-badge provisional" title="Added by an inbound scan. Vehicle OUT is blocked until this record is completed.">Incomplete</span>` : ""}</td><td class="action-stack"><button class="table-action" type="button" data-vehicle-action="edit" data-vehicle-id="${escapeHtml(vehicle.id)}">Edit</button><button class="table-action ${vehicle.active ? "danger-text" : "success-text"}" type="button" data-vehicle-action="${vehicle.active ? "remove" : "restore"}" data-vehicle-id="${escapeHtml(vehicle.id)}">${vehicle.active ? "Remove from Inventory" : "Restore to Inventory"}</button></td></tr>`).join("") : `<tr><td colspan="9" class="empty-cell">No vehicles match this inventory view.</td></tr>`;
+  el.vehiclesTableBody.innerHTML = vehicles.length ? vehicles.map((vehicle) => `<tr><td class="mono">${escapeHtml(vehicle.assignedBarcode)}</td><td>${escapeHtml(vehicle.year)}</td><td>${escapeHtml(vehicle.make)}</td><td>${escapeHtml(vehicle.model)}</td><td>${escapeHtml(vehicle.color)}</td><td class="mono">${escapeHtml(vehicle.vin)}</td><td>${escapeHtml(vehicle.plate || "-")}</td><td><span class="status-badge ${vehicle.active ? "authorized" : "inactive"}">${vehicle.active ? "Active" : "Inactive"}</span>${isScannerAddedVehicle(vehicle) ? ` <span class="status-badge provisional" title="This vehicle was added automatically when it was scanned at the gate, rather than being entered by a person.">Added by scan</span>` : ""}</td><td class="action-stack"><button class="table-action" type="button" data-vehicle-action="edit" data-vehicle-id="${escapeHtml(vehicle.id)}">Edit</button><button class="table-action ${vehicle.active ? "danger-text" : "success-text"}" type="button" data-vehicle-action="${vehicle.active ? "remove" : "restore"}" data-vehicle-id="${escapeHtml(vehicle.id)}">${vehicle.active ? "Remove from Inventory" : "Restore to Inventory"}</button></td></tr>`).join("") : `<tr><td colspan="9" class="empty-cell">No vehicles match this inventory view.</td></tr>`;
 }
 
 function openDriverProfile(driver) {
@@ -1973,7 +1990,7 @@ function renderDesktopUsers() {
   const users = state.desktopUsers || [];
   el.desktopUsersTableBody.innerHTML = users.length ? users.map((user) => {
     const normalizedUser = normalizeDesktopUser(user);
-    return `<tr><td class="mono">${escapeHtml(normalizedUser.id)}</td><td>${escapeHtml(normalizedUser.name)}</td><td class="mono">${escapeHtml(normalizedUser.username)}</td><td>${escapeHtml(normalizedUser.role)}</td><td><span class="status-badge ${normalizedUser.active ? "authorized" : "inactive"}">${normalizedUser.active ? "Active" : "Inactive"}</span></td><td>${escapeHtml(normalizedUser.scope)}</td><td>${escapeHtml(credentialStatusLabel(normalizedUser))}</td><td>${abilitySummary(normalizedUser.abilities)}</td><td><button class="table-action" type="button" data-user-action="reset" data-user-id="${escapeHtml(normalizedUser.id)}">Mark reset</button></td></tr>`;
+    return `<tr><td class="mono">${escapeHtml(normalizedUser.id)}</td><td>${escapeHtml(normalizedUser.name)}</td><td class="mono">${escapeHtml(normalizedUser.username)}</td><td>${escapeHtml(normalizedUser.role)}</td><td><span class="status-badge ${normalizedUser.active ? "authorized" : "inactive"}">${normalizedUser.active ? "Active" : "Inactive"}</span></td><td>${escapeHtml(normalizedUser.scope)}</td><td>${escapeHtml(credentialStatusLabel(normalizedUser))}</td><td>${abilitySummary(normalizedUser.abilities)}</td><td class="action-stack"><button class="table-action" type="button" data-user-action="edit" data-user-id="${escapeHtml(normalizedUser.id)}">Edit</button><button class="table-action" type="button" data-user-action="reset" data-user-id="${escapeHtml(normalizedUser.id)}">Mark reset</button></td></tr>`;
   }).join("") : `<tr><td colspan="9" class="empty-cell">No desktop users configured.</td></tr>`;
 }
 
@@ -1997,7 +2014,12 @@ function handleDesktopUserAction(event) {
   const button = event.target.closest("[data-user-action]");
   if (!button) return;
   const user = state.desktopUsers.find((item) => item.id === button.dataset.userId);
-  if (!user || button.dataset.userAction !== "reset") return;
+  if (!user) return;
+  if (button.dataset.userAction === "edit") {
+    openDesktopUserModal(user);
+    return;
+  }
+  if (button.dataset.userAction !== "reset") return;
   user.credentialPrototype = { ...(user.credentialPrototype || {}), passwordStatus: "reset_invite_pending", resetRequired: true, updatedAt: new Date().toISOString() };
   addAudit("desktop_user_password_reset_marked", `Desktop user ${user.id} marked for prototype password reset. No reset email was sent.`, "Supervisor Console", user.scope || "");
   saveState();
@@ -2202,6 +2224,9 @@ function humanAuditType(type) {
     driver_deauthorized: "Driver deauthorized",
     authorization_blocked_expired_license: "Expired license block",
     unauthorized_in_review: "Unauthorized IN review",
+    vehicle_added_by_scan: "Vehicle added by scan",
+    desktop_user_edited: "Desktop user edited",
+    override_denied_insufficient_role: "Override denied - rank",
     manual_employee_attempted: "Manual employee attempt",
     manual_employee_accepted: "Manual employee accepted",
     manual_employee_rejected: "Manual employee rejected",
