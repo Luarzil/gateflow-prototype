@@ -54,6 +54,22 @@ const SHELLS = {
 const SHELL_STORAGE_KEY = "lot-watch.gateflow.shell";
 const HANDHELD_MAX_WIDTH = 768;
 
+// CR-V17 review after step 4. The click-path validator drives this app inside a frame and rewrites
+// its storage as it goes. With tabs merging each other's records, a signed-in tab absorbed the
+// validator's test movements and its queue uploaded 24 of them to the dev database (ids 45-68,
+// 2026-09-18). Inside the harness, therefore: movements get no shared-records id, so nothing can
+// upload them; the cloud client is never started; and every save carries the harness epoch, so no
+// other open tab merges the test records into its own.
+const HARNESS_EPOCH = "test-harness";
+const IN_TEST_HARNESS = (() => {
+  try {
+    return window.top !== window && /\/gateflow-validator\//.test(window.top.location.pathname);
+  } catch (error) {
+    // A frame from another origin: not our validator, and not something to trust either.
+    return false;
+  }
+})();
+
 function resolveShell() {
   // 1. An explicit ?shell= wins and is remembered. This is how a handheld gets provisioned:
   //    open the scanner URL once on the device and it stays a scanner.
@@ -336,6 +352,10 @@ function bindEvents() {
   // A click beside the panel closes it, except while it is waiting for a new password: losing a
   // half-finished first sign-in by clicking the page behind it is how this went wrong in testing.
   el.cloudSignInModal.addEventListener("click", (event) => { if (event.target === el.cloudSignInModal && !ui.cloudChallenge) closeCloudSignIn(); });
+  // Escape closes it like every other panel, on the same condition as a click beside it.
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !el.cloudSignInModal.classList.contains("hidden") && !ui.cloudChallenge) closeCloudSignIn();
+  });
   el.clearSearchButton.addEventListener("click", clearSearch);
   el.searchMoreButton.addEventListener("click", showMoreSearchResults);
   el.printSearchButton.addEventListener("click", printSearch);
@@ -738,15 +758,90 @@ function migrateV04State(legacy) {
   return migrated;
 }
 
+// CR-V17 review after step 4. Two faults in how the device keeps its records, both of which could
+// lose movements that had not yet reached the shared records:
+//
+// 1. Storage fills up. Every movement costs about 1,300 characters with its audit entries, and a
+//    phone's web storage holds a few megabytes, so a busy gate filled it in weeks. Saving then
+//    switched itself off for the session while the next notice still said "saved". Now the device
+//    trims what the shared database has already confirmed, and a failure to save is loud and stays
+//    on screen.
+// 2. Two tabs overwrite each other. Each tab saves its whole copy, so the last to save erased what
+//    the other had recorded. Now each save first takes in anything another tab saved.
+const SHARED_KEEP_DAYS = 14;
+const SAVE_FAILED_NOTICE = "This device could not save. The latest movements are NOT stored on it. Do not close the app - call a supervisor.";
+const SYNC_RANK = { local: 0, pending: 1, sending: 2, refused: 3, shared: 3 };
+
 function saveState() {
-  if (!storageAvailable) return;
+  if (!storageAvailable) return false;
+  if (IN_TEST_HARNESS) state.resetEpoch = HARNESS_EPOCH;
+  mergeFromStorage();
+  pruneSharedHistory(SHARED_KEEP_DAYS);
+  if (writeState()) return true;
+  // Full. Keep only today's confirmed history and try once more before giving up.
+  if (pruneSharedHistory(1) && writeState()) return true;
+  ui.saveFailed = true;
+  setNotice(SAVE_FAILED_NOTICE, "danger");
+  return false;
+}
+
+function writeState() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     ui.lastSavedAt = new Date();
+    ui.saveFailed = false;
+    return true;
   } catch (error) {
-    storageAvailable = false;
-    setNotice("This browser could not save the current prototype data.", "warning");
+    return false;
   }
+}
+
+// Only what the shared database has confirmed, older than the window, with the audit entries that
+// belong to it. Nothing unsent, refused, or recorded before movements went to the cloud is ever
+// trimmed: for those, this device holds the only copy.
+function pruneSharedHistory(keepDays) {
+  const cutoff = Date.now() - keepDays * 86400000;
+  const trimmed = new Set();
+  state.transactions = state.transactions.filter((item) => {
+    const confirmedAndOld = item.clientId && item.sync === "shared" && new Date(item.timestamp).getTime() < cutoff;
+    if (confirmedAndOld) trimmed.add(item.clientId);
+    return !confirmedAndOld;
+  });
+  if (trimmed.size) state.auditEvents = state.auditEvents.filter((event) => !(event.movementClientId && trimmed.has(event.movementClientId)));
+  return trimmed.size;
+}
+
+// Movements and audit entries are only ever added, so taking in everything another tab saved loses
+// nothing. A reset of the demo data starts a new epoch, and records from before it are not revived.
+function mergeFromStorage() {
+  let stored = null;
+  try { stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); } catch (error) { return 0; }
+  if (!stored || (stored.resetEpoch || 0) !== (state.resetEpoch || 0)) return 0;
+  return mergeRecords("transactions", stored.transactions) + mergeRecords("auditEvents", stored.auditEvents);
+}
+
+function mergeRecords(key, incoming) {
+  if (!Array.isArray(incoming) || !Array.isArray(state[key])) return 0;
+  const known = new Map(state[key].map((item) => [item.id, item]));
+  let added = 0;
+  incoming.forEach((item) => {
+    const mine = item && known.get(item.id);
+    if (!item || !item.id) return;
+    if (!mine) {
+      state[key].push(item);
+      added += 1;
+      return;
+    }
+    // Another tab may already have sent this movement: take its word rather than send it again.
+    if (key === "transactions" && (SYNC_RANK[item.sync] || 0) > (SYNC_RANK[mine.sync] || 0)) {
+      mine.sync = item.sync;
+      mine.serverId = item.serverId;
+      mine.serverConflict = item.serverConflict;
+      mine.syncError = item.syncError;
+    }
+  });
+  if (added) state[key].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  return added;
 }
 
 function showView(viewId) {
@@ -1261,7 +1356,8 @@ function completeTransaction(draft) {
     id: makeId("tx"),
     // CR-V17 step 3: the id the shared database knows this movement by. It is made here, on the
     // device, so an upload retried after a dropped signal is recognised instead of recorded twice.
-    clientId: window.VeriGateCloud ? window.VeriGateCloud.movementId() : makeId("m"),
+    // Never inside the test harness: a movement with no id can never be queued or uploaded.
+    clientId: IN_TEST_HARNESS ? undefined : window.VeriGateCloud ? window.VeriGateCloud.movementId() : makeId("m"),
     sync: "local",
     timestamp: new Date().toISOString(),
     direction: draft.direction,
@@ -1284,10 +1380,15 @@ function completeTransaction(draft) {
     locationConfirmed: device ? (device.type === "Fixed" || state.floaterLocationConfirmed) : false,
     driverEntryMethod: draft.driverEntryMethod,
     vehicleEntryMethod: draft.vehicleEntryMethod,
-    barcodeEntryMethod: draft.vehicleEntryMethod
+    barcodeEntryMethod: draft.vehicleEntryMethod,
+    // The authorization this device relied on, sent with the movement. Until authorizations are
+    // written to the shared records, it is how the server tells "authorized on the device" apart
+    // from "not authorized" instead of flagging both the same way.
+    deviceAuthorization: auth ? { validFrom: auth.validFrom, expiresAt: auth.expiresAt, authorizedBy: auth.authorizedBy } : null
   };
   if (device) { device.lastUsedAt = transaction.timestamp; device.lastTransactionLocation = draft.location; device.updatedAt = transaction.timestamp; }
   state.transactions.unshift(transaction);
+  const auditBefore = state.auditEvents.length;
   // CR-V08-BETA-CRITICAL-APP-001: bind the provisional record to the inbound event that created
   // it, so the audit trail shows where an auto-created vehicle came from.
   if (draft.scannerCreated) {
@@ -1311,6 +1412,8 @@ function completeTransaction(draft) {
   if (draft.direction === "IN" && authorizationStatus === "Unauthorized") {
     addAudit("unauthorized_in_review", "Unauthorized IN - operational review.", currentStationIdentity(), draft.location);
   }
+  // Tie this movement's own audit entries to it, so they are trimmed with it and never before it.
+  state.auditEvents.slice(0, state.auditEvents.length - auditBefore).forEach((event) => { event.movementClientId = transaction.clientId; });
   saveState();
   renderAll();
   // 081526 v7 edit #9: a clean submission returns straight to the start page for the next scan.
@@ -1357,7 +1460,8 @@ function movementPayload(transaction) {
     submittedBy: transaction.submittedBy,
     note: transaction.note,
     deviceId: transaction.deviceId,
-    occurredAt: transaction.timestamp
+    occurredAt: transaction.timestamp,
+    deviceAuthorization: transaction.deviceAuthorization || null
   };
 }
 
@@ -1376,9 +1480,10 @@ function markShared(transaction, result) {
   if (result.conflict) {
     // The vehicle moved either way. The disagreement is recorded for a supervisor to review,
     // which is the only change the shared records allow on a movement that is already written.
-    addAudit("movement_flagged_by_records",
+    const flagged = addAudit("movement_flagged_by_records",
       `Shared records flagged ${transaction.direction} for ${transaction.driverEmployee} / ${transaction.vehicleBarcode}: ${cloud.conflictText(result.conflict)}.`,
       transaction.submittedBy, transaction.location);
+    flagged.movementClientId = transaction.clientId;
     if (isLatestSubmission(transaction)) setNotice(`Saved and shared, but flagged for review: ${cloud.conflictText(result.conflict)}.`, "warning");
   } else if (isLatestSubmission(transaction) && !result.alreadyRecorded) {
     setNotice(`Vehicle ${transaction.direction} saved for ${transaction.driverName} / ${transaction.vehicleBarcode}. In the shared records.`, "success");
@@ -1388,9 +1493,10 @@ function markShared(transaction, result) {
 function markRefused(transaction, error) {
   transaction.sync = "refused";
   transaction.syncError = error.message;
-  addAudit("movement_refused_by_records",
+  const refusal = addAudit("movement_refused_by_records",
     `Shared records refused ${transaction.direction} for ${transaction.driverEmployee} / ${transaction.vehicleBarcode}: ${error.message} The movement is kept on this device.`,
     transaction.submittedBy, transaction.location);
+  refusal.movementClientId = transaction.clientId;
   if (isLatestSubmission(transaction)) setNotice(`Saved on this device, but the shared records refused it: ${error.message}`, "danger");
 }
 
@@ -1483,6 +1589,11 @@ function startSync() {
   if (recovered) saveState();
   window.addEventListener("online", () => { syncDevice(); });
   window.addEventListener("offline", renderSyncStatus);
+  // Another tab of the console saved: take in anything it recorded, so neither erases the other.
+  window.addEventListener("storage", (event) => {
+    if (event.key !== STORAGE_KEY || !event.newValue) return;
+    if (mergeFromStorage()) renderAll();
+  });
   setInterval(() => { if (queuedMovements().length) syncDevice(); }, SYNC_RETRY_MS);
   renderSyncStatus();
 }
@@ -2238,7 +2349,7 @@ function renderDevices() {
 }
 
 function addAudit(type, description, actor, location, source = "user action") {
-  state.auditEvents.unshift({
+  const event = {
     id: makeId("audit"),
     timestamp: new Date().toISOString(),
     type,
@@ -2246,7 +2357,11 @@ function addAudit(type, description, actor, location, source = "user action") {
     actor,
     location,
     source
-  });
+  };
+  state.auditEvents.unshift(event);
+  // Returned so a movement's own entries can be tied to it, and trimmed with it once the shared
+  // records hold both.
+  return event;
 }
 
 function renderAll() {
@@ -2667,7 +2782,7 @@ function renderCloudStatus(status) {
 }
 
 function startCloud() {
-  if (!window.VeriGateCloud) return;
+  if (!window.VeriGateCloud || IN_TEST_HARNESS) return;
   startSync();
   window.VeriGateCloud.onChange((status) => {
     renderCloudStatus(status);
@@ -2724,7 +2839,7 @@ function renderSearchResults() {
   el.searchMoreButton.textContent = `Show next ${Math.min(SEARCH_PAGE_SIZE, Math.max(remaining, 0)) || SEARCH_PAGE_SIZE}`;
   if (el.searchSourceNote && !ui.searchBusy) el.searchSourceNote.textContent = searchSourceText();
   el.searchResultsBody.innerHTML = shown.length ? shown.map((item) => `<tr>
-    <td>${formatTimestamp(item.timestamp)}</td><td><span class="movement-chip ${item.direction.toLowerCase()}">${item.direction}</span></td><td>${escapeHtml(item.driverEmployee)}</td><td>${escapeHtml(item.driverName)}</td><td>${escapeHtml(entryMethodLabel(item.driverEntryMethod))}</td><td class="mono">${escapeHtml(item.vehicleBarcode || "-")}</td><td>${escapeHtml(entryMethodLabel(item.vehicleEntryMethod))}</td><td class="mono">${escapeHtml(item.vin)}</td><td>${escapeHtml(item.plate || "-")}</td><td>${escapeHtml(item.location)}${isHistoricalOnlyLocation(item.location) ? ` <span class="status-badge inactive">History only</span>` : ""}</td><td><span class="status-badge ${item.authorizationStatus === "Authorized" ? "authorized" : item.authorizationStatus === LOCATION_OVERRIDE_STATUS ? "provisional" : "unauthorized"}">${escapeHtml(item.authorizationStatus)}</span></td><td>${escapeHtml(item.note || "-")}</td><td>${escapeHtml(item.submittedBy)}</td>
+    <td>${formatTimestamp(item.timestamp)}</td><td><span class="movement-chip ${escapeHtml(String(item.direction).toLowerCase())}">${escapeHtml(item.direction)}</span></td><td>${escapeHtml(item.driverEmployee)}</td><td>${escapeHtml(item.driverName)}</td><td>${escapeHtml(entryMethodLabel(item.driverEntryMethod))}</td><td class="mono">${escapeHtml(item.vehicleBarcode || "-")}</td><td>${escapeHtml(entryMethodLabel(item.vehicleEntryMethod))}</td><td class="mono">${escapeHtml(item.vin)}</td><td>${escapeHtml(item.plate || "-")}</td><td>${escapeHtml(item.location)}${isHistoricalOnlyLocation(item.location) ? ` <span class="status-badge inactive">History only</span>` : ""}</td><td><span class="status-badge ${item.authorizationStatus === "Authorized" ? "authorized" : item.authorizationStatus === LOCATION_OVERRIDE_STATUS ? "provisional" : "unauthorized"}">${escapeHtml(item.authorizationStatus)}</span></td><td>${escapeHtml(item.note || "-")}</td><td>${escapeHtml(item.submittedBy)}</td>
   </tr>`).join("") : `<tr><td colspan="13" class="empty-cell">No transactions match these filters.</td></tr>`;
 }
 
@@ -2737,6 +2852,8 @@ function resetDemo() {
   const ok = typeof confirm === "function" ? confirm("Reset the Veri-Gate demo data? Current prototype changes will be replaced.") : true;
   if (!ok) return;
   const fresh = createSeedState();
+  // A new epoch, so another open tab cannot merge the old records back in.
+  fresh.resetEpoch = Date.now();
   Object.keys(state).forEach((key) => delete state[key]);
   Object.assign(state, fresh);
   addAudit("demo_reset", "Demo data reset to V0.7 scanner and device control seed data.", "System", "");
@@ -2749,6 +2866,8 @@ function resetDemo() {
 }
 
 function setNotice(message, tone) {
+  // A device that cannot save must not show "saved" for anything, including the next movement.
+  if (ui.saveFailed && tone !== "danger") { message = SAVE_FAILED_NOTICE; tone = "danger"; }
   el.scannerNotice.textContent = message;
   el.scannerNotice.className = `scanner-alert ${tone}`;
 }

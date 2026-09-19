@@ -9,8 +9,12 @@ const BUSINESS_TIMEZONE = "America/New_York";
 // The Data API returns a timestamptz as "2026-09-18 22:59:47.718031" - the right instant, in UTC,
 // but with nothing to say so. A browser reads that as local time, which put every gate movement
 // hours out on the first read. Every timestamp therefore leaves here as an explicit UTC instant.
+//
+// To the microsecond, not the millisecond: the paging cursor is built from this value, and a
+// millisecond cursor silently skipped any movement recorded in the same millisecond as the last row
+// of a page. Proven against the database in the review after step 4. Browsers read the extra digits.
 export const utc = (expression, alias) =>
-  `to_char(${expression} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as ${alias}`;
+  `to_char(${expression} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as ${alias}`;
 
 export class RequestError extends Error {
   constructor(message, status = 400, code = "bad_request") {
@@ -66,7 +70,7 @@ export function buildMovementQuery(query = {}) {
     params.location = text(query.location);
   }
   if (text(query.date)) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(text(query.date))) throw new RequestError("date must be written YYYY-MM-DD.");
+    if (!isCalendarDate(text(query.date))) throw new RequestError("date must be a real date written YYYY-MM-DD.");
     // A gate day is a New York day, whatever time zone the database runs in.
     where.push(`(m.occurred_at AT TIME ZONE '${BUSINESS_TIMEZONE}')::date = CAST(:date AS date)`);
     params.date = text(query.date);
@@ -92,7 +96,8 @@ export function buildMovementQuery(query = {}) {
   const sql = `select m.id, m.client_id, m.direction::text as direction, m.driver_employee, m.driver_name, m.vehicle_barcode, m.vin, m.plate,
                       m.location, m.authorization_status, m.note, m.submitted_by,
                       m.driver_entry_method::text as driver_entry_method, m.vehicle_entry_method::text as vehicle_entry_method,
-                      ${utc("m.occurred_at", "occurred_at")}, ${utc("m.received_at", "received_at")}, m.delayed, m.conflict
+                      ${utc("m.occurred_at", "occurred_at")}, ${utc("m.received_at", "received_at")}, m.delayed, m.conflict,
+                      m.uploaded_by
                  from movements m
                  ${clause(where)}
                 order by m.occurred_at desc, m.id desc
@@ -119,12 +124,24 @@ export function encodeCursor(row) {
   return Buffer.from(JSON.stringify({ at: row.occurred_at, id: Number(row.id) })).toString("base64url");
 }
 
+// A forged or damaged cursor used to reach the database and fail there, answering 500. It is the
+// caller's mistake, so it is refused here with a 400 before any query runs.
 export function decodeCursor(value) {
   try {
     const cursor = JSON.parse(Buffer.from(value, "base64url").toString("utf8"));
-    if (typeof cursor.at === "string" && Number.isInteger(cursor.id)) return cursor;
+    const timeIsReal = typeof cursor.at === "string" && /^\d{4}-\d{2}-\d{2}T/.test(cursor.at) && !Number.isNaN(Date.parse(cursor.at));
+    if (timeIsReal && Number.isInteger(cursor.id) && cursor.id > 0) return cursor;
   } catch { /* fall through */ }
   throw new RequestError("before is not a cursor this API issued.");
+}
+
+// "2026-02-30" has the right shape and used to reach the database, which refused it with a 500.
+function isCalendarDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const [year, month, day] = match.slice(1).map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
 
 function escapeLike(value) {

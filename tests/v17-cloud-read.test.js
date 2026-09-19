@@ -257,7 +257,10 @@ test("the sign-in panel asks for a new password when the login needs one", () =>
 });
 
 test("cloud.js loads before the app, and is cached for offline use", () => {
-  assert.ok(html.indexOf('src="cloud.js"') < html.indexOf('src="app.js"'));
+  const cloudTag = html.indexOf('src="cloud.js"');
+  const appTag = html.indexOf('src="app.js"');
+  // A missing tag reads as position -1, which would otherwise count as "first".
+  assert.ok(cloudTag >= 0 && appTag >= 0 && cloudTag < appTag);
   assert.ok(worker.includes('"./cloud.js"'));
 });
 

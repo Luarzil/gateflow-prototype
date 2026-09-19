@@ -190,15 +190,23 @@
     }).then(function (payload) { return finishAuth(payload, username, null); });
   }
 
+  // Several requests can find the token expired at once - a search and the queue, say. They share
+  // one refresh rather than each asking Cognito for its own.
+  var refreshing = null;
+
   function refresh() {
     if (!session || !session.refreshToken) return Promise.reject(new CloudError("Sign in again.", "auth"));
+    if (refreshing) return refreshing;
     var username = session.username;
     var previous = session;
-    return idp("InitiateAuth", {
+    refreshing = idp("InitiateAuth", {
       AuthFlow: "REFRESH_TOKEN_AUTH",
       ClientId: CONFIG.clientId,
       AuthParameters: { REFRESH_TOKEN: session.refreshToken }
     }).then(function (payload) { return finishAuth(payload, username, previous); });
+    var clear = function () { refreshing = null; };
+    refreshing.then(clear, clear);
+    return refreshing;
   }
 
   function signOut(message) {
@@ -219,6 +227,8 @@
 
   function request(path, query, options) {
     return ready().then(function () {
+      // Signed out in another part of the app between the check and here.
+      if (!session) throw new CloudError("Sign in to read the shared records.", "auth");
       var url = CONFIG.api + path + (query ? "?" + query : "");
       var init = { headers: { authorization: session.idToken }, cache: "no-store" };
       if (options && options.body !== undefined) {
@@ -410,6 +420,9 @@
     if (conflict === "authorization_expired") return "the records show no authorization for that driver now";
     if (conflict === "override_needs_scan") return "the location override covers scanned badges only";
     if (conflict === "vehicle_removed") return "the vehicle has been removed from inventory";
+    if (conflict === "authorization_not_shared") return "the authorization was granted on this device and is not in the shared records yet";
+    if (conflict === "device_clock_ahead") return "this device's clock is ahead, so the time on the record may be wrong";
+    if (conflict === "device_clock_behind") return "the time on the record is weeks old, so this device's clock may be wrong";
     return conflict ? "the records disagree with what the gate recorded" : "";
   }
 

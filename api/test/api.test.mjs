@@ -95,13 +95,15 @@ test("bad filters are refused with a reason", async () => {
   assert.equal(badCursor.statusCode, 400);
 });
 
+// Cursors are built from the API's own timestamps, which since the UTC fix are always explicit
+// instants like "2026-09-13T19:35:00.123456Z".
 test("the next-page cursor round-trips", () => {
-  const cursor = encodeCursor({ occurred_at: "2026-09-13 19:35:00.123", id: 42 });
-  assert.deepEqual(decodeCursor(cursor), { at: "2026-09-13 19:35:00.123", id: 42 });
+  const cursor = encodeCursor({ occurred_at: "2026-09-13T19:35:00.123456Z", id: 42 });
+  assert.deepEqual(decodeCursor(cursor), { at: "2026-09-13T19:35:00.123456Z", id: 42 });
 });
 
 test("a full page carries a cursor and the first page carries the total", async () => {
-  const rows = Array.from({ length: 51 }, (_, index) => ({ id: 100 - index, occurred_at: `2026-09-13 19:${String(59 - index % 60).padStart(2, "0")}:00` }));
+  const rows = Array.from({ length: 51 }, (_, index) => ({ id: 100 - index, occurred_at: `2026-09-13T19:${String(59 - index % 60).padStart(2, "0")}:00.000000Z` }));
   const db = recordingDb((sql) => (sql.includes("count(*)") ? [{ total: 132 }] : rows));
   const page = await movementPage(db, {});
   assert.equal(page.movements.length, 50);
@@ -117,9 +119,9 @@ test("a full page carries a cursor and the first page carries the total", async 
 // four hours out of place. Every timestamp must leave the API as an explicit instant.
 test("every timestamp the API returns says it is UTC", () => {
   const { sql } = buildMovementQuery({});
-  assert.match(sql, /to_char\(m\.occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS\.MS"Z"'\) as occurred_at/);
+  assert.match(sql, /to_char\(m\.occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS\.US"Z"'\) as occurred_at/);
   assert.match(sql, /as received_at/);
-  assert.equal(utc("x.created_at", "created_at"), `to_char(x.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as created_at`);
+  assert.equal(utc("x.created_at", "created_at"), `to_char(x.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as created_at`);
 });
 
 test("the reference lists carry the same explicit instants", async () => {
@@ -128,4 +130,29 @@ test("the reference lists carry the same explicit instants", async () => {
   const stamped = seen.filter((sql) => sql.includes("AT TIME ZONE 'UTC'"));
   // locations, drivers, vehicles, devices and authorizations all carry a timestamp; approvers do not.
   assert.equal(stamped.length, 5);
+});
+
+// --- bad input is the caller's mistake, not a server fault (review after step 4) ---
+
+test("an impossible date is refused with a 400 before it reaches the database", () => {
+  assert.throws(() => buildMovementQuery({ date: "2026-02-30" }), /real date/);
+  assert.throws(() => buildMovementQuery({ date: "2026-13-01" }), /real date/);
+  assert.ok(buildMovementQuery({ date: "2028-02-29" }), "a leap day is a real date");
+});
+
+test("a forged cursor is refused with a 400 before it reaches the database", () => {
+  const forge = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  assert.throws(() => decodeCursor(forge({ at: "not-a-time", id: 5 })), /not a cursor this API issued/);
+  assert.throws(() => decodeCursor(forge({ at: "2026-09-18T22:59:47.718031Z", id: -1 })), /not a cursor/);
+  assert.throws(() => decodeCursor("%%%"), /not a cursor/);
+  assert.deepEqual(decodeCursor(forge({ at: "2026-09-18T22:59:47.718031Z", id: 5 })), { at: "2026-09-18T22:59:47.718031Z", id: 5 });
+});
+
+test("the paging cursor keeps the microseconds, so no row in the same millisecond is skipped", () => {
+  const cursor = encodeCursor({ occurred_at: "2026-09-18T22:59:47.718031Z", id: 10 });
+  assert.equal(decodeCursor(cursor).at, "2026-09-18T22:59:47.718031Z");
+});
+
+test("the search reports who uploaded each movement", () => {
+  assert.match(buildMovementQuery({}).sql, /m\.uploaded_by/);
 });

@@ -117,3 +117,10 @@ test("running again applies nothing", async () => {
   const result = await createMigrator({ db, loadMigrations: three })();
   assert.deepEqual(result.results, []);
 });
+
+test("004 adds the uploader column and nothing else", () => {
+  const statements = splitSql(schema("004_uploaded_by.sql"));
+  assert.equal(statements.length, 2);
+  assert.match(statements[0], /ALTER TABLE movements ADD COLUMN IF NOT EXISTS uploaded_by text/);
+  assert.match(statements[1], /COMMENT ON COLUMN movements\.uploaded_by/);
+});

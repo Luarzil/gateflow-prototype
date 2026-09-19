@@ -29,7 +29,7 @@ const goodBody = (overrides = {}) => ({
 
 // driver: the roster row, or null for an employee number nobody has heard of.
 // vehicle: the inventory row, or null for a barcode never seen before.
-function fakeDb({ driver = { employee_number: "E1001", name: "Nina Patel", active: true, license_expires: "2026-12-11", license_expired: false, authorized_now: true },
+function fakeDb({ driver = { employee_number: "E1001", name: "Nina Patel", active: true, license_expires: "2026-12-11", license_expired: false, authorized_then: true },
                   vehicle = { id: 11, assigned_barcode: "G0001", vin: "1HGCM82633A004352", plate: "TRK-8877", active: true },
                   device = { id: "D0001", name: "Division Gate Scanner", type: "Fixed", assigned_location: "Division Street" },
                   existing = null, nextId = 77 } = {}) {
@@ -76,9 +76,40 @@ test("an authorization status the app never produces is refused", () => {
   assert.throws(() => readMovementBody(goodBody({ authorizationStatus: "Approved" }), NOW), /authorizationStatus must be one of/);
 });
 
-test("a movement timed hours ahead of the server is refused, minutes is not", () => {
-  assert.throws(() => readMovementBody(goodBody({ occurredAt: "2026-09-18T23:00:00.000Z" }), NOW), /in the future/);
-  assert.ok(readMovementBody(goodBody({ occurredAt: "2026-09-18T20:05:00.000Z" }), NOW));
+// A phone clock ten minutes fast used to have every movement refused, forever, from the queue.
+// It is kept and flagged now; only a clock a day or more ahead is refused.
+test("a device clock hours ahead is kept and flagged; only a day or more ahead is refused", () => {
+  const hoursAhead = readMovementBody(goodBody({ occurredAt: "2026-09-18T23:00:00.000Z" }), NOW);
+  assert.equal(findConflict(hoursAhead, { driver: { active: true, authorized_then: true } }), "device_clock_ahead");
+  assert.throws(() => readMovementBody(goodBody({ occurredAt: "2026-09-19T21:00:00.000Z" }), NOW), /more than 24 hours in the future/);
+  const minutesAhead = readMovementBody(goodBody({ occurredAt: "2026-09-18T20:05:00.000Z" }), NOW);
+  assert.equal(findConflict(minutesAhead, { driver: { active: true, authorized_then: true } }), "");
+});
+
+test("a movement stamped months back is kept but its clock is flagged", () => {
+  const old = readMovementBody(goodBody({ occurredAt: "2026-06-01T12:00:00.000Z" }), NOW);
+  assert.equal(findConflict(old, { driver: { active: true, authorized_then: true } }), "device_clock_behind");
+  // A few days offline is exactly what the queue is for, and is not suspicious.
+  const days = readMovementBody(goodBody({ occurredAt: "2026-09-14T12:00:00.000Z" }), NOW);
+  assert.equal(findConflict(days, { driver: { active: true, authorized_then: true } }), "");
+});
+
+// --- barcodes and employee numbers ----------------------------------------
+
+test("a barcode is stored in its one canonical form, whatever case it arrives in", () => {
+  assert.equal(readMovementBody(goodBody({ vehicleBarcode: "g0042" }), NOW).vehicleBarcode, "G0042");
+  assert.equal(readMovementBody(goodBody({ vehicleBarcode: "G12345" }), NOW).vehicleBarcode, "G12345");
+});
+
+test("a barcode that is not G and four digits is refused, so it cannot invent a vehicle", () => {
+  for (const bad of ["g42", "G004", "GABCD", "0001", "G-0001", "G0001; drop table"]) {
+    assert.throws(() => readMovementBody(goodBody({ vehicleBarcode: bad }), NOW), /vehicleBarcode must be G/, bad);
+  }
+});
+
+test("an employee number is matched upper-case and may hold only letters and digits", () => {
+  assert.equal(readMovementBody(goodBody({ driverEmployee: "ab123" }), NOW).driverEmployee, "AB123");
+  assert.throws(() => readMovementBody(goodBody({ driverEmployee: "E1001'--" }), NOW), /only letters and digits/);
 });
 
 test("an unreadable time is refused rather than stored as nothing", () => {
@@ -165,7 +196,7 @@ test("two uploads of one movement racing each other still record it once", async
   db.query = async (sql, p = {}, transactionId) => {
     db.writes.push({ sql, params: p, transactionId });
     if (sql.includes("from movements where client_id") && !sql.includes("select id, conflict")) return [];
-    if (sql.includes("from drivers d")) return [{ employee_number: "E1001", name: "Nina Patel", active: true, license_expired: false, authorized_now: true }];
+    if (sql.includes("from drivers d")) return [{ employee_number: "E1001", name: "Nina Patel", active: true, license_expired: false, authorized_then: true }];
     if (sql.includes("from vehicles where assigned_barcode")) return [{ id: 11, active: true }];
     if (sql.includes("from devices where id")) return [];
     if (sql.includes("insert into movements")) return [];
@@ -180,34 +211,34 @@ test("two uploads of one movement racing each other still record it once", async
 // --- where the gate and the records disagree ------------------------------
 
 test("agreement is flagged as nothing at all", () => {
-  assert.equal(findConflict(readMovementBody(goodBody(), NOW), { driver: { active: true, authorized_now: true }, vehicle: { active: true } }), "");
+  assert.equal(findConflict(readMovementBody(goodBody(), NOW), { driver: { active: true, authorized_then: true }, vehicle: { active: true } }), "");
 });
 
 test("an authorized movement by a driver the records show as unauthorized is flagged", () => {
   const movement = readMovementBody(goodBody(), NOW);
-  assert.equal(findConflict(movement, { driver: { active: true, authorized_now: false } }), "authorization_expired");
+  assert.equal(findConflict(movement, { driver: { active: true, authorized_then: false } }), "authorization_expired");
 });
 
 test("an inactive driver and an expired license are each flagged", () => {
   const movement = readMovementBody(goodBody(), NOW);
-  assert.equal(findConflict(movement, { driver: { active: false, authorized_now: true } }), "driver_inactive");
-  assert.equal(findConflict(movement, { driver: { active: true, license_expired: true, authorized_now: true } }), "license_expired");
+  assert.equal(findConflict(movement, { driver: { active: false, authorized_then: true } }), "driver_inactive");
+  assert.equal(findConflict(movement, { driver: { active: true, license_expired: true, authorized_then: true } }), "license_expired");
 });
 
 test("an override recorded against a typed employee number is flagged", () => {
   const scanned = readMovementBody(goodBody({ authorizationStatus: "Location override" }), NOW);
-  assert.equal(findConflict(scanned, { driver: { active: true, authorized_now: false } }), "");
+  assert.equal(findConflict(scanned, { driver: { active: true, authorized_then: false } }), "");
   const typed = readMovementBody(goodBody({ authorizationStatus: "Location override", driverEntryMethod: "manual" }), NOW);
-  assert.equal(findConflict(typed, { driver: { active: true, authorized_now: false } }), "override_needs_scan");
+  assert.equal(findConflict(typed, { driver: { active: true, authorized_then: false } }), "override_needs_scan");
 });
 
 test("an unauthorized movement is never flagged: it already says what it is", () => {
   const movement = readMovementBody(goodBody({ direction: "IN", authorizationStatus: "Unauthorized" }), NOW);
-  assert.equal(findConflict(movement, { driver: { active: false, license_expired: true, authorized_now: false } }), "");
+  assert.equal(findConflict(movement, { driver: { active: false, license_expired: true, authorized_then: false } }), "");
 });
 
 test("a flag is stored on the movement and returned to the scanner", async () => {
-  const db = fakeDb({ driver: { employee_number: "E1001", name: "Nina Patel", active: true, license_expired: false, authorized_now: false } });
+  const db = fakeDb({ driver: { employee_number: "E1001", name: "Nina Patel", active: true, license_expired: false, authorized_then: false } });
   const result = await recordMovement(db, goodBody(), { now: () => NOW });
   assert.equal(result.conflict, "authorization_expired");
   assert.equal(params(db, "insert into movements").conflict, "authorization_expired");
@@ -254,4 +285,57 @@ test("a base64 body is decoded", async () => {
   const handler = createHandler({ db, now: () => NOW });
   const response = await handler({ ...signedIn, body: Buffer.from(JSON.stringify(goodBody())).toString("base64"), isBase64Encoded: true });
   assert.equal(response.statusCode, 201);
+});
+
+// --- judged as of the gate, not as of the upload (review after step 4) ----
+
+test("the roster and authorization are checked as of the moment of the movement", async () => {
+  const db = fakeDb();
+  await recordMovement(db, goodBody({ occurredAt: "2026-09-17T08:00:00.000Z" }), { now: () => NOW });
+  const facts = wrote(db, "from drivers d")[0];
+  // The movement's own time is what the query is asked about, not the server's clock.
+  assert.equal(facts.params.occurredAt, "2026-09-17T08:00:00.000Z");
+  assert.match(facts.sql, /a\.valid_from <= CAST\(:occurredAt AS timestamptz\)/);
+  assert.match(facts.sql, /a\.expires_at > CAST\(:occurredAt AS timestamptz\)/);
+  // An authorization revoked after the movement still covered it.
+  assert.match(facts.sql, /a\.revoked_at is null or a\.revoked_at > CAST\(:occurredAt AS timestamptz\)/);
+  assert.match(facts.sql, /license_expires < \(CAST\(:occurredAt AS timestamptz\) AT TIME ZONE 'America\/New_York'\)::date/);
+  assert.ok(!/now\(\)/.test(facts.sql), "nothing about the driver may be judged by the time of upload");
+});
+
+test("an authorization held only on the device is flagged as not shared, not as expired", () => {
+  const withEvidence = readMovementBody(goodBody({ deviceAuthorization: { validFrom: "2026-09-18T12:00:00.000Z", expiresAt: "2026-09-18T21:00:00.000Z", authorizedBy: "Morgan Lee" } }), NOW);
+  assert.equal(findConflict(withEvidence, { driver: { active: true, authorized_then: false } }), "authorization_not_shared");
+  // Evidence that had already run out by the time of the movement does not count.
+  const stale = readMovementBody(goodBody({ deviceAuthorization: { expiresAt: "2026-09-18T19:00:00.000Z" } }), NOW);
+  assert.equal(findConflict(stale, { driver: { active: true, authorized_then: false } }), "authorization_expired");
+  const none = readMovementBody(goodBody(), NOW);
+  assert.equal(findConflict(none, { driver: { active: true, authorized_then: false } }), "authorization_expired");
+});
+
+test("device evidence is never needed when the shared records agree", () => {
+  const movement = readMovementBody(goodBody({ deviceAuthorization: { expiresAt: "2026-09-18T21:00:00.000Z" } }), NOW);
+  assert.equal(findConflict(movement, { driver: { active: true, authorized_then: true } }), "");
+});
+
+test("junk in the device evidence is ignored rather than trusted", () => {
+  assert.equal(readMovementBody(goodBody({ deviceAuthorization: { expiresAt: "whenever" } }), NOW).deviceAuthorization, null);
+  assert.equal(readMovementBody(goodBody({ deviceAuthorization: "yes" }), NOW).deviceAuthorization, null);
+});
+
+// --- who uploaded it ------------------------------------------------------
+
+test("the signed-in uploader is recorded from the token, and a claim in the body is ignored", async () => {
+  const db = fakeDb();
+  await recordMovement(db, goodBody({ uploadedBy: "someone-else" }), { actor: "raul", now: () => NOW });
+  assert.equal(params(db, "insert into movements").uploadedBy, "raul");
+  assert.match(params(db, "insert into audit_events").description, /Uploaded by raul\./);
+  // The station that recorded it at the gate stays the audit entry's actor.
+  assert.equal(params(db, "insert into audit_events").actor, "Division Street Scanner");
+});
+
+test("with no sign-in identity, the uploader is left empty rather than guessed", async () => {
+  const db = fakeDb();
+  await recordMovement(db, goodBody(), { now: () => NOW });
+  assert.equal(params(db, "insert into movements").uploadedBy, null);
 });
