@@ -547,15 +547,19 @@ async function testDriverManagement() {
   click('#driverForm button[type="submit"]');
   expect(/unique/i.test(text("#driverEmployeeError")), "Duplicate Employee Number was accepted.");
   click("#cancelDriverButton");
-  click('[data-driver-action="toggle"][data-driver-employee="E2002"]');
+  targetConfirmResponse = false;
+  driverMenu("toggle", "E2002");
+  expect(state().drivers.find((driver) => driver.employeeNumber === "E2002").active === true, "The Actions menu changed a driver without asking.");
+  targetConfirmResponse = true;
+  driverMenu("toggle", "E2002");
   expect(state().drivers.find((driver) => driver.employeeNumber === "E2002").active === false, "Driver was not deactivated.");
-  click('[data-driver-action="toggle"][data-driver-employee="E2002"]');
+  driverMenu("toggle", "E2002");
   expect(state().drivers.find((driver) => driver.employeeNumber === "E2002").active === true, "Driver was not reactivated.");
 }
 
 async function testDriverEditAudit() {
   click('[data-view="supervisorView"]');
-  click('[data-driver-action="edit"][data-driver-employee="E1001"]');
+  driverMenu("edit", "E1001");
   input("#driverName", "Nina Patel Updated");
   select(q("#driverActive"), "false");
   click('#driverForm button[type="submit"]');
@@ -584,7 +588,7 @@ async function testBulkAuthorize() {
 
 async function testBulkDeauthorize() {
   click('[data-view="supervisorView"]');
-  click('[data-driver-action="authorize"][data-driver-employee="E1003"]');
+  driverMenu("authorize", "E1003");
   targetConfirmResponse = false;
   click("#deauthorizeAllButton");
   expect(state().authorizations.some((item) => item.driverEmployee === "E1003" && item.status === "active"), "Cancelled bulk deauthorization still revoked an authorization.");
@@ -681,7 +685,7 @@ async function testRemovedVehicleScanBlock() {
 async function testDurationCalculations() {
   click('[data-view="supervisorView"]');
   await waitForVisible("#supervisorView");
-  click('[data-driver-action="authorize"][data-driver-employee="E1003"]');
+  driverMenu("authorize", "E1003");
   const authorization = state().authorizations.find((item) => item.driverEmployee === "E1003" && item.status === "active");
   expect(authorization && authorization.type === "9_hours", "Authorization did not use the default 9-hour duration.");
   const elapsed = new Date(authorization.expiresAt).getTime() - new Date(authorization.authorizedAt).getTime();
@@ -694,7 +698,7 @@ async function testDurationCalculations() {
 
 async function testRevocation() {
   click('[data-view="supervisorView"]');
-  click('[data-driver-action="authorize"][data-driver-employee="E1003"]');
+  driverMenu("authorize", "E1003");
   expect(state().authorizations.some((item) => item.driverEmployee === "E1003" && item.status === "active"), "Setup authorization was not created.");
   click('[data-driver-action="deauthorize"][data-driver-employee="E1003"]');
   expect(!state().authorizations.some((item) => item.driverEmployee === "E1003" && item.status === "active"), "Authorization was not revoked.");
@@ -741,7 +745,7 @@ async function testCombinedSearch() {
 
 async function testDriverProfile() { click('[data-view="supervisorView"]'); click('[data-driver-action="profile"][data-driver-employee="E1001"]'); await waitForVisible("#driverProfileModal"); expect(text("#driverProfileBody").includes("E1001") && text("#driverProfileBody").includes("Recent movements"), "Driver profile does not show retained details."); }
 async function testDriverProfileKeyboard() { click('[data-view="supervisorView"]'); const button = q('[data-driver-action="profile"][data-driver-employee="E1001"]'); key('[data-driver-action="profile"][data-driver-employee="E1001"]', "Enter"); button.click(); await waitForVisible("#driverProfileModal"); expect(q("#closeDriverProfileButton") === doc().activeElement || q("#driverProfileModal").classList.contains("hidden") === false, "Driver profile is not keyboard reachable."); }
-async function testDriverDeactivation() { click('[data-view="supervisorView"]'); click('[data-driver-action="toggle"][data-driver-employee="E1001"]'); const driver = state().drivers.find((item) => item.employeeNumber === "E1001"); expect(driver.active === false, "Driver was not deactivated."); expect(!state().authorizations.some((auth) => auth.driverEmployee === "E1001" && auth.status === "active"), "Deactivation did not revoke active authorization."); }
+async function testDriverDeactivation() { click('[data-view="supervisorView"]'); driverMenu("toggle", "E1001"); const driver = state().drivers.find((item) => item.employeeNumber === "E1001"); expect(driver.active === false, "Driver was not deactivated."); expect(!state().authorizations.some((auth) => auth.driverEmployee === "E1001" && auth.status === "active"), "Deactivation did not revoke active authorization."); }
 async function testInactiveDriverSearch() { await testDriverDeactivation(); click('[data-view="supervisorView"]'); input("#driverRosterSearch", "Nina"); expect(text("#driversTableBody").includes("Nina Patel") && text("#driversTableBody").includes("Inactive"), "Inactive driver is no longer searchable."); }
 async function testNoDriverDelete() { await testDriverDeactivation(); expect(state().drivers.some((driver) => driver.employeeNumber === "E1001"), "Driver profile was hard deleted."); }
 async function testEnterpriseActiveAbsent() { expect(![...q("#scannerLocation").options].some((option) => option.value === "Enterprise Repair Facility"), "Enterprise is available for new scanner operations."); click('[data-view="supervisorView"]'); click('[data-supervisor-section="devicesSection"]'); click("#addDeviceButton"); expect(![...q("#deviceLocationInput").options].some((option) => option.value === "Enterprise Repair Facility"), "Enterprise is available for device assignment."); }
@@ -866,6 +870,8 @@ function input(selector, value) { const node = q(selector); const win = targetWi
 // CR-V14 item 1: tapping a scan field is what opens the keyboard and marks the entry as manual.
 function tap(selector) { const win = targetWindow(); q(selector).dispatchEvent(new win.PointerEvent("pointerdown", { bubbles: true })); }
 function key(selector, keyName) { const win = targetWindow(); q(selector).dispatchEvent(new win.KeyboardEvent("keydown", { key: keyName, bubbles: true })); }
+// CR-V18: a driver row has one Actions menu; choosing an action is how a supervisor starts it.
+function driverMenu(action, employee) { select(q(`[data-driver-actions="${employee}"]`), action); }
 function select(node, value) { const win = targetWindow(); node.value = value; node.dispatchEvent(new win.Event("change", { bubbles: true })); }
 function state() { const raw = targetWindow().localStorage.getItem(STATE_KEY); expect(raw, "Target state was not saved."); return JSON.parse(raw); }
 function events() { return state().auditEvents || []; }

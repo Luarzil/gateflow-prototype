@@ -348,7 +348,7 @@ tbody tr:last-child td { border-bottom: 0; }
   .wizard-step { padding: 12px; gap: 11px; }
   .wizard-step .screen-subtitle { margin-top: -6px; }
   .scanner-stage:has(#scanWizard:not(.hidden)) { padding-bottom: calc(86px + env(safe-area-inset-bottom)); }
-  #driverInput { scroll-margin-bottom: calc(86px + env(safe-area-inset-bottom)); }
+  #driverInput, #barcodeInput, #supervisorInput { scroll-margin-bottom: calc(86px + env(safe-area-inset-bottom)); }
   .wizard-actions { position: fixed; left: 12px; right: 12px; bottom: calc(8px + env(safe-area-inset-bottom)); z-index: 10; margin: 0; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: #fff; box-shadow: 0 -5px 18px rgb(20 35 31 / 18%); }
   .wizard-step[data-step="3"] .summary-list li { grid-template-columns: 88px minmax(0, 1fr); align-items: start; gap: 8px; padding-block: 7px; }
 }
@@ -371,6 +371,18 @@ tbody tr:last-child td { border-bottom: 0; }
 .compact-panel { min-width: 0; }
 .compact-panel > .button { margin: -2px 0 12px; }
 .action-stack { display: grid; gap: 4px; min-width: 110px; }
+/* CR-V18: one Actions menu per driver row instead of three stacked buttons. */
+.row-actions { min-width: 118px; min-height: 32px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--green-deep); font-size: 12px; font-weight: 800; }
+/* CR-V18: Active Driver Authorizations, one narrow line per driver. */
+.compact-rows th, .compact-rows td { padding-top: 4px; padding-bottom: 4px; white-space: nowrap; }
+.compact-rows .muted { color: var(--muted); font-size: 11px; }
+/* CR-V18: the barcode label, previewed after Save Vehicle and printed on its own label-sized page. */
+.label-preview { display: grid; place-items: center; min-width: 0; margin: 12px 0; padding: 12px; overflow: hidden; border: 1px dashed var(--line); border-radius: 8px; background: #fff; }
+.barcode-label { display: grid; justify-items: center; gap: 2px; width: 100%; max-width: 3.6in; box-sizing: border-box; color: #000; text-align: center; }
+.barcode-label-bars svg { display: block; width: 100%; height: auto; max-height: 0.95in; }
+.barcode-label-code { margin: 0; font: 800 20px/1.1 ui-monospace, Consolas, monospace; letter-spacing: 2px; }
+.barcode-label-meta { margin: 0; font-size: 11px; }
+.label-print-sheet { display: none; }
 .vehicle-toolbar { grid-template-columns: minmax(260px, 1fr) minmax(160px, 220px); }
 .modal-wide { width: min(760px, calc(100vw - 28px)); }
 .modal-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -628,4 +640,8 @@ tbody tr:hover { background: var(--green-soft); }
   .print-only { display: block !important; }
   .print-footer { margin-top: 12px; padding-top: 8px; border-top: 1px solid #000; font-size: 11px; break-inside: avoid; }
   .print-footer p { margin: 2px 0; }
+  /* CR-V18: printing a barcode label prints the label and nothing else, on a 4 x 2 inch page. */
+  body.printing-label > *:not(.label-print-sheet) { display: none !important; }
+  body.printing-label .label-print-sheet { display: grid !important; place-items: center; page: label; width: 4in; height: 2in; }
 }
+@page label { size: 4in 2in; margin: 0.1in; }
