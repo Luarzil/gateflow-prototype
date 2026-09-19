@@ -113,21 +113,77 @@
   </div>
 
   <div class="card">
-    <h2>5. Read the manual</h2>
+    <h2>5. What changed after your September 13 call</h2>
+    <p>The call added a few things the email had not. These are newer than the videos.</p>
+    <ul>
+      <li><strong>One Actions menu per driver row</strong>, in place of the three-line block of
+      buttons — Edit, Mark inactive, Authorize, Revoke. The name still opens the profile. With
+      thousands of drivers the list stays one line each. Anything that changes a driver asks
+      "are you sure" first; tell us if that is one click too many.</li>
+      <li><strong>Active Driver Authorizations is one line per driver</strong> — name, employee
+      number, duration, expiry, Revoke. The scope is said once above the table instead of
+      repeating "All current locations" on every row.</li>
+      <li><strong>Save a new vehicle and it offers to print the label.</strong> The pop-up shows
+      the label; <strong>Print label</strong> prints only the label, on a 4 × 2 inch page. Printing
+      is recorded in the history. The label carries the barcode, the number in large type, the VIN,
+      and year, make, model and colour when we know them.</li>
+      <li><strong>The keyboard no longer covers what the operator is typing.</strong> The app now
+      shrinks above the keyboard and keeps the open field in view.</li>
+      <li><strong>The date box will not take a bad year.</strong> 2020 to 2099 only. A half-typed
+      date stops the search with a message instead of quietly searching every date.</li>
+    </ul>
+    <p>The manager button next to Search is already there — it is the <strong>Admin</strong> tab,
+    with the per-location override switches.</p>
+  </div>
+
+  <div class="card">
+    <h2>6. The shared database is running</h2>
+    <p>This is the part you cannot see on the screen, so it is written out here. Up to now every
+    phone kept its own records. That is now finished.</p>
+    <ul>
+      <li><strong>Every phone and every console share one set of records.</strong> A movement
+      scanned at one gate is in the log for everyone, and a driver authorized in the console
+      reaches the phones within about five minutes.</li>
+      <li><strong>No signal is not a problem.</strong> The phone keeps working exactly as it does
+      now and holds everything it recorded. When signal comes back it sends it, in the order it
+      happened. A phone can be out of coverage for days without losing a scan.</li>
+      <li><strong>Everyone signs in, and the record says who did it.</strong> Each gate phone has
+      its own login that you set up once; the console asks the supervisor to sign in. Changes are
+      recorded under the person's name instead of "Supervisor Console".</li>
+      <li><strong>The system decides what each person may do, not the app on the screen.</strong>
+      A gate phone can scan and record. A Fleet Lead can also search the log and authorize drivers.
+      A Supervisor can also edit drivers and vehicles. Only an Admin touches the override switches
+      and the logins. Changing this on a phone changes nothing — the server refuses it.</li>
+      <li><strong>You add and remove logins yourself</strong>, from a Users tab in the console. It
+      gives you a one-time password to hand over; the person picks their own at first sign-in.
+      Turning a login off cuts that person off on every device.</li>
+      <li><strong>The records are kept even if a phone is lost or wiped.</strong> They are in the
+      database, not on the phone.</li>
+    </ul>
+    <p>It is running in the Veri-Gate development account today, which is where we prove it before
+    it moves to the live account. Nothing about how it works changes in that move.</p>
+  </div>
+
+  <div class="card">
+    <h2>7. Read the manual</h2>
     <p>How the app works, with test values for trying each rule yourself.</p>
     <a class="btn alt" href="manual.html">Open the operator manual</a>
   </div>
 
   <div class="card">
-    <h2>6. Try the app in a browser</h2>
-    <p>Runs on a computer with the full supervisor console. On a phone it shows only the scanner. This opens the demo: made-up records that stay in your browser, with no login needed.</p>
-    <a class="btn alt" href="./?demo=1">Open the Veri-Gate demo</a>
+    <h2>8. Try the app in a browser</h2>
+    <p>Runs on a computer with the full supervisor console. On a phone it shows only the scanner.
+    This opens the demo: made-up records that stay in your browser, with no login needed and no
+    connection to the real ones.</p>
+    <a class="btn alt" href="./index.html?demo=1">Open the Veri-Gate demo</a>
   </div>
 
   <div class="note">
-    This is a review build. Data is stored on each device only — two phones will not see each
-    other's movements yet. The shared database is under way: it is running in the Veri-Gate account
-    and the app is being connected to it now.
+    <strong>Where this stands.</strong> The app and the shared database work end to end, in the
+    development account. Two things are left before a real gate uses it: the live account has to be
+    set up, and somebody has to give us the driver list. Vehicles do not need a list — the phones
+    add them as they meet them at the gate — but a driver has to be on the roster before a Fleet
+    Lead can authorize him.
   </div>
 </main>
 </body>

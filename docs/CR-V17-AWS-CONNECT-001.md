@@ -501,3 +501,25 @@ was added and all thirteen are caught. The APK was rebuilt; its web files are by
 
 The two browser suites still fail now and then when every test file runs at once (a port collision
 in the suites themselves); run one file at a time, all 326 device tests pass.
+
+### A crash found while rebuilding the review site
+
+With two console tabs open, a vehicle a gate scan created in one tab arrived in the other through
+`applyChangeLocally`. The change carries the shared fields only, so the copy it built had no
+`provisionalAt` - the date the Vehicles page shows under "added by a gate scan". `Intl` throws on an
+unreadable date, and that call sits inside the table builder, so `renderAll()` died part way and the
+whole console stopped redrawing: Vehicles, Drivers and the gate log all went blank together, with
+nothing on screen to say why.
+
+Three changes, because one bad field should cost one cell and not the console:
+
+- `formatTimestamp`, `formatDate` and `formatTime` go through `formatWhen`, which writes `-` for a
+  missing or unreadable date instead of throwing.
+- a vehicle built from another tab's change is given the date that tab queued it, when it was a
+  gate scan.
+- `normalizeVehicle` heals records already saved with the blank, taking the date from `createdAt`.
+  A vehicle a person added is left alone: it does not belong in that list.
+
+Proved against the record that caused it: with the blank restored by hand, the console booted, the
+sign-in gate appeared - the crash had been hiding it - and G0901 read 09/19/26, 3:07 PM. Four rules
+broken on purpose, one at a time; the tests caught all four.

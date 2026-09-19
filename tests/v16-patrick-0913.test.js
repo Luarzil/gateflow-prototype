@@ -105,7 +105,9 @@ test("the print stylesheet leaves only the results and footer", () => {
 
 // --- dates ----------------------------------------------------------------
 
-test("dates are MM/DD/YY", includes(app, 'new Intl.DateTimeFormat("en-US", { timeZone: BUSINESS_TIMEZONE, month: "2-digit", day: "2-digit", year: "2-digit" })'));
+// The formatters now go through formatWhen, which turns an unreadable date into a dash instead of
+// throwing (tests/v17-blank-date-crash.test.js). The shape below is what it is handed.
+test("dates are MM/DD/YY", includes(app, 'formatWhen(value, { timeZone: BUSINESS_TIMEZONE, month: "2-digit", day: "2-digit", year: "2-digit" }, "en-US")'));
 
 test("timestamps are MM/DD/YY with the time", includes(app, 'month: "2-digit", day: "2-digit", year: "2-digit", hour: "numeric", minute: "2-digit"'));
 

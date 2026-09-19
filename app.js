@@ -719,7 +719,9 @@ function normalizeVehicle(vehicle, index) {
     barcodeNeedsReview: vehicle.barcodeNeedsReview === true,
     needsSupervisorCompletion: false,
     provisionalFromTxId: vehicle.provisionalFromTxId || "",
-    provisionalAt: vehicle.provisionalAt || "",
+    // Records already saved with this blank are healed on load: a vehicle met at the gate was
+    // added when it was created, so that is the date the list wants.
+    provisionalAt: vehicle.provisionalAt || (vehicle.createdSource === SCAN_CREATED_SOURCE ? vehicle.createdAt || "" : ""),
     completedBy: vehicle.completedBy || "",
     completedAt: vehicle.completedAt || ""
   };
@@ -1931,7 +1933,9 @@ function applyChangeLocally(change) {
     settleShared("driver", driver);
   } else if (change.kind === "vehicle") {
     let vehicle = state.vehicles.find((item) => item.id === data.id);
-    if (!vehicle) { vehicle = normalizeVehicle({ id: data.id, createdAt: change.queuedAt, createdBy: "Another tab" }, state.vehicles.length); state.vehicles.push(vehicle); }
+    // A vehicle met at the gate is listed under "added by a gate scan", which shows when it was
+    // added. The change carries no such date, so it is taken from when the other tab queued it.
+    if (!vehicle) { vehicle = normalizeVehicle({ id: data.id, createdAt: change.queuedAt, createdBy: "Another tab", createdSource: data.createdSource, provisionalAt: data.createdSource === SCAN_CREATED_SOURCE ? change.queuedAt : "" }, state.vehicles.length); state.vehicles.push(vehicle); }
     Object.assign(vehicle, { assignedBarcode: data.assignedBarcode, vin: data.vin, plate: data.plate, make: data.make, model: data.model, year: data.year, color: data.color, active: data.active !== false, barcodeNeedsReview: data.barcodeNeedsReview === true, createdSource: data.createdSource, updatedAt: change.queuedAt, updatedBy: "Another tab" });
     settleShared("vehicle", vehicle);
   } else if (change.kind === "authorization") {
@@ -3951,16 +3955,26 @@ function addDays(value, days) {
 // CR-V16: Patrick 2026-09-13, "All dates within the sections should follow this format": MM/DD/YY,
 // with the time after it where there is one. Pinned to en-US because the order is the requirement;
 // a browser set to a European locale would otherwise print 22/11/26.
+// A missing or unreadable date is written as a dash, never thrown. Intl throws on one, and these
+// run inside the table builders, so a single blank date used to take the whole console down with
+// it: a vehicle a gate scan created in another tab arrived here with no "added at", and Vehicles,
+// Drivers and the gate log all went blank together. One bad field must cost one cell.
+function formatWhen(value, options, locale) {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat(locale, options).format(date);
+}
+
 function formatTimestamp(value) {
-  return new Intl.DateTimeFormat("en-US", { timeZone: BUSINESS_TIMEZONE, month: "2-digit", day: "2-digit", year: "2-digit", hour: "numeric", minute: "2-digit" }).format(new Date(value));
+  return formatWhen(value, { timeZone: BUSINESS_TIMEZONE, month: "2-digit", day: "2-digit", year: "2-digit", hour: "numeric", minute: "2-digit" }, "en-US");
 }
 
 function formatDate(value) {
-  return new Intl.DateTimeFormat("en-US", { timeZone: BUSINESS_TIMEZONE, month: "2-digit", day: "2-digit", year: "2-digit" }).format(new Date(value));
+  return formatWhen(value, { timeZone: BUSINESS_TIMEZONE, month: "2-digit", day: "2-digit", year: "2-digit" }, "en-US");
 }
 
 function formatTime(value) {
-  return new Intl.DateTimeFormat([], { timeZone: BUSINESS_TIMEZONE, hour: "numeric", minute: "2-digit" }).format(new Date(value));
+  return formatWhen(value, { timeZone: BUSINESS_TIMEZONE, hour: "numeric", minute: "2-digit" }, []);
 }
 
 function humanDuration(type) {
