@@ -1,0 +1,49 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Veri-Gate deployment artifacts - a private bucket for packaged Lambda code. Nothing in it is served to anyone.
+
+Resources:
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub 'verigate-artifacts-${AWS::AccountId}-${AWS::Region}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: {SSEAlgorithm: AES256}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules: [{ObjectOwnership: BucketOwnerEnforced}]
+      VersioningConfiguration: {Status: Enabled}
+      LifecycleConfiguration:
+        Rules:
+          # Old code packages are only needed to roll back; three months is plenty.
+          - Id: expire-old-packages
+            Status: Enabled
+            NoncurrentVersionExpiration: {NoncurrentDays: 90}
+            ExpirationInDays: 180
+      Tags:
+        - {Key: Project, Value: GateFlow}
+        - {Key: Owner, Value: Veri-Gate}
+
+  ArtifactBucketTlsOnly:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ArtifactBucket
+      PolicyDocument:
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !GetAtt ArtifactBucket.Arn
+              - !Sub '${ArtifactBucket.Arn}/*'
+            Condition: {Bool: {'aws:SecureTransport': 'false'}}
+
+Outputs:
+  ArtifactBucketName:
+    Value: !Ref ArtifactBucket
