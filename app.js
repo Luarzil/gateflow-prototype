@@ -14,12 +14,29 @@
     not needed for this workflow.
 */
 
+// Defined here, before DEMO_MODE, because DEMO_MODE has to be able to ask it.
+const IN_TEST_HARNESS = (() => {
+  try {
+    return window.top !== window && /\/gateflow-validator\//.test(window.top.location.pathname);
+  } catch (error) {
+    // A frame from another origin: not our validator, and not something to trust either.
+    return false;
+  }
+})();
+
 // CR-V17 step 5: the review site shows Patrick the app without a login. ?demo=1 opens that mode for
 // the tab. Its records are kept apart from the real ones (their own storage), and it never connects
 // to the shared records: a demo session in the same browser as a real console must not be able to
 // hand the console its made-up changes to upload, the way the validator's test records leaked on
 // 2026-09-18.
 const DEMO_MODE = (() => {
+  // The validator is never a demo, whatever the tab it is opened in was doing beforehand.
+  // sessionStorage is shared with every same-origin frame in a tab, so opening the demo and then
+  // the validator in that tab put the harness into demo mode: it wrote to the demo's storage while
+  // the validator read the real key, and 78 of 113 checks failed with "Target state was not saved".
+  // That reads as a broken application and is nothing of the kind, which is worse than a real
+  // failure - it hides one.
+  if (IN_TEST_HARNESS) return false;
   try {
     if (new URLSearchParams(window.location.search).has("demo")) window.sessionStorage.setItem("veri-gate.demo", "1");
     return window.sessionStorage.getItem("veri-gate.demo") === "1";
@@ -74,14 +91,6 @@ const HANDHELD_MAX_WIDTH = 768;
 // upload them; the cloud client is never started; and every save carries the harness epoch, so no
 // other open tab merges the test records into its own.
 const HARNESS_EPOCH = "test-harness";
-const IN_TEST_HARNESS = (() => {
-  try {
-    return window.top !== window && /\/gateflow-validator\//.test(window.top.location.pathname);
-  } catch (error) {
-    // A frame from another origin: not our validator, and not something to trust either.
-    return false;
-  }
-})();
 
 function resolveShell() {
   // 1. An explicit ?shell= wins and is remembered. This is how a handheld gets provisioned:
@@ -3834,8 +3843,8 @@ function renderSearchResults() {
   el.searchMoreButton.textContent = `Show next ${Math.min(SEARCH_PAGE_SIZE, Math.max(remaining, 0)) || SEARCH_PAGE_SIZE}`;
   if (el.searchSourceNote && !ui.searchBusy) el.searchSourceNote.textContent = searchSourceText();
   el.searchResultsBody.innerHTML = shown.length ? shown.map((item) => `<tr>
-    <td>${formatTimestamp(item.timestamp)}</td><td><span class="movement-chip ${escapeHtml(String(item.direction).toLowerCase())}">${escapeHtml(item.direction)}</span></td><td>${escapeHtml(item.driverEmployee)}</td><td>${escapeHtml(item.driverName)}</td><td>${escapeHtml(entryMethodLabel(item.driverEntryMethod))}</td><td class="mono">${escapeHtml(item.vehicleBarcode || "-")}</td><td>${escapeHtml(entryMethodLabel(item.vehicleEntryMethod))}</td><td class="mono">${escapeHtml(item.vin)}</td><td>${escapeHtml(item.plate || "-")}</td><td>${escapeHtml(item.location)}${isHistoricalOnlyLocation(item.location) ? ` <span class="status-badge inactive">History only</span>` : ""}</td><td><span class="status-badge ${item.authorizationStatus === "Authorized" ? "authorized" : item.authorizationStatus === LOCATION_OVERRIDE_STATUS ? "provisional" : "unauthorized"}">${escapeHtml(item.authorizationStatus)}</span></td><td>${escapeHtml(item.note || "-")}</td><td>${escapeHtml(item.submittedBy)}</td>
-  </tr>`).join("") : `<tr><td colspan="13" class="empty-cell">No transactions match these filters.</td></tr>`;
+    <td>${formatTimestamp(item.timestamp)}</td><td><span class="movement-chip ${escapeHtml(String(item.direction).toLowerCase())}">${escapeHtml(item.direction)}</span></td><td>${escapeHtml(item.driverEmployee)}</td><td>${escapeHtml(item.driverName)}</td><td>${escapeHtml(entryMethodLabel(item.driverEntryMethod))}</td><td class="mono">${escapeHtml(item.vehicleBarcode || "-")}</td><td>${escapeHtml(entryMethodLabel(item.vehicleEntryMethod))}</td><td class="mono">${escapeHtml(item.vin)}</td><td>${escapeHtml(item.plate || "-")}</td><td>${escapeHtml(item.location)}${isHistoricalOnlyLocation(item.location) ? ` <span class="status-badge inactive">History only</span>` : ""}</td><td><span class="status-badge ${item.authorizationStatus === "Authorized" ? "authorized" : item.authorizationStatus === LOCATION_OVERRIDE_STATUS ? "provisional" : "unauthorized"}">${escapeHtml(item.authorizationStatus)}</span></td><td>${escapeHtml(item.note || "-")}</td><td>${escapeHtml(item.submittedBy)}</td><td>${escapeHtml(item.uploadedBy || "-")}</td>
+  </tr>`).join("") : `<tr><td colspan="14" class="empty-cell">No transactions match these filters.</td></tr>`;
 }
 
 function isHistoricalOnlyLocation(locationName) {

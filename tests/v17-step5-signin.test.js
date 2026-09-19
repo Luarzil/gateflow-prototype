@@ -115,6 +115,21 @@ test("demo mode keeps its records apart and never connects to the shared records
   assert.ok(app.includes("return !DEMO_MODE && Boolean(window.VeriGateCloud && window.VeriGateCloud.status().signedIn);"));
 });
 
+test("the validator is never a demo, whatever the tab was doing before it", () => {
+  // sessionStorage is shared with every same-origin frame in a tab. Opening the demo and then the
+  // validator in that tab put the harness into demo mode: it wrote to the demo's storage while the
+  // validator read the real key, and 78 of 113 checks failed with "Target state was not saved".
+  // That looks like a broken application and is nothing of the kind - which is worse than a real
+  // failure, because it hides one.
+  assert.ok(app.includes("  if (IN_TEST_HARNESS) return false;"), "DEMO_MODE must refuse inside the harness");
+  // And it can only ask that if it is decided first.
+  assert.ok(app.indexOf("const IN_TEST_HARNESS = (() => {") < app.indexOf("const DEMO_MODE = (() => {"),
+    "IN_TEST_HARNESS must be defined before DEMO_MODE asks it");
+  assert.equal(app.split("const IN_TEST_HARNESS = (() => {").length - 1, 1, "defined exactly once");
+  assert.ok(app.indexOf("const DEMO_MODE = (() => {") < app.indexOf("const STORAGE_KEY ="),
+    "and both before the storage key they decide");
+});
+
 test("a demo says so on the phone too, not only in the console", () => {
   // Patrick opens the review link on his own phone, where the scanner is an exact copy of the gate
   // screen. Hiding the notice there leaves nothing saying the movements are made up.

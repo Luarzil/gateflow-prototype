@@ -378,6 +378,10 @@
       authorizationStatus: item.authorization_status || "",
       note: item.note || "",
       submittedBy: item.submitted_by || "",
+      // Who was signed in on the device that sent it. The service has recorded this since
+      // migration 004; it was being dropped here, so the gate log could say which gate recorded a
+      // movement but never which login did.
+      uploadedBy: item.uploaded_by || "",
       // Kept for the offline work in step 4: a movement that arrived late, and one that disagreed
       // with what the server already knew.
       receivedAt: instant(item.received_at || item.occurred_at),
