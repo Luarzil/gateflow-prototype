@@ -99,3 +99,14 @@ test("#10 the rank check is enforced at approval, not only in the status text", 
 
 test("#10 a denied override is audited", includes(app, '"override_denied_insufficient_role"'));
 test("#10 stored approvers without a role default to the minimum, not a senior role", includes(app, "DESKTOP_USER_ROLES.includes(supervisor.role) ? supervisor.role : OVERRIDE_MIN_ROLE"));
+
+// --- CR-V09-ROLE-SHELLS-001: one app, two shells --------------------------
+test("shells are declared with the scanner locked down", includes(app, 'scanner: ["scannerView"]'));
+test("console keeps the scanner view for supervisors", includes(app, 'console: ["scannerView", "supervisorView", "searchView"]'));
+test("shell can be provisioned by URL and remembered", includes(app, 'SHELL_STORAGE_KEY'));
+test("a narrow screen infers the handheld shell", includes(app, "window.innerWidth <= HANDHELD_MAX_WIDTH"));
+test("views outside the active shell are unreachable, including by deep link", () => {
+  const fn = app.slice(app.indexOf("function showView"), app.indexOf("function activeLocations"));
+  assert.ok(fn.includes("if (!shellViews().includes(viewId)) return;"), "showView must refuse out-of-shell views");
+});
+test("the shell is documented as a usability boundary, not a security one", includes(app, "deliberately NOT a security boundary"));
