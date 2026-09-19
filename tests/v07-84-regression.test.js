@@ -67,12 +67,15 @@ const cases = [
   ["49 migration stores its backup before conversion", includes(app, "localStorage.getItem(PRE_CALL_MIGRATION_BACKUP_KEY)")],
   ["50 valid driver clears stale scanner feedback", includes(app, 'setNotice("Driver found. Continue to the vehicle barcode.", "success")')],
   ["51 valid barcode clears stale scanner feedback", includes(app, 'setNotice("Vehicle found. Choose the movement.", "success")')],
-  ["52 invalid barcode retains a blocking message", includes(app, "Vehicle barcode was not found. New movements require an assigned inventory barcode.")],
+  // CR-V08-BETA-CRITICAL-APP-001 superseded case 52: an unknown barcode is no longer blocked at
+  // the barcode step. It is accepted, and OUT is gated on the vehicle record instead.
+  ["52 unknown barcode is gated on the vehicle record, not at the barcode step", includes(app, "blockOutForIncompleteVehicle")],
   ["53 barcode uses canonical lookup", includes(app, "const value = canonicalVehicleBarcode(el.barcodeInput.value)")],
   ["54 supervisor field updates live status", includes(app, 'addEventListener("input", updateSupervisorStatus)')],
   ["55 supervisor valid state is visible", includes(app, "is ready to approve 9 hours")],
-  ["56 supervisor valid state clears stale feedback", includes(app, 'setNotice("Supervisor found. Approve the temporary authorization to continue.", "success")')],
-  ["57 supervisor invalid state remains visible", includes(app, "Supervisor ID was not found.")],
+  // CR-V08-BETA-CRITICAL-APP-002 (081526 v7 edit #10): the override approver is now role-gated.
+  ["56 approver valid state clears stale feedback", includes(app, "setNotice(`${OVERRIDE_MIN_ROLE} or above found. Approve the temporary authorization to continue.`, \"success\")")],
+  ["57 approver invalid state remains visible and under-ranked approvers are denied", () => { assert.ok(app.includes("Approver ID was not found."), "invalid ID message"); assert.ok(app.includes("override_denied_insufficient_role"), "role denial is audited at approval time"); }],
   ["58 supervisor approval uses canonical ID", includes(app, "canonicalSupervisorId(el.supervisorInput.value)")],
   ["59 supervisor approval uses nine hours", includes(app, "const duration = TEMP_AUTHORIZATION_DURATION")],
   ["60 supervisor approval advances to OUT review", includes(app, 'chooseDirection("OUT")')],

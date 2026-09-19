@@ -90,14 +90,15 @@ async function performMovement(cdp, driverMethod, vehicleMethod, sequence) {
   assert.match(review, /Movement\s+Vehicle (IN|OUT)/i, "review keeps the simplified movement summary");
   assert.doesNotMatch(review, /\bScan\b/, "ordinary direct typing must never display as verified Scan");
   await evaluate(cdp, "document.querySelector('#submitTransactionButton').click()");
-  const result = await evaluate(cdp, `(() => { const saved=JSON.parse(localStorage.getItem(${JSON.stringify(storageKey)})); return { transaction:saved.transactions[0], audit:saved.auditEvents[0].description, confirmation:document.querySelector('#confirmationSummary').innerText }; })()`);
+  const result = await evaluate(cdp, `(() => { const saved=JSON.parse(localStorage.getItem(${JSON.stringify(storageKey)})); return { transaction:saved.transactions[0], audit:saved.auditEvents[0].description, backAtHome:!document.querySelector('#scannerHome').classList.contains('hidden'), wizardHidden:document.querySelector('#scanWizard').classList.contains('hidden') }; })()`);
   assert.equal(result.transaction.driverEntryMethod, driverMethod, `matrix ${driverMethod}/${vehicleMethod}: driver method`);
   assert.equal(result.transaction.vehicleEntryMethod, vehicleMethod, `matrix ${driverMethod}/${vehicleMethod}: vehicle method`);
   assert.equal(result.transaction.barcodeEntryMethod, vehicleMethod, "legacy vehicle property remains compatible");
   assert.equal(result.transaction.direction, direction, `matrix ${driverMethod}/${vehicleMethod}: ${direction} path`);
   assert.match(result.audit, new RegExp(`Driver entry path: ${driverMethod === "scanner_field" ? "Scanner field" : "Manual"}; vehicle entry path: ${vehicleMethod === "scanner_field" ? "Scanner field" : "Manual"}`));
-  assert.match(result.confirmation, /Vehicle (IN|OUT)/i, "confirmation keeps the simplified movement summary");
-  assert.doesNotMatch(result.confirmation, /\bScan\b/);
+  // 081526 v7 edit #9: no post-submit screen; a clean submission returns to the scanner home.
+  assert.ok(result.backAtHome, "a clean submission returns to the scanner home for the next scan");
+  assert.ok(result.wizardHidden, "the scan wizard is closed after a clean submission");
   result.transaction.testSequence = sequence;
   await reload(cdp);
   const reloaded = await evaluate(cdp, `(() => { const saved=JSON.parse(localStorage.getItem(${JSON.stringify(storageKey)})); return saved.transactions[0]; })()`);
