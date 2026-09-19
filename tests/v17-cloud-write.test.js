@@ -114,12 +114,12 @@ test("every movement is saved with a device-made id and a sharing state", () => 
 
 test("the movement is saved on the device before it is sent", () => {
   const saved = app.indexOf("state.transactions.unshift(transaction);");
-  const sent = app.indexOf("uploadMovement(transaction);");
+  const sent = app.search(/ui\.lastSubmittedClientId = transaction\.clientId;\r?\n\s*syncDevice\(\);/);
   assert.ok(saved > 0 && sent > saved, "the local record must not depend on the upload");
 });
 
 test("a failed upload leaves the movement on the device and says it is not shared yet", () => {
-  assert.ok(app.includes('transaction.sync = "pending"'));
+  assert.ok(app.includes('item.sync = "pending";'));
   assert.ok(app.includes("Saved on this device. Not in the shared records yet:"));
 });
 
@@ -129,5 +129,5 @@ test("a flagged movement is written into the audit trail as well as shown", () =
 });
 
 test("nothing is uploaded when nobody is signed in", () => {
-  assert.match(app, /function uploadMovement\(transaction\) \{\r?\n\s*if \(!cloudReady\(\)\) return;/);
+  assert.ok(app.includes("if (syncRunning || !cloudReady()) {"));
 });

@@ -34,12 +34,15 @@
 
   // --- errors ---------------------------------------------------------------------------------
 
-  function CloudError(message, kind) {
+  function CloudError(message, kind, status) {
     this.name = "CloudError";
     this.message = message;
     // "auth" means sign in again; "waking" is the database resuming and worth retrying;
     // "offline" is no signal at all, which is not an error the operator caused.
     this.kind = kind || "request";
+    // The HTTP status, when there was one. It is what separates "try again later" (5xx, 429)
+    // from "this will never be accepted" (the other 4xx).
+    this.status = status || 0;
   }
   CloudError.prototype = Object.create(Error.prototype);
 
@@ -229,13 +232,13 @@
           try { payload = text ? JSON.parse(text) : {}; } catch (error) { /* reported below */ }
           if (response.status === 401 || response.status === 403) {
             signOut("The sign-in expired. Sign in again.");
-            throw new CloudError("The sign-in expired. Sign in again.", "auth");
+            throw new CloudError("The sign-in expired. Sign in again.", "auth", response.status);
           }
           // The dev database pauses when nobody uses it, and takes about half a minute to wake.
           if (response.status === 503 && payload.error === "database_waking") {
-            throw new CloudError("The shared database is waking up. Try again in about 20 seconds.", "waking");
+            throw new CloudError("The shared database is waking up. Try again in about 20 seconds.", "waking", 503);
           }
-          if (!response.ok) throw new CloudError(payload.message || ("The request failed (" + response.status + ")."), "request");
+          if (!response.ok) throw new CloudError(payload.message || ("The request failed (" + response.status + ")."), "request", response.status);
           return payload;
         });
       }, function () {
@@ -349,6 +352,57 @@
     });
   }
 
+  // --- the offline queue (step 4) ---------------------------------------------------------------
+  //
+  // Patrick, on how long a gate can be without signal: "could be minutes or days", and "Enterprise
+  // will not tolerate a pause". So the gate never waits for the network. Every movement is saved on
+  // the device first, and this sends the backlog when it can.
+
+  // What to do after a failed send:
+  //   "retry"  - no signal, the database waking, a server fault, or being rate-limited. The next
+  //              movement would fail the same way, so stop and try the whole queue again later.
+  //   "signin" - the sign-in is missing or expired. Stop until somebody signs in.
+  //   "refuse" - the server looked at it and will never accept it (an employee number not on the
+  //              roster, a malformed record). Retrying forever would hold up everything behind it,
+  //              so it is set aside for a supervisor and the queue carries on.
+  function failureAction(error) {
+    var kind = error && error.kind;
+    var status = (error && error.status) || 0;
+    if (kind === "auth") return "signin";
+    if (kind === "offline" || kind === "waking") return "retry";
+    if (!status || status >= 500 || status === 429 || status === 408) return "retry";
+    return "refuse";
+  }
+
+  // Sends the queued items one at a time, oldest first, so the shared log receives them in the
+  // order they happened at the gate. One at a time also means a dropped signal part-way through
+  // leaves a clean line between what was sent and what was not.
+  function drainQueue(items, send, handlers) {
+    var on = handlers || {};
+    var list = (items || []).slice();
+    var summary = { sent: 0, refused: 0, stopped: null };
+    function next(index) {
+      if (index >= list.length) return Promise.resolve(summary);
+      var item = list[index];
+      return Promise.resolve().then(function () { return send(item); }).then(function (result) {
+        summary.sent += 1;
+        if (on.sent) on.sent(item, result);
+        return next(index + 1);
+      }, function (error) {
+        var action = failureAction(error);
+        if (action === "refuse") {
+          summary.refused += 1;
+          if (on.refused) on.refused(item, error);
+          return next(index + 1);
+        }
+        summary.stopped = { action: action, error: error, item: item };
+        if (on.stopped) on.stopped(item, error, action);
+        return summary;
+      });
+    }
+    return next(0);
+  }
+
   // What a flag on a movement means, in words a supervisor can act on.
   function conflictText(conflict) {
     if (conflict === "driver_inactive") return "the driver is marked inactive in the records";
@@ -380,6 +434,8 @@
     recordMovement: recordMovement,
     movementId: movementId,
     conflictText: conflictText,
+    drainQueue: drainQueue,
+    failureAction: failureAction,
     // Exposed for the tests, which check these without a browser or a network.
     internals: { movementQuery: movementQuery, mapMovement: mapMovement, sessionFromAuthResult: sessionFromAuthResult, isSessionExpired: isSessionExpired, signInMessage: signInMessage, CloudError: CloudError }
   };

@@ -245,3 +245,58 @@ was flagged and writes it to the audit trail; on failure the movement stays on t
 - Search from the console then showed all 8 movements from the shared database.
 - Tests: 52 API tests (24 new for the write path), 231 static tests (12 new for the client),
   both browser suites, validator 113/113.
+
+## Step 4 — the offline queue, and the APK (2026-09-18)
+
+Patrick on outages: they "could be minutes or days", and "Enterprise will not tolerate a pause". So
+the gate never waits for the network. Every movement is saved on the device first; what has not
+reached the shared records waits in a queue on the device and goes on its own.
+
+### How the queue behaves
+
+`cloud.js` `drainQueue` sends the waiting movements **one at a time, oldest first**, so the shared
+log receives them in the order they happened and a signal dropping part-way leaves a clean line
+between sent and unsent. After a failure it decides (`failureAction`):
+
+- **retry** - no signal, the database waking, a 5xx, 408 or 429, or no status at all. The next
+  movement would fail the same way, so the queue stops and tries again later.
+- **signin** - the sign-in is missing or expired. It stops until somebody signs in.
+- **refuse** - any other 4xx: the server looked and will never accept it. It is set aside as
+  `refused`, written into the audit trail and kept on the device, and the queue carries on, so one
+  bad record cannot hold up everything behind it.
+
+The app runs the queue straight after a scan, when the `online` event fires, when someone signs
+in, on start-up, and once a minute while anything waits. Two runs cannot overlap. With no signal it
+does not try at all. A movement caught mid-send when the app closed is sent again on the next start;
+the device-made id means that is safe even when the first send did arrive.
+
+The scanner home shows one line only when something is waiting or refused - "2 movements waiting
+to reach the shared records. Sign in to send them." / "... The last try failed: there is no
+connection. Trying again every minute." A phone can believe it has signal while nothing gets through,
+so the line trusts the last failed attempt over `navigator.onLine`. Only the movement the operator
+just recorded produces a notice; a backlog clearing in the background just makes the count go down.
+
+### Verification, 2026-09-18 (live in Veri-Gate Dev, signed in as raul)
+
+| Situation | Result |
+|---|---|
+| Two scans with nobody signed in | saved, queued, sent on sign-in in order (ids 34, 35) |
+| Two scans with the API unreachable | saved, queued, sent when `online` fired (36, 37) |
+| App closed mid-send | recovered on restart and sent (38) |
+| Send arrived but the app never heard back | resent; the database has exactly 1 row and 1 audit row for it |
+| Driver not in the shared roster | `refused`, kept on the device, red line, audit entry; queue continued |
+
+Tests: 304 Node tests (21 new for the queue), both browser suites, validator 113/113.
+
+The APK was rebuilt from a copy outside OneDrive and checked by extraction: all seven web files,
+now including `cloud.js`, are byte-identical to the working tree.
+
+### Found while testing
+
+- **Movement ids have gaps.** 9 to 33 were never used. PostgreSQL pre-logs sequence values, and
+  Aurora pausing and resuming skips up to 32. Harmless, but a gap in record numbers can look like
+  deleted evidence to an auditor, so no printout should present ids as a continuous sequence (none
+  does today).
+- **Drivers and vehicles are still edited on one computer only.** A driver added in Supervisor
+  → Add Driver is not in the shared roster, so every movement for them is refused. Steps 1-4 moved
+  movements to the cloud; driver and vehicle management has to follow before real use.

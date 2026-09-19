@@ -163,7 +163,9 @@ const ui = {
   searchTotal: null,
   searchCursor: null,
   searchBusy: false,
-  cloudChallenge: null
+  cloudChallenge: null,
+  // The movement the operator just recorded: the only one whose upload result is shown to them.
+  lastSubmittedClientId: ""
 };
 
 const state = loadState();
@@ -204,7 +206,7 @@ function cacheElements() {
     "searchPrintedBy", "searchPrintStatus", "searchPrintFooter", "authorizationCrossCheck", "locationOverrideBody",
     "searchSourceNote", "cloudStatusButton", "cloudSignInModal", "cloudSignInForm", "cloudUsername", "cloudPassword",
     "cloudNewPasswordRow", "cloudNewPassword", "cloudSignInStatus", "cloudSignInSubmit",
-    "closeCloudSignInButton", "cancelCloudSignInButton",
+    "closeCloudSignInButton", "cancelCloudSignInButton", "syncStatus",
     "directionOut", "directionIn", "movementBack",
     "driverRosterSearch", "authorizationDuration", "bulkAuthorizeButton",
     "license30Count", "license15Count", "license5Count", "licenseExpiredCount", "bulkActionStatus",
@@ -1316,17 +1318,33 @@ function completeTransaction(draft) {
   // transaction. The pre-submit review step (step 3) is unchanged — that is the real check.
   showScannerHome();
   setNotice(`Vehicle ${draft.direction} saved for ${transaction.driverName} / ${transaction.vehicleBarcode}${draft.override ? " under the location override" : ""}.`, "success");
-  uploadMovement(transaction);
+  ui.lastSubmittedClientId = transaction.clientId;
+  syncDevice();
 }
 
-// CR-V17 step 3: the movement is already saved on this device before this runs. Sending it to the
-// shared database is what lets another screen see it; if that fails, the record is not lost, it is
-// simply not shared yet. The queue that retries on its own is step 4.
-function uploadMovement(transaction) {
-  if (!cloudReady()) return;
-  const cloud = window.VeriGateCloud;
-  transaction.sync = "sending";
-  cloud.recordMovement({
+// CR-V17 steps 3 and 4: sending movements to the shared database.
+//
+// Every movement is saved on this device before any of this runs, so the gate never waits for the
+// network - Patrick: outages "could be minutes or days" and "Enterprise will not tolerate a pause".
+// What has not been sent yet waits here and goes, oldest first, the next time there is a signal
+// and a sign-in: straight after a scan, when the signal comes back, when someone signs in, and
+// once a minute while anything is waiting.
+const SYNC_WAITING = ["local", "pending", "sending"];
+const SYNC_RETRY_MS = 60000;
+let syncRunning = false;
+
+// Only movements made with a device id are ever sent. The demo seed and records made before step 3
+// have none, and the shared database has its own copy of the seed.
+function queuedMovements() {
+  return state.transactions.filter((item) => item.clientId && SYNC_WAITING.includes(item.sync)).reverse();
+}
+
+function refusedMovements() {
+  return state.transactions.filter((item) => item.clientId && item.sync === "refused");
+}
+
+function movementPayload(transaction) {
+  return {
     clientId: transaction.clientId,
     direction: transaction.direction,
     driverEmployee: transaction.driverEmployee,
@@ -1340,28 +1358,133 @@ function uploadMovement(transaction) {
     note: transaction.note,
     deviceId: transaction.deviceId,
     occurredAt: transaction.timestamp
-  }).then((result) => {
-    transaction.sync = "shared";
-    transaction.serverId = result.id;
-    transaction.serverConflict = result.conflict || "";
-    if (result.conflict) {
-      // The vehicle moved either way. The disagreement is recorded for a supervisor to review,
-      // which is the only change the shared records allow on a movement that is already written.
-      addAudit("movement_flagged_by_records",
-        `Shared records flagged ${transaction.direction} for ${transaction.driverEmployee} / ${transaction.vehicleBarcode}: ${cloud.conflictText(result.conflict)}.`,
-        transaction.submittedBy, transaction.location);
-      setNotice(`Saved and shared, but flagged for review: ${cloud.conflictText(result.conflict)}.`, "warning");
-    } else if (!result.alreadyRecorded) {
-      setNotice(`Vehicle ${transaction.direction} saved for ${transaction.driverName} / ${transaction.vehicleBarcode}. In the shared records.`, "success");
+  };
+}
+
+// The operator only hears about the movement they just recorded. A backlog clearing in the
+// background is shown by the waiting count going down, not by notices interrupting the next scan.
+function isLatestSubmission(transaction) {
+  return Boolean(ui.lastSubmittedClientId) && transaction.clientId === ui.lastSubmittedClientId;
+}
+
+function markShared(transaction, result) {
+  const cloud = window.VeriGateCloud;
+  transaction.sync = "shared";
+  transaction.serverId = result.id;
+  transaction.serverConflict = result.conflict || "";
+  transaction.syncError = "";
+  if (result.conflict) {
+    // The vehicle moved either way. The disagreement is recorded for a supervisor to review,
+    // which is the only change the shared records allow on a movement that is already written.
+    addAudit("movement_flagged_by_records",
+      `Shared records flagged ${transaction.direction} for ${transaction.driverEmployee} / ${transaction.vehicleBarcode}: ${cloud.conflictText(result.conflict)}.`,
+      transaction.submittedBy, transaction.location);
+    if (isLatestSubmission(transaction)) setNotice(`Saved and shared, but flagged for review: ${cloud.conflictText(result.conflict)}.`, "warning");
+  } else if (isLatestSubmission(transaction) && !result.alreadyRecorded) {
+    setNotice(`Vehicle ${transaction.direction} saved for ${transaction.driverName} / ${transaction.vehicleBarcode}. In the shared records.`, "success");
+  }
+}
+
+function markRefused(transaction, error) {
+  transaction.sync = "refused";
+  transaction.syncError = error.message;
+  addAudit("movement_refused_by_records",
+    `Shared records refused ${transaction.direction} for ${transaction.driverEmployee} / ${transaction.vehicleBarcode}: ${error.message} The movement is kept on this device.`,
+    transaction.submittedBy, transaction.location);
+  if (isLatestSubmission(transaction)) setNotice(`Saved on this device, but the shared records refused it: ${error.message}`, "danger");
+}
+
+function syncDevice() {
+  if (queuedMovements().length === 0) return Promise.resolve(null);
+  if (syncRunning || !cloudReady()) {
+    renderSyncStatus();
+    return Promise.resolve(null);
+  }
+  // No point sending with no signal; the "online" event brings us back here.
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    renderSyncStatus();
+    return Promise.resolve(null);
+  }
+  const cloud = window.VeriGateCloud;
+  const waiting = queuedMovements();
+  syncRunning = true;
+  waiting.forEach((item) => { item.sync = "sending"; });
+  return cloud.drainQueue(waiting, (item) => cloud.recordMovement(movementPayload(item)), {
+    sent: markShared,
+    refused: markRefused
+  }).then((summary) => {
+    // Everything the queue did not reach goes back to waiting, with the reason it stopped.
+    const reason = syncStopReason(summary.stopped);
+    waiting.forEach((item) => {
+      if (item.sync !== "sending") return;
+      item.sync = "pending";
+      item.syncError = reason;
+    });
+    const latest = waiting.find(isLatestSubmission);
+    if (summary.stopped && latest && latest.sync === "pending") {
+      setNotice(`Saved on this device. Not in the shared records yet: ${reason} It will be sent automatically.`, "warning");
     }
+    return summary;
+  }).catch((error) => {
+    // A bug in a handler must never lose a movement: anything mid-send goes back to waiting.
+    waiting.forEach((item) => { if (item.sync === "sending") item.sync = "pending"; });
+    return { sent: 0, refused: 0, stopped: { action: "retry", error } };
+  }).then((summary) => {
+    syncRunning = false;
     saveState();
     renderAll();
-  }).catch((error) => {
-    transaction.sync = "pending";
-    transaction.syncError = error.message;
-    saveState();
-    setNotice(`Saved on this device. Not in the shared records yet: ${error.message}`, "warning");
+    return summary;
   });
+}
+
+// Why the queue stopped, in the words the scanner shows. The error messages themselves are written
+// for other screens ("the records on this device are still available" belongs on Search).
+function syncStopReason(stopped) {
+  if (!stopped) return "";
+  const kind = stopped.error && stopped.error.kind;
+  if (stopped.action === "signin") return "the sign-in has expired.";
+  if (kind === "offline") return "there is no connection.";
+  if (kind === "waking") return "the shared database is waking up.";
+  return (stopped.error && stopped.error.message) || "the shared records did not answer.";
+}
+
+function renderSyncStatus() {
+  if (!el.syncStatus) return;
+  const queue = queuedMovements();
+  const waiting = queue.length;
+  const refused = refusedMovements().length;
+  const parts = [];
+  if (waiting) {
+    // A phone can believe it has signal while nothing gets through (a gate Wi-Fi with no
+    // internet). The last failed attempt is the better guide than the phone's own opinion.
+    const lastFailure = queue.map((item) => item.syncError).find(Boolean);
+    const why = !cloudReady()
+      ? "Sign in to send them."
+      : typeof navigator !== "undefined" && navigator.onLine === false
+        ? "They will be sent when the signal returns."
+        : lastFailure
+          ? `The last try failed: ${lastFailure} Trying again every minute.`
+          : "Sending automatically.";
+    parts.push(`${waiting} movement${waiting === 1 ? "" : "s"} waiting to reach the shared records. ${why}`);
+  }
+  if (refused) parts.push(`${refused} refused by the shared records - a supervisor needs to review ${refused === 1 ? "it" : "them"}.`);
+  el.syncStatus.textContent = parts.join(" ");
+  el.syncStatus.classList.toggle("hidden", parts.length === 0);
+  el.syncStatus.dataset.tone = refused ? "danger" : waiting ? "warning" : "";
+}
+
+function startSync() {
+  // A movement that was mid-send when the app closed was never confirmed, so it is sent again.
+  // The device id makes that safe: if it did arrive, the server says so and nothing is doubled.
+  let recovered = 0;
+  state.transactions.forEach((item) => {
+    if (item.sync === "sending") { item.sync = "pending"; recovered += 1; }
+  });
+  if (recovered) saveState();
+  window.addEventListener("online", () => { syncDevice(); });
+  window.addEventListener("offline", renderSyncStatus);
+  setInterval(() => { if (queuedMovements().length) syncDevice(); }, SYNC_RETRY_MS);
+  renderSyncStatus();
 }
 
 function findDriver(value) {
@@ -2135,6 +2258,7 @@ function renderAll() {
   renderLocationOverrides();
   runSearch(false);
   renderSearchResults();
+  renderSyncStatus();
 }
 
 function renderScannerContext() {
@@ -2544,8 +2668,15 @@ function renderCloudStatus(status) {
 
 function startCloud() {
   if (!window.VeriGateCloud) return;
-  window.VeriGateCloud.onChange(renderCloudStatus);
-  renderCloudStatus(window.VeriGateCloud.start());
+  startSync();
+  window.VeriGateCloud.onChange((status) => {
+    renderCloudStatus(status);
+    // Signing in is the moment a device that recorded offline can finally send its backlog.
+    if (status.signedIn) syncDevice();
+  });
+  const status = window.VeriGateCloud.start();
+  renderCloudStatus(status);
+  if (status.signedIn) syncDevice();
 }
 
 // CR-V16: Patrick 2026-09-13 wants a printable search for "a criminal matter or even just as
