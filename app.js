@@ -29,6 +29,10 @@ const AUTHORIZATION_DURATIONS = ["9_hours", "12_hours", "today", "48_hours", "3_
 // canonicalVehicleBarcode runs during the load-time migration.
 const VEHICLE_BARCODE_DIGITS = 4;
 const VIEWS = ["scannerView", "supervisorView", "searchView"];
+// CR-V16: Patrick 2026-09-13, "limit to searches to 50 data lines ... offer a clickable option to
+// pull another 50". Only the rendering is paged here, because the data is local. The AWS API will
+// page the query itself, and this is the page size it will use.
+const SEARCH_PAGE_SIZE = 50;
 
 // CR-V09-ROLE-SHELLS-001 - one codebase, two shells.
 //
@@ -104,6 +108,9 @@ const DESKTOP_USER_ROLES = ["Scanner", "Fleet Lead", "Supervisor", "Admin"];
 // Fleet Lead and above. DESKTOP_USER_ROLES is ordered by seniority, so its index is the rank.
 // Before this change the approver list carried no role at all and any listed ID could approve.
 const OVERRIDE_MIN_ROLE = "Fleet Lead";
+// CR-V16: what a movement let through by a location's scanned-badge override is recorded as. It is
+// deliberately not "Authorized": the driver had no daily authorization, and the record says so.
+const LOCATION_OVERRIDE_STATUS = "Location override";
 
 function roleRank(role) {
   return DESKTOP_USER_ROLES.indexOf(role);
@@ -135,6 +142,9 @@ const ui = {
   activeFlow: null,
   pendingOverride: null,
   searchResults: [],
+  searchLimit: SEARCH_PAGE_SIZE,
+  searchRanAt: null,
+  searchCriteria: "",
   lastRawScan: "No scan received",
   lastScanField: "-",
   scanTerminator: "No",
@@ -177,11 +187,12 @@ function cacheElements() {
     "scanSummary", "submitTransactionButton", "supervisorReason", "supervisorInput",
     "supervisorStatus", "cancelSupervisorButton", "approveSupervisorButton",
     "incompleteInventoryPanel", "incompleteInventoryBody", "incompleteInventoryCount",
-    "gateMiniFeed", "todayOutCount", "todayInCount", "todayBlockCount",
+    "todayOutCount", "todayInCount", "todayBlockCount",
     "adminAuthorizedCount", "authorizedDriversBody", "driversTableBody", "licenseWarningBody",
-    "deauthorizeAllButton", "locationList", "searchForm", "filterVehicle",
+    "deauthorizeAllButton", "searchForm", "filterVehicle",
     "filterDriver", "filterLocation", "filterDate", "filterType", "clearSearchButton",
-    "searchResultCount", "searchResultsBody",
+    "searchResultCount", "searchResultsBody", "searchShowing", "searchMoreButton", "printSearchButton",
+    "searchPrintedBy", "searchPrintStatus", "searchPrintFooter", "authorizationCrossCheck", "locationOverrideBody",
     "directionOut", "directionIn", "movementBack",
     "driverRosterSearch", "authorizationDuration", "bulkAuthorizeButton",
     "license30Count", "license15Count", "license5Count", "licenseExpiredCount", "bulkActionStatus",
@@ -301,10 +312,13 @@ function bindEvents() {
 
   el.searchForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    ui.searchResults = filterTransactions();
+    runSearch(true);
     renderSearchResults();
   });
   el.clearSearchButton.addEventListener("click", clearSearch);
+  el.searchMoreButton.addEventListener("click", showMoreSearchResults);
+  el.printSearchButton.addEventListener("click", printSearch);
+  el.locationOverrideBody.addEventListener("click", handleLocationOverrideAction);
   if (el.resetDemoButton) el.resetDemoButton.addEventListener("click", resetDemo);
 }
 
@@ -497,7 +511,7 @@ function normalizeV07State(saved) {
   normalized.workingLocation = normalizeLocationName(normalized.workingLocation) || "Division Street";
   const originalDevices = normalized.devices || [];
   const originalCurrentDeviceId = normalize(normalized.currentDeviceId);
-  normalized.locations = (normalized.locations || []).map((location) => ({ ...location, name: normalizeLocationName(location.name) })).filter((location) => location.name && location.name !== "Enterprise Repair Facility");
+  normalized.locations = (normalized.locations || []).map((location) => ({ ...location, name: normalizeLocationName(location.name), scanOverride: normalizeScanOverride(location.scanOverride) })).filter((location) => location.name && location.name !== "Enterprise Repair Facility");
   if (!normalized.locations.length) normalized.locations = createSeedState().locations;
   normalized.drivers = (normalized.drivers || []).map((driver) => ({ ...driver, employeeNumber: canonicalEmployeeId(driver.employeeNumber) }));
   // CR-V08-BETA-CRITICAL-APP-002: stored approvers predate the role field. They are defaulted to
@@ -921,6 +935,8 @@ function handleScanInput(fieldId) {
 function enableTypingOn(input) {
   if (input.getAttribute("inputmode") !== "none") return;
   input.setAttribute("inputmode", "text");
+  // CR-V16: a person typing has to see what they type, so the scanned-ID mask comes off.
+  input.classList.remove("id-masked");
   if (input === el.driverInput) ui.driverEntryMethod = "manual";
   if (input === el.barcodeInput) ui.vehicleEntryMethod = "manual";
   if (input === el.driverInput || input === el.barcodeInput) {
@@ -938,7 +954,11 @@ function enableTypingOn(input) {
 function resetScanInputModes() {
   [el.barcodeInput, el.driverInput, el.supervisorInput]
     .filter((input) => input !== document.activeElement)
-    .forEach((input) => input.setAttribute("inputmode", "none"));
+    .forEach((input) => {
+      input.setAttribute("inputmode", "none");
+      // CR-V16: back to scan-first also means back to masked, for the two ID fields.
+      if (input !== el.barcodeInput) input.classList.add("id-masked");
+    });
 }
 
 function recordScannerInput(fieldId, rawValue, terminator) {
@@ -1004,10 +1024,11 @@ function updateSupervisorStatus() {
     return;
   }
   if (!canApproveOverride(supervisor)) {
-    el.supervisorStatus.textContent = `${supervisor.id} / ${supervisor.name} holds ${supervisor.role || "no role"} and cannot approve this override. ${OVERRIDE_MIN_ROLE} or above is required.`;
+    el.supervisorStatus.textContent = `${supervisor.name} holds ${supervisor.role || "no role"} and cannot approve this override. ${OVERRIDE_MIN_ROLE} or above is required.`;
     return;
   }
-  el.supervisorStatus.textContent = `${supervisor.id} / ${supervisor.name} (${supervisor.role}) is ready to approve 9 hours.`;
+  // CR-V16: names only on the scanner. An approver ID read off this screen could be typed in later.
+  el.supervisorStatus.textContent = `${supervisor.name} (${supervisor.role}) is ready to approve.`;
   setNotice(`${OVERRIDE_MIN_ROLE} or above found. Approve the temporary authorization to continue.`, "success");
 }
 
@@ -1110,16 +1131,26 @@ function startTransaction() {
     return;
   }
   if (draft.direction === "OUT" && !auth) {
-    blockOutForSupervisor(draft.driver);
-    return;
+    // CR-V16: a location's scanned-badge override stands in for the daily authorization and for
+    // nothing else. The license check above still applies, and a typed employee # is never covered.
+    const override = scanOverrideDecision(draft);
+    if (!override.applies) {
+      blockOutForSupervisor(draft.driver, override.explanation);
+      return;
+    }
+    draft.override = true;
   }
   completeTransaction(draft);
 }
 
-function blockOutForSupervisor(driver) {
+function blockOutForSupervisor(driver, explanation = "") {
   ui.pendingOverride = { driverEmployee: driver.employeeNumber, location: el.scannerLocation.value };
-  el.supervisorReason.textContent = `${driver.employeeNumber} / ${driver.name} is not authorized for this gate movement. Vehicle OUT is blocked until a ${OVERRIDE_MIN_ROLE} or above approves a temporary authorization.`;
+  // CR-V16: the driver's name, not the employee #, on anything the operator can read.
+  el.supervisorReason.textContent = `${driver.name} is not authorized for this gate movement. Vehicle OUT is blocked until a ${OVERRIDE_MIN_ROLE} or above approves a temporary authorization.${explanation ? ` ${explanation}` : ""}`;
   el.supervisorInput.value = "";
+  // This screen is reached without a wizard step, so it resets the approver field itself.
+  el.supervisorInput.setAttribute("inputmode", "none");
+  el.supervisorInput.classList.add("id-masked");
   el.supervisorStatus.textContent = `Awaiting a valid ${OVERRIDE_MIN_ROLE} or above ID.`;
   setScannerScreen("override");
   const vehicle = readVehicleInput();
@@ -1143,7 +1174,7 @@ function approveSupervisorOverride() {
   // authorization is actually granted, not only in the status text. A listed ID is not
   // sufficient; the approver must hold Fleet Lead or above.
   if (!canApproveOverride(supervisor)) {
-    el.supervisorStatus.textContent = `${supervisor.id} / ${supervisor.name} holds ${supervisor.role || "no role"} and cannot approve a Vehicle OUT override. ${OVERRIDE_MIN_ROLE} or above is required.`;
+    el.supervisorStatus.textContent = `${supervisor.name} holds ${supervisor.role || "no role"} and cannot approve a Vehicle OUT override. ${OVERRIDE_MIN_ROLE} or above is required.`;
     addAudit("override_denied_insufficient_role", `Override attempt denied: ${supervisor.id} / ${supervisor.name} holds ${supervisor.role || "no role"}, below the ${OVERRIDE_MIN_ROLE} threshold.`, currentStationIdentity(), ui.pendingOverride.location);
     saveState();
     setNotice(`Approval denied. ${OVERRIDE_MIN_ROLE} or above is required.`, "danger");
@@ -1162,7 +1193,7 @@ function approveSupervisorOverride() {
   saveState();
   ui.pendingOverride = null;
   renderAll();
-  el.supervisorStatus.textContent = `${supervisor.id} approved ${humanDuration(duration)}. Continuing to review.`;
+  el.supervisorStatus.textContent = `${supervisor.name} approved ${humanDuration(duration)}. Continuing to review.`;
   setNotice(`Supervisor approved ${humanDuration(duration)}. Vehicle OUT can continue.`, "success");
   chooseDirection("OUT");
 }
@@ -1200,7 +1231,7 @@ function readTransactionDraft() {
 
 function completeTransaction(draft) {
   const auth = findActiveAuthorization(draft.driver.employeeNumber);
-  const authorizationStatus = auth ? "Authorized" : "Unauthorized";
+  const authorizationStatus = auth ? "Authorized" : draft.override ? LOCATION_OVERRIDE_STATUS : "Unauthorized";
   const note = draft.direction === "IN" && !auth
     ? [draft.note, "Unauthorized IN - operational review"].filter(Boolean).join(" | ")
     : draft.note;
@@ -1249,6 +1280,9 @@ function completeTransaction(draft) {
     currentStationIdentity(),
     draft.location
   );
+  if (draft.override) {
+    addAudit("location_override_exit", `Vehicle OUT allowed by the scanned-badge override at ${draft.location} for ${draft.driver.employeeNumber} / ${draft.vehicle.assignedBarcode}. The driver had no daily authorization.`, currentStationIdentity(), draft.location);
+  }
   if (draft.direction === "IN" && authorizationStatus === "Unauthorized") {
     addAudit("unauthorized_in_review", "Unauthorized IN - operational review.", currentStationIdentity(), draft.location);
   }
@@ -1258,7 +1292,7 @@ function completeTransaction(draft) {
   // The operator has no time to read a post-submit review, and the extra tap cost every
   // transaction. The pre-submit review step (step 3) is unchanged — that is the real check.
   showScannerHome();
-  setNotice(`Vehicle ${draft.direction} saved for ${transaction.driverEmployee} / ${transaction.vehicleBarcode}.`, "success");
+  setNotice(`Vehicle ${draft.direction} saved for ${transaction.driverName} / ${transaction.vehicleBarcode}${draft.override ? " under the location override" : ""}.`, "success");
 }
 
 function findDriver(value) {
@@ -1380,14 +1414,46 @@ function isAuthorizedToday(employeeNumber) {
   return Boolean(findActiveAuthorization(employeeNumber));
 }
 
+// CR-V16: Patrick 2026-09-13. "The toggle switch will turn off the need for a Fleet lead. As long
+// as a driver ID is scanned and that ID is not revoked the driver can go through ... This override
+// will not apply to manual entries, just scanned badges ... there should be an override toggle for
+// each location, again, under manager authority only."
+//
+// A typed employee # is refused because it is exactly the case Patrick is worried about: an ID read
+// off a screen and typed in. "Not revoked" is taken to include a supervisor revoking the driver
+// today, so Deauthorize all still stops everyone, even at a location with the override on. That
+// reading is an assumption to confirm with Patrick.
+function locationOverrideOn(locationName) {
+  const location = state.locations.find((item) => item.name === locationName);
+  return Boolean(location && location.active && location.scanOverride && location.scanOverride.enabled === true);
+}
+
+function revokedToday(employeeNumber) {
+  const today = dateKey(new Date());
+  return state.authorizations.some((auth) => auth.driverEmployee === employeeNumber && auth.status === "revoked" && auth.revokedAt && dateKey(new Date(auth.revokedAt)) === today);
+}
+
+function scanOverrideDecision(draft) {
+  if (!locationOverrideOn(draft.location)) return { applies: false, explanation: "" };
+  if (draft.driverEntryMethod !== "scanner_field") return { applies: false, explanation: "This location's override covers scanned badges only, not a typed employee #." };
+  if (!draft.driver.active || licenseStatus(draft.driver).tone === "expired") return { applies: false, explanation: "" };
+  if (revokedToday(draft.driver.employeeNumber)) return { applies: false, explanation: "This driver's authorization was revoked today, so the location override does not apply." };
+  return { applies: true, explanation: "" };
+}
+
+function normalizeScanOverride(value) {
+  const source = value && typeof value === "object" ? value : {};
+  return { enabled: source.enabled === true, changedBy: String(source.changedBy || ""), changedAt: String(source.changedAt || "") };
+}
+
 function licenseStatus(driver) {
   const now = new Date();
   const expirationBoundary = licenseExpirationBoundary(driver.licenseExpires);
   const days = Math.floor((startOfLocalDay(new Date(driver.licenseExpires)) - startOfLocalDay(now)) / 86400000);
   // CR-V14 item 6, Patrick 2026-09-12: "Within the Driver Roster section change Expired
-  // -Authorization Blocked to Exp". The short form is for the roster table, where the column only
-  // has to be scannable. The long label stays on the scanner, where an operator refused at the gate
-  // needs to read why rather than decode an abbreviation.
+  // -Authorization Blocked to Exp". The short form is for the supervisor tables: the roster, and
+  // since CR-V16 Licenses Approaching Expiration too, which CR-V14 missed. The long label stays on
+  // the scanner, where an operator refused at the gate needs to read why rather than decode it.
   if (now >= expirationBoundary) return { label: "Expired - authorization blocked", short: "Exp", tone: "expired", days };
   if (days <= 5) return { label: "Expires within 5 days", short: "5d", tone: "warning5", days };
   if (days <= 15) return { label: "Expires within 15 days", short: "15d", tone: "warning15", days };
@@ -1835,6 +1901,9 @@ function renderVehicles() {
     const haystack = [vehicle.assignedBarcode, vehicle.vin, vehicle.plate, vehicle.make, vehicle.model, vehicle.year, vehicle.color].join(" ").toUpperCase();
     return matchesStatus && (!needle || haystack.includes(needle));
   });
+  const activity = lastActivityIndex();
+  const lastMoved = (vehicle) => Math.max(activity.get(`vehicle:${vehicle.id}`) || 0, activity.get(`barcode:${vehicle.assignedBarcode}`) || 0);
+  vehicles.sort((a, b) => lastMoved(b) - lastMoved(a) || a.assignedBarcode.localeCompare(b.assignedBarcode));
   el.vehiclesTableBody.innerHTML = vehicles.length ? vehicles.map((vehicle) => `<tr><td class="mono">${escapeHtml(vehicle.assignedBarcode)}</td><td>${escapeHtml(vehicle.year || "-")}</td><td>${escapeHtml(vehicle.make)}</td><td>${escapeHtml(vehicle.model)}</td><td>${escapeHtml(vehicle.color)}</td><td><button class="table-action mono" type="button" data-vehicle-action="edit" data-vehicle-id="${escapeHtml(vehicle.id)}" aria-label="Open ${escapeHtml(vehicle.assignedBarcode)} to edit or remove it">${escapeHtml(vehicle.vin || "Add VIN")}</button></td><td>${escapeHtml(vehicle.plate || "-")}</td><td><span class="status-badge ${vehicle.active ? "authorized" : "inactive"}">${vehicle.active ? "Active" : "Inactive"}</span>${isScannerAddedVehicle(vehicle) ? ` <span class="status-badge provisional" title="This vehicle was added automatically when it was scanned at the gate, rather than being entered by a person.">Added by scan</span>` : ""}${vehicle.barcodeNeedsReview ? ` <span class="status-badge unauthorized" title="This barcode was typed by hand and was not in inventory. Confirm it is correct, or correct it here.">Check barcode</span>` : ""}</td></tr>`).join("") : `<tr><td colspan="8" class="empty-cell">No vehicles match this inventory view.</td></tr>`;
 }
 
@@ -1990,12 +2059,12 @@ function addAudit(type, description, actor, location, source = "user action") {
 
 function renderAll() {
   renderScannerContext();
-  renderRecentActivity();
   renderSupervisor();
   renderVehicles();
   renderDevices();
   renderDesktopUsers();
-  ui.searchResults = filterTransactions();
+  renderLocationOverrides();
+  runSearch(false);
   renderSearchResults();
 }
 
@@ -2015,7 +2084,8 @@ function renderScanSummary() {
   el.scanSummary.innerHTML = summaryRows([
     ["Movement", `Vehicle ${ui.direction}`],
     ["Location", el.scannerLocation.value],
-    ["Driver", driver ? `${driver.employeeNumber} - ${driver.name}` : "Awaiting employee #"],
+    // CR-V16: the name identifies the driver to the operator; the employee # is not shown.
+    ["Driver", driver ? driver.name : "Awaiting employee #"],
     ["Vehicle", vehicle ? `${vehicle.assignedBarcode} - ${vehicleDescription(vehicle)}` : "Awaiting barcode"],
     ["Authorization", authorization]
   ]);
@@ -2027,6 +2097,7 @@ function authorizationLabel(driver, direction) {
   if (license.tone === "expired") return "Driver's license expired - authorization blocked";
   if (auth) return `Authorized until ${formatTimestamp(auth.expiresAt)}`;
   if (direction === "IN") return "Unauthorized IN - operational review";
+  if (direction === "OUT" && scanOverrideDecision({ driver, location: el.scannerLocation.value, driverEntryMethod: ui.driverEntryMethod }).applies) return "No daily authorization - allowed by this location's scanned-badge override";
   if (direction === "OUT") return "Supervisor approval required";
   return "Not authorized";
 }
@@ -2035,32 +2106,50 @@ function summaryRows(rows) {
   return rows.map(([label, value]) => `<li><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></li>`).join("");
 }
 
-function renderRecentActivity() {
-  const transactions = state.transactions.slice(0, 5);
-  el.gateMiniFeed.innerHTML = transactions.length ? transactions.map((item) => `
-    <article class="feed-item">
-      <span class="movement-chip ${item.direction.toLowerCase()}">${item.direction}</span>
-      <div><strong>${escapeHtml(item.plate || item.vin)}</strong><span>${escapeHtml(item.driverEmployee)} - ${escapeHtml(item.location)}</span></div>
-      <time datetime="${item.timestamp}">${formatTime(item.timestamp)}</time>
-    </article>
-  `).join("") : emptyState("No gate activity recorded yet.");
-}
-
 function renderSupervisor() {
   expireAuthorizations("render");
   const activeAuths = state.authorizations.filter((auth) => auth.status === "active");
   el.adminAuthorizedCount.textContent = activeAuths.length;
+  // CR-V16: Patrick 2026-09-13 read an empty list beside two drivers marked Active as a bug, and
+  // asked for "its own [count] as a double check from the main section". Active on the roster means
+  // the driver may work, not that they are authorized today, so this states both numbers, and
+  // recounts from the roster, which reads authorizations by a different route.
+  const rosterAuthorized = state.drivers.filter((driver) => findActiveAuthorization(driver.employeeNumber)).length;
+  const waiting = state.drivers.filter((driver) => driver.active && !findActiveAuthorization(driver.employeeNumber)).length;
+  el.authorizationCrossCheck.textContent = rosterAuthorized === activeAuths.length
+    ? `${activeAuths.length} authorized now. ${waiting} active ${waiting === 1 ? "driver is" : "drivers are"} not authorized today.`
+    : `Check: this list has ${activeAuths.length}, but the roster shows ${rosterAuthorized} authorized. Refresh the page, and report it if the numbers still differ.`;
   el.authorizedDriversBody.innerHTML = activeAuths.length ? activeAuths.map((auth) => {
     const driver = findDriverAny(auth.driverEmployee);
     return `<tr><td>${escapeHtml(auth.driverEmployee)}</td><td>${escapeHtml(driver ? driver.name : "Unknown driver")}</td><td>${escapeHtml(humanDuration(auth.type))}</td><td><span class="scope-label">All current locations</span></td><td>${escapeHtml(formatTimestamp(auth.expiresAt))}</td><td><button class="table-action danger-text" type="button" data-driver-action="deauthorize" data-driver-employee="${escapeHtml(auth.driverEmployee)}">Revoke</button></td></tr>`;
   }).join("") : `<tr><td colspan="6" class="empty-cell">No active driver authorizations.</td></tr>`;
 
   const rosterNeedle = normalize(el.driverRosterSearch.value);
-  const roster = state.drivers.filter((driver) => !rosterNeedle || driver.employeeNumber.includes(rosterNeedle) || driver.name.toUpperCase().includes(rosterNeedle));
+  const activity = lastActivityIndex();
+  const lastMoved = (driver) => activity.get(`driver:${driver.employeeNumber}`) || 0;
+  const roster = state.drivers
+    .filter((driver) => !rosterNeedle || driver.employeeNumber.includes(rosterNeedle) || driver.name.toUpperCase().includes(rosterNeedle))
+    .sort((a, b) => lastMoved(b) - lastMoved(a) || a.name.localeCompare(b.name));
   el.driversTableBody.innerHTML = roster.map(renderDriverRow).join("") || `<tr><td colspan="10" class="empty-cell">No drivers match this search.</td></tr>`;
   renderLicenseCounts();
   renderLicenseWarnings();
-  renderLocationList();
+}
+
+// CR-V16: Patrick 2026-09-13 asked for Drivers and Vehicles to "sort by recent activity", so the
+// people a supervisor is most likely to reactivate sit near the top. This is the latest movement
+// time per driver, vehicle id and barcode. The keys are prefixed because an employee # may now
+// contain letters, and G0001 could be either.
+function lastActivityIndex() {
+  const latest = new Map();
+  const note = (key, time) => { if (time > (latest.get(key) || 0)) latest.set(key, time); };
+  state.transactions.forEach((item) => {
+    const time = new Date(item.timestamp).getTime();
+    if (!Number.isFinite(time)) return;
+    if (item.driverEmployee) note(`driver:${item.driverEmployee}`, time);
+    if (item.vehicleId) note(`vehicle:${item.vehicleId}`, time);
+    if (item.vehicleBarcode) note(`barcode:${item.vehicleBarcode}`, time);
+  });
+  return latest;
 }
 
 function renderDesktopUsers() {
@@ -2140,11 +2229,32 @@ function renderLicenseWarnings() {
     .map((driver) => ({ driver, license: licenseStatus(driver) }))
     .filter((item) => item.license.tone !== "current")
     .sort((a, b) => new Date(a.driver.licenseExpires) - new Date(b.driver.licenseExpires));
-  el.licenseWarningBody.innerHTML = warnings.length ? warnings.map(({ driver, license }) => `<tr><td>${escapeHtml(driver.employeeNumber)}</td><td>${escapeHtml(driver.name)}</td><td>${escapeHtml(formatDate(driver.licenseExpires))}</td><td><span class="status-badge ${license.tone === "expired" ? "expired" : "unauthorized"}">${escapeHtml(license.label)}</span></td><td>${driver.active ? "Active" : "Inactive"}</td></tr>`).join("") : `<tr><td colspan="5" class="empty-cell">No licenses approaching expiration.</td></tr>`;
+  el.licenseWarningBody.innerHTML = warnings.length ? warnings.map(({ driver, license }) => `<tr><td>${escapeHtml(driver.employeeNumber)}</td><td>${escapeHtml(driver.name)}</td><td>${escapeHtml(formatDate(driver.licenseExpires))}</td><td><span class="status-badge ${license.tone === "expired" ? "expired" : "unauthorized"}" title="${escapeHtml(license.label)}">${escapeHtml(license.short)}</span></td><td>${driver.active ? "Active" : "Inactive"}</td></tr>`).join("") : `<tr><td colspan="5" class="empty-cell">No licenses approaching expiration.</td></tr>`;
 }
 
-function renderLocationList() {
-  el.locationList.innerHTML = state.locations.map((location) => `<li>${escapeHtml(location.name)}<span>${location.active ? "Active scanner option" : "Inactive - history only"}</span></li>`).join("");
+function renderLocationOverrides() {
+  if (!el.locationOverrideBody) return;
+  el.locationOverrideBody.innerHTML = activeLocations().map((location) => {
+    const override = normalizeScanOverride(location.scanOverride);
+    const changed = override.changedAt ? `${formatTimestamp(override.changedAt)} by ${override.changedBy || "unknown"}` : "Never changed";
+    return `<tr><td>${escapeHtml(location.name)}</td><td><span class="status-badge ${override.enabled ? "provisional" : "inactive"}">${override.enabled ? "On" : "Off"}</span></td><td>${escapeHtml(changed)}</td><td><button class="table-action ${override.enabled ? "danger-text" : ""}" type="button" data-override-location="${escapeHtml(location.name)}">${override.enabled ? "Turn off" : "Turn on"}</button></td></tr>`;
+  }).join("") || `<tr><td colspan="4" class="empty-cell">No active locations.</td></tr>`;
+}
+
+function handleLocationOverrideAction(event) {
+  const button = event.target.closest("[data-override-location]");
+  if (!button) return;
+  const location = state.locations.find((item) => item.name === button.dataset.overrideLocation);
+  if (!location) return;
+  const turningOn = !normalizeScanOverride(location.scanOverride).enabled;
+  const question = turningOn
+    ? `Turn ON the scanned-badge override at ${location.name}? A driver whose badge is scanned there can leave without a daily authorization.`
+    : `Turn OFF the scanned-badge override at ${location.name}? Daily authorization will be required again.`;
+  if (typeof confirm === "function" && !confirm(question)) return;
+  location.scanOverride = { enabled: turningOn, changedBy: "Admin Console", changedAt: new Date().toISOString() };
+  addAudit(turningOn ? "location_override_enabled" : "location_override_disabled", `Scanned-badge override turned ${turningOn ? "on" : "off"} at ${location.name}.`, "Admin Console", location.name);
+  saveState();
+  renderAll();
 }
 
 function filterTransactions() {
@@ -2165,16 +2275,75 @@ function filterTransactions() {
 }
 
 function clearSearch() {
+  // The printout name belongs to the person, not the search, so Clear leaves it.
+  const printedBy = el.searchPrintedBy.value;
   el.searchForm.reset();
+  el.searchPrintedBy.value = printedBy;
   el.filterLocation.value = "";
+  ui.searchLimit = SEARCH_PAGE_SIZE;
   renderAll();
+}
+
+function runSearch(resetPage) {
+  ui.searchResults = filterTransactions();
+  ui.searchRanAt = new Date().toISOString();
+  ui.searchCriteria = searchCriteriaText();
+  if (resetPage) ui.searchLimit = SEARCH_PAGE_SIZE;
+}
+
+function searchCriteriaText() {
+  const parts = [];
+  if (el.filterVehicle.value.trim()) parts.push(`Barcode, VIN, or plate: ${el.filterVehicle.value.trim()}`);
+  if (el.filterDriver.value.trim()) parts.push(`Employee # or driver: ${el.filterDriver.value.trim()}`);
+  if (el.filterLocation.value) parts.push(`Location: ${el.filterLocation.value}`);
+  if (el.filterDate.value) parts.push(`Date: ${formatDate(`${el.filterDate.value}T12:00:00`)}`);
+  if (el.filterType.value) parts.push(`Movement: Vehicle ${el.filterType.value}`);
+  return parts.length ? parts.join("; ") : "All movements (no filters)";
+}
+
+function showMoreSearchResults() {
+  ui.searchLimit = (ui.searchLimit || SEARCH_PAGE_SIZE) + SEARCH_PAGE_SIZE;
+  renderSearchResults();
+}
+
+// CR-V16: Patrick 2026-09-13 wants a printable search for "a criminal matter or even just as
+// documentation for employee termination", carrying the person's name, the date and time, and the
+// search criteria. The browser's print dialog does that without a server: it prints to paper or
+// saves a PDF on the user's own machine. What prints is what is on screen, and the footer says how
+// many of the matching rows that is.
+function printSearch() {
+  const printedBy = el.searchPrintedBy.value.trim();
+  if (!printedBy) {
+    el.searchPrintStatus.textContent = "Enter your name first. It is printed with the search details.";
+    el.searchPrintedBy.focus();
+    return;
+  }
+  const results = ui.searchResults || [];
+  const shown = Math.min(results.length, ui.searchLimit || SEARCH_PAGE_SIZE);
+  const printedAt = new Date().toISOString();
+  const criteria = ui.searchCriteria || searchCriteriaText();
+  el.searchPrintFooter.innerHTML = [
+    ["Search criteria", criteria],
+    ["Search run", formatTimestamp(ui.searchRanAt || printedAt)],
+    ["Rows printed", `${shown} of ${results.length} matching movement${results.length === 1 ? "" : "s"}`],
+    ["Printed by", `${printedBy}, ${formatTimestamp(printedAt)}`]
+  ].map(([label, value]) => `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join("");
+  addAudit("search_printed", `Search printed by ${printedBy}. Criteria: ${criteria}. Rows: ${shown} of ${results.length}.`, printedBy, el.filterLocation.value || "");
+  saveState();
+  el.searchPrintStatus.textContent = "";
+  if (typeof window.print === "function") window.print();
 }
 
 function renderSearchResults() {
   const results = ui.searchResults || [];
+  const shown = results.slice(0, ui.searchLimit || SEARCH_PAGE_SIZE);
+  const remaining = results.length - shown.length;
   el.searchResultCount.textContent = results.length;
-  el.searchResultsBody.innerHTML = results.length ? results.map((item) => `<tr>
-    <td>${formatTimestamp(item.timestamp)}</td><td><span class="movement-chip ${item.direction.toLowerCase()}">${item.direction}</span></td><td>${escapeHtml(item.driverEmployee)}</td><td>${escapeHtml(item.driverName)}</td><td>${escapeHtml(entryMethodLabel(item.driverEntryMethod))}</td><td class="mono">${escapeHtml(item.vehicleBarcode || "-")}</td><td>${escapeHtml(entryMethodLabel(item.vehicleEntryMethod))}</td><td class="mono">${escapeHtml(item.vin)}</td><td>${escapeHtml(item.plate || "-")}</td><td>${escapeHtml(item.location)}${isHistoricalOnlyLocation(item.location) ? ` <span class="status-badge inactive">History only</span>` : ""}</td><td><span class="status-badge ${item.authorizationStatus === "Authorized" ? "authorized" : "unauthorized"}">${escapeHtml(item.authorizationStatus)}</span></td><td>${escapeHtml(item.note || "-")}</td><td>${escapeHtml(item.submittedBy)}</td>
+  el.searchShowing.textContent = results.length ? `Showing ${shown.length} of ${results.length}.` : "";
+  el.searchMoreButton.classList.toggle("hidden", remaining <= 0);
+  el.searchMoreButton.textContent = `Show next ${Math.min(SEARCH_PAGE_SIZE, Math.max(remaining, 0))}`;
+  el.searchResultsBody.innerHTML = shown.length ? shown.map((item) => `<tr>
+    <td>${formatTimestamp(item.timestamp)}</td><td><span class="movement-chip ${item.direction.toLowerCase()}">${item.direction}</span></td><td>${escapeHtml(item.driverEmployee)}</td><td>${escapeHtml(item.driverName)}</td><td>${escapeHtml(entryMethodLabel(item.driverEntryMethod))}</td><td class="mono">${escapeHtml(item.vehicleBarcode || "-")}</td><td>${escapeHtml(entryMethodLabel(item.vehicleEntryMethod))}</td><td class="mono">${escapeHtml(item.vin)}</td><td>${escapeHtml(item.plate || "-")}</td><td>${escapeHtml(item.location)}${isHistoricalOnlyLocation(item.location) ? ` <span class="status-badge inactive">History only</span>` : ""}</td><td><span class="status-badge ${item.authorizationStatus === "Authorized" ? "authorized" : item.authorizationStatus === LOCATION_OVERRIDE_STATUS ? "provisional" : "unauthorized"}">${escapeHtml(item.authorizationStatus)}</span></td><td>${escapeHtml(item.note || "-")}</td><td>${escapeHtml(item.submittedBy)}</td>
   </tr>`).join("") : `<tr><td colspan="13" class="empty-cell">No transactions match these filters.</td></tr>`;
 }
 
@@ -2291,12 +2460,15 @@ function addDays(value, days) {
   return date;
 }
 
+// CR-V16: Patrick 2026-09-13, "All dates within the sections should follow this format": MM/DD/YY,
+// with the time after it where there is one. Pinned to en-US because the order is the requirement;
+// a browser set to a European locale would otherwise print 22/11/26.
 function formatTimestamp(value) {
-  return new Intl.DateTimeFormat([], { timeZone: BUSINESS_TIMEZONE, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
+  return new Intl.DateTimeFormat("en-US", { timeZone: BUSINESS_TIMEZONE, month: "2-digit", day: "2-digit", year: "2-digit", hour: "numeric", minute: "2-digit" }).format(new Date(value));
 }
 
 function formatDate(value) {
-  return new Intl.DateTimeFormat([], { timeZone: BUSINESS_TIMEZONE, month: "short", day: "numeric", year: "numeric" }).format(new Date(value));
+  return new Intl.DateTimeFormat("en-US", { timeZone: BUSINESS_TIMEZONE, month: "2-digit", day: "2-digit", year: "2-digit" }).format(new Date(value));
 }
 
 function formatTime(value) {

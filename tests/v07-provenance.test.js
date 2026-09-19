@@ -19,7 +19,7 @@ assert.match(app, /PRE_CALL_MIGRATION_BACKUP_KEY/, "migration must retain a brow
 assert.match(app, /state\.feedback\.unshift/, "feedback must be retained in prototype state");
 assert.match(html, /Save feedback locally/, "feedback must not imply server delivery");
 assert.match(html, /Drivers are not application users/, "roles must retain a prototype-only boundary");
-assert.match(worker, /lot-watch-gateflow-v0\.8-barcode-integrity-static/, "cache version must change for the barcode-integrity build");
+assert.match(worker, /lot-watch-gateflow-v0\.8-patrick-0913-static/, "cache version must change for the CR-V16 build");
 assert.doesNotMatch(`${app}\n${html}`, /return "Scan"|verified scanner hardware/i, "prototype must not claim verified scan hardware");
 
 console.log("Patrick call ID, migration, feedback, and cache checks passed.");
