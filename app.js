@@ -2400,7 +2400,10 @@ function renderConsoleGate() {
   const needs = consoleNeedsSignIn();
   el.consoleGate.classList.toggle("hidden", !needs);
   document.body.classList.toggle("console-locked", needs);
-  el.demoBanner.classList.toggle("hidden", !(DEMO_MODE && ui.shell === "console"));
+  // On both shells. The scanner is the one Patrick opens on his own phone from the review page, and
+  // it is an exact copy of the gate screen - without this there is nothing on it saying the
+  // movements are made up.
+  el.demoBanner.classList.toggle("hidden", !DEMO_MODE);
   const status = cloudStatusNow();
   el.consoleGateStatus.textContent = status && status.message ? status.message : "";
 }

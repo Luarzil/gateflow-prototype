@@ -115,6 +115,14 @@ test("demo mode keeps its records apart and never connects to the shared records
   assert.ok(app.includes("return !DEMO_MODE && Boolean(window.VeriGateCloud && window.VeriGateCloud.status().signedIn);"));
 });
 
+test("a demo says so on the phone too, not only in the console", () => {
+  // Patrick opens the review link on his own phone, where the scanner is an exact copy of the gate
+  // screen. Hiding the notice there leaves nothing saying the movements are made up.
+  assert.ok(app.includes('el.demoBanner.classList.toggle("hidden", !DEMO_MODE);'));
+  assert.ok(!app.includes('!(DEMO_MODE && ui.shell === "console")'), "the console-only test is gone");
+  assert.match(html, /id="demoBanner"[^>]*>Demo mode: nothing here is real/);
+});
+
 test("the console cannot be used without signing in, except in demo mode and the validator", () => {
   assert.ok(app.includes('return ui.shell === "console" && Boolean(window.VeriGateCloud) && !IN_TEST_HARNESS && !DEMO_MODE && !cloudReady();'));
   assert.ok(html.includes('id="consoleGate"'));
