@@ -3,97 +3,173 @@
 Meet Veri Gate.
 
 2
-00:00:02,190 --> 00:00:08,750
-A practical way to record who is driving, which vehicle is moving, and when it passes through the gate.
+00:00:02,190 --> 00:00:07,577
+Record which vehicle is moving, who is driving, and when it passes through the gate.
 
 3
-00:00:08,750 --> 00:00:11,314
-Let's follow a typical movement.
+00:00:07,577 --> 00:00:10,219
+Here is the current review workflow.
 
 4
-00:00:12,155 --> 00:00:16,680
-First, scan the driver's badge, or enter their employee number.
+00:00:11,030 --> 00:00:13,957
+Start by scanning the vehicle barcode.
 
 5
-00:00:16,630 --> 00:00:23,176
-The screen brings up the driver and their authorization status, so the operator has the context they need.
+00:00:13,907 --> 00:00:18,198
+The field opens scan ready, with keyboard input suppressed.
 
 6
-00:00:23,988 --> 00:00:26,889
-Next, scan the vehicle barcode.
+00:00:18,198 --> 00:00:21,304
+When typing is needed, tap the field.
 
 7
-00:00:26,839 --> 00:00:30,744
-For a known vehicle, its details appear on screen.
+00:00:21,304 --> 00:00:24,293
+The tap marks that entry as manual.
 
 8
-00:00:30,744 --> 00:00:36,891
-If it is new to inventory, Veri Gate adds a record automatically as the movement is processed.
+00:00:25,113 --> 00:00:28,298
+Next, scan the driver employee number.
 
 9
-00:00:37,738 --> 00:00:41,619
-Choose in or out, review the movement, and submit.
+00:00:28,248 --> 00:00:32,011
+Confirm the driver before choosing the movement direction.
 
 10
-00:00:41,569 --> 00:00:46,904
-The record includes the driver, vehicle, gate, device, and time.
+00:00:32,863 --> 00:00:37,994
+Employee numbers can include letters, as this demonstration record shows.
 
 11
-00:00:46,904 --> 00:00:51,350
-The scanner then returns to the start, ready for the next vehicle.
+00:00:37,944 --> 00:00:46,526
+Numeric forms such as one zero zero three and E M P dash one zero zero three still resolve to E one zero zero three.
 
 12
-00:00:52,197 --> 00:00:56,103
-A newly added vehicle can leave through the normal process.
+00:00:47,363 --> 00:00:50,612
+Choose whether the vehicle is entering or leaving.
 
 13
-00:00:56,053 --> 00:00:59,378
-Missing inventory details do not hold it up.
+00:00:50,562 --> 00:00:53,294
+Then continue to the review screen.
 
 14
-00:00:59,378 --> 00:01:03,772
-The usual driver authorization and license checks still apply.
+00:00:54,113 --> 00:00:58,329
+Choose the direction, then review the movement before submitting.
 
 15
-00:01:04,613 --> 00:01:10,414
-When a driver needs temporary authorization, a Fleet Lead or higher role can approve it.
+00:00:58,279 --> 00:01:01,823
+The scanner returns to the start after recording it.
 
 16
-00:01:10,364 --> 00:01:15,789
-The prototype records that decision, keeping the exception connected to the movement.
+00:01:02,655 --> 00:01:06,806
+An unknown scanned barcode continues without a barcode warning.
 
 17
-00:01:16,613 --> 00:01:20,829
-The desktop console brings the operational records together.
+00:01:06,756 --> 00:01:12,426
+Its vehicle record is created when the movement is submitted, without a Check barcode flag.
 
 18
-00:01:20,779 --> 00:01:27,931
-Supervisors can manage drivers, update vehicle details, and review the devices assigned to each location.
+00:01:12,426 --> 00:01:15,210
+Normal driver checks still apply.
 
 19
-00:01:28,738 --> 00:01:35,763
-When a question comes up later, search the movement history by driver, vehicle, location, or date.
+00:01:16,030 --> 00:01:19,524
+When typing is needed, tap the barcode field.
 
 20
-00:01:35,713 --> 00:01:39,192
-The details captured at the gate are there to review.
+00:01:19,474 --> 00:01:23,366
+That tap enables typing and records manual entry.
 
 21
-00:01:40,030 --> 00:01:46,140
-This review build runs on Android and stores records on the device, including without a signal.
+00:01:23,366 --> 00:01:27,476
+A partial barcode such as G zero zero is refused.
 
 22
-00:01:46,090 --> 00:01:51,077
-Shared cloud data and automatic synchronization are still being developed.
+00:01:27,476 --> 00:01:29,796
+Enter all four digits.
 
 23
-00:01:51,077 --> 00:01:54,917
-For now, it is ready to explore the gate workflow.
+00:01:30,613 --> 00:01:35,834
+A complete typed barcode that is not in inventory warns: Check this barcode.
 
 24
-00:01:55,738 --> 00:01:57,492
-Veri Gate.
+00:01:35,784 --> 00:01:38,104
+Continue if it is right.
 
 25
-00:01:57,442 --> 00:02:02,288
-A focused workflow at the gate, and a clearer record to work from afterward.
+00:01:38,104 --> 00:01:43,735
+The movement can proceed, and the vehicle is marked Check barcode for supervisor review.
+
+26
+00:01:44,572 --> 00:01:52,846
+In the console, the vehicle created from the typed unknown barcode is marked Check barcode, making it visible for supervisor review.
+
+27
+00:01:53,613 --> 00:01:59,865
+For a driver who needs temporary authorization, approval requires a Fleet Lead or higher role.
+
+28
+00:01:59,815 --> 00:02:03,642
+Here, an approver with the Scanner role is refused.
+
+29
+00:02:04,488 --> 00:02:10,405
+Choose nine hours, twelve hours, today, forty eight hours, or three days.
+
+30
+00:02:10,355 --> 00:02:13,203
+Nine hours is the default selection.
+
+31
+00:02:14,030 --> 00:02:20,307
+The desktop console brings vehicle inventory and operational records together for supervisors.
+
+32
+00:02:21,072 --> 00:02:24,346
+To add a vehicle, enter its V I N.
+
+33
+00:02:24,296 --> 00:02:27,325
+Other details can be completed later.
+
+34
+00:02:27,325 --> 00:02:32,106
+Leave the barcode blank to assign the next free G barcode automatically.
+
+35
+00:02:32,947 --> 00:02:38,129
+The saved vehicle now appears in inventory with its automatically assigned barcode.
+
+36
+00:02:38,079 --> 00:02:41,249
+Select its V I N to open the record.
+
+37
+00:02:42,072 --> 00:02:48,581
+User records open from their User I D or name, keeping the record directly accessible from the list.
+
+38
+00:02:49,363 --> 00:02:52,754
+Select a Device I D to open that device.
+
+39
+00:02:52,704 --> 00:02:58,722
+Supervisors can review the location and device details associated with gate operations.
+
+40
+00:02:59,572 --> 00:03:04,689
+Search movement history by driver, vehicle, location, or date.
+
+41
+00:03:04,639 --> 00:03:08,866
+The information captured at the gate remains available to review.
+
+42
+00:03:09,697 --> 00:03:13,564
+This Android review build stores records on the device.
+
+43
+00:03:13,514 --> 00:03:18,501
+Shared cloud data and automatic synchronization are still being developed.
+
+44
+00:03:18,501 --> 00:03:23,463
+Veri Gate brings a focused workflow to the gate and a clearer record afterward.

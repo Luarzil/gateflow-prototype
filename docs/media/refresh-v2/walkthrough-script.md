@@ -1,39 +1,87 @@
-## A smoother gate workflow.
+## The updated workflow.
 
-Here is the updated Veri Gate walkthrough. We will follow a vehicle through the gate, then look at the inventory and user changes from your latest feedback.
+Patrick, this walkthrough shows the current vehicle first workflow and the latest barcode integrity changes. We will also check the console updates and record controls.
 
-## Driver first.
+## Vehicle first.
 
-Start with the driver. Scan the badge or enter the employee number, confirm the record, and continue to the vehicle barcode.
+Step one is the vehicle barcode. The field opens in scan mode, with keyboard input suppressed. Tapping the field enables typing and marks the entry as manual. There is no separate manual entry button.
 
-## New barcode? Keep going.
+## Driver second.
 
-This barcode is not in inventory yet. The workflow accepts it and continues. When the movement is processed, the vehicle is added as ordinary inventory.
+Step two is the driver employee number. This field also opens scan ready. After the driver, choose the direction, then review and submit.
+
+## Letters are supported.
+
+Employee numbers can contain letters. Here, A B one two three identifies our demonstration driver. Numeric forms one zero zero three, E one zero zero three, and E M P dash one zero zero three all resolve to E one zero zero three.
 
 ## Choose the direction.
 
-Choose the direction, review the details, and submit the movement. After recording it, the scanner returns to the start, ready for the next driver.
+With the vehicle and driver captured, choose Vehicle In or Vehicle Out. The next screen is the review step.
 
-## The exit is recorded too.
+## Review, then submit.
 
-The same vehicle can leave through the usual driver checks. There is no inventory completion block. A barcode first encountered on exit is also added and logged in this version.
+Choose the direction, then review the movement before submitting. The scanner returns to the start after recording it.
 
-## See what arrived.
+## Unknown, scanned.
 
-In the console, Vehicles Added By Scan shows which records originated at the gate. Supervisors can fill in missing details later. Those details do not delay the vehicle's next movement.
+This unknown barcode arrived through the scanner input path. It advances without the typed barcode warning. When submitted, its vehicle record is created without a Check barcode flag. Normal driver checks still apply.
 
-## Edit existing users.
+## Complete the barcode.
 
-Users now have an Edit action. It opens their existing details, and saving updates that same user. Changes to the user's role are recorded in the audit history.
+When typing is needed, tap the barcode field. That tap enables typing and records manual entry. A partial barcode such as G zero zero is refused. Enter all four digits.
 
-## One Admin role.
+## Check a typed barcode.
 
-The separate Manager role has been removed. The available roles are Scanner, Fleet Lead, Supervisor, and Admin. Existing Manager user records convert to Admin. These are still prototype accounts; secure login is part of the backend work.
+A complete typed barcode that is not in inventory warns: Check this barcode. Continue if it is right. The movement can proceed, and the vehicle is marked Check barcode for supervisor review.
 
-## Approval has a clear threshold.
+## Visible for review.
 
-For a driver authorization override, the approver must be a Fleet Lead or above. A Scanner role cannot approve it. The driver checks remain in place alongside the new inventory behavior.
+Here is the vehicle created from the typed unknown barcode. Check barcode is visible on its record. The unknown scanned vehicle was verified without that flag. That distinction is deliberate.
+
+## Review the exit.
+
+The scanned vehicle can leave through the normal driver and license checks. This is the exit review screen, before submission. Missing inventory details do not block the movement.
+
+## Role refusal verified.
+
+This is the actual role refusal. Casey Rowe holds the Scanner role and cannot approve the override. This driver has a current license but lacks authorization, so we are showing a role refusal, not an expired license screen.
+
+## Choose the duration.
+
+Authorization is selectable. The choices are nine hours, twelve hours, today, forty eight hours, and three days. Nine hours is the default, not a fixed duration.
+
+## Supervisor Console.
+
+This is the desktop supervisor console, showing vehicle inventory. Records open through their identifiers instead of separate per row Edit buttons.
+
+## Open the vehicle record.
+
+A vehicle opens from its V I N, or Add V I N when missing. The removal control is available in the vehicle record, so supervisors can remove a vehicle from active inventory without deleting its history.
+
+## Add with only a VIN.
+
+Adding a vehicle requires only its V I N. Leave the optional barcode blank and save. The application assigns the next free G barcode.
+
+## Barcode assigned.
+
+The vehicle has been saved. Here the next free barcode was G zero zero zero six, and the inventory shows it beside the V I N we entered.
+
+## Open by user identity.
+
+In the user list, select the User I D or name to open that existing user. The old per row Edit and Remove controls are gone.
+
+## Edit the existing user.
+
+This is the existing user record. The available roles are Scanner, Fleet Lead, Supervisor, and Admin. These are prototype accounts, with the limitations shown in the form.
+
+## Open by Device ID.
+
+Device records open from Device I D. The list retains operational status and history controls.
+
+## Device record.
+
+The selected device opens here, with its location and configuration details.
 
 ## Review the history.
 
-Finally, the movement stays in the searchable history. The Android package includes these same revisions. This remains a device-local review build, with shared data and synchronization still ahead.
+Movement history remains searchable. This is a device local review build. Shared cloud data and synchronization remain future work. The videos are ready for review, with deployment handled separately.

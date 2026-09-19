@@ -15,9 +15,16 @@ const root = path.resolve(__dirname, '../docs/media/refresh-v2');
         await page.locator(`#${name}-tab`).click();
         const result = await page.locator(`#${name} video`).evaluate(async video => {
           if (video.readyState < 1) await new Promise((resolve, reject) => { video.onloadedmetadata=resolve; video.onerror=()=>reject(new Error('Video failed')); });
-          video.currentTime = 2;
+          await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error('Video seek timed out')), 10000);
+            video.addEventListener('seeked', () => { clearTimeout(timeout); resolve(); }, { once: true });
+            video.currentTime = 2;
+          });
           await video.play();
-          await new Promise(resolve => setTimeout(resolve, 500));
+          const deadline = performance.now() + 10000;
+          while (video.currentTime <= 2.1 && performance.now() < deadline) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
           video.pause();
           return { duration: video.duration, width: video.videoWidth, height: video.videoHeight, playingConfirmed: video.currentTime > 2.1, audioTracks: video.webkitAudioDecodedByteCount > 0 };
         });
