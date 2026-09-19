@@ -48,12 +48,12 @@ includes the pointer event. Native Android soft-keyboard behavior is not
 hardware-tested. For the duration illustration only, the existing select is
 expanded with size=5 so all actual options are visible in the capture.
 
-## Application discrepancy
+## Application note
 
-The vehicle record's removal button remains invisible: index.html gives
-vehicleInventoryToggle the hidden class, while openVehicleModal changes only
-its hidden property. Patrick's video identifies this discrepancy; the customer
-video does not claim removal works. No application workaround is applied.
+The walkthrough narration no longer describes the earlier invisible removal
+button discrepancy. That issue was found during recording and is already fixed
+in the build on the review link; the refreshed capture shows the corrected
+vehicle record control.
 
 ## Handoff
 
