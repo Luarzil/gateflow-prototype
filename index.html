@@ -46,7 +46,7 @@
               <button class="button ghost compact" id="openScannerFeedbackButton" type="button">Feedback</button>
             </header>
 
-            <div class="scanner-alert neutral" id="scannerNotice" role="status">Working location set. Scan the driver, then the vehicle barcode.</div>
+            <div class="scanner-alert neutral" id="scannerNotice" role="status">Working location set. Scan the vehicle barcode, then the driver.</div>
 
             <section class="working-location-bar" aria-label="Working gate">
               <div class="working-location-select"><label for="scannerLocation">Working Location</label><select id="scannerLocation" name="scannerLocation"></select></div>
@@ -77,34 +77,34 @@
                 </div>
 
                 <div class="wizard-step" data-step="0">
-                  <p class="screen-title">Driver Employee #</p>
-                  <p class="screen-subtitle">Step 1 of 4. Scan or enter the driver employee number, for example E1003.</p>
-                  <div class="scan-group">
-                    <label for="driverInput">Driver Employee #</label>
-                    <div class="scan-input single"><input id="driverInput" name="driverInput" autocomplete="off" inputmode="text" placeholder="Scan or enter employee #, e.g. E1003"></div>
-                    <p class="field-status" id="driverStatus">Awaiting employee number scan.</p>
-                    <button class="button secondary compact" id="openManualEmployeeButton" type="button">Manual entry</button>
-                  </div>
-                  <div class="wizard-actions"><button class="button primary full" id="driverNext" type="button">Continue to vehicle barcode</button></div>
-                </div>
-
-                <div class="wizard-step hidden" data-step="1">
                   <p class="screen-title">Vehicle Barcode</p>
-                  <p class="screen-subtitle">Step 2 of 4. Scan the assigned vehicle barcode or enter it manually.</p>
+                  <p class="screen-subtitle">Step 1 of 4. Scan the assigned vehicle barcode or enter it manually.</p>
                   <div class="scan-group">
                     <label for="barcodeInput">Vehicle Barcode</label>
                     <div class="scan-input single"><input id="barcodeInput" name="barcodeInput" autocomplete="off" inputmode="text" placeholder="Scan assigned vehicle barcode"></div>
                     <p class="field-status" id="barcodeStatus">Awaiting vehicle barcode scan.</p>
                     <button class="button secondary compact" id="openManualBarcodeButton" type="button">Manual entry</button>
                   </div>
-                  <div class="button-row"><button class="button secondary" id="barcodeBack" type="button">Back</button><button class="button primary" id="barcodeNext" type="button">Choose movement</button></div>
+                  <div class="wizard-actions"><button class="button primary full" id="barcodeNext" type="button">Continue to driver</button></div>
+                </div>
+
+                <div class="wizard-step hidden" data-step="1">
+                  <p class="screen-title">Driver Employee #</p>
+                  <p class="screen-subtitle">Step 2 of 4. Scan or enter the driver employee number, for example E1003.</p>
+                  <div class="scan-group">
+                    <label for="driverInput">Driver Employee #</label>
+                    <div class="scan-input single"><input id="driverInput" name="driverInput" autocomplete="off" inputmode="text" placeholder="Scan or enter employee #, e.g. E1003"></div>
+                    <p class="field-status" id="driverStatus">Awaiting employee number scan.</p>
+                    <button class="button secondary compact" id="openManualEmployeeButton" type="button">Manual entry</button>
+                  </div>
+                  <div class="button-row"><button class="button secondary" id="barcodeBack" type="button">Back to vehicle</button><button class="button primary" id="driverNext" type="button">Choose movement</button></div>
                 </div>
 
                 <div class="wizard-step hidden" data-step="2">
                   <p class="screen-title">Choose movement</p>
                   <p class="screen-subtitle">Step 3 of 4. Select the vehicle direction after the barcode lookup.</p>
                   <div class="home-actions"><button class="big-action-btn out" id="directionOut" type="button"><span aria-hidden="true">OUT</span>Vehicle OUT</button><button class="big-action-btn in" id="directionIn" type="button"><span aria-hidden="true">IN</span>Vehicle IN</button></div>
-                  <button class="button secondary full" id="movementBack" type="button">Back to barcode</button>
+                  <button class="button secondary full" id="movementBack" type="button">Back to driver</button>
                 </div>
 
                 <div class="wizard-step hidden" data-step="3">

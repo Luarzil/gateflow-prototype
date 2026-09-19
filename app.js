@@ -772,7 +772,7 @@ function startFlow() {
   ui.direction = null;
   ui.activeFlow = "scan";
   el.scannerHeading.textContent = "Vehicle Scan";
-  setNotice("Scan the driver employee #, then the assigned vehicle barcode.", "neutral");
+  setNotice("Scan the vehicle barcode, then the driver employee #.", "neutral");
   showWizardStep(0);
 }
 
@@ -822,10 +822,10 @@ function showWizardStep(step) {
   updateWizardDots();
   if (step === 3) renderScanSummary();
   if (step === 0) {
-    el.driverInput.focus({ preventScroll: true });
-    el.driverInput.scrollIntoView({ block: "center", inline: "nearest" });
+    el.barcodeInput.focus({ preventScroll: true });
+    el.barcodeInput.scrollIntoView({ block: "center", inline: "nearest" });
   }
-  if (step === 1) el.barcodeInput.focus();
+  if (step === 1) el.driverInput.focus();
   if (step === 2) el.directionOut.focus();
   if (step === 3) el.reviewStepTitle.focus();
 }
@@ -859,14 +859,11 @@ function clearDriverDerivedStateIfChanged(rawValue) {
   ui.pendingOverride = null;
   ui.direction = null;
   ui.driverEntryMethod = null;
-  ui.vehicleEntryMethod = null;
-  el.barcodeInput.value = "";
   el.transactionNote.value = "";
   el.supervisorInput.value = "";
-  el.barcodeStatus.textContent = "Awaiting vehicle barcode scan.";
   el.supervisorStatus.textContent = `Awaiting a valid ${OVERRIDE_MIN_ROLE} or above ID.`;
-  setNotice("Driver changed. Previous vehicle, authorization review, and pending approval were cleared.", "warning");
-  if (ui.activeFlow === "scan" && ui.step !== 0) showWizardStep(0);
+  setNotice("Driver changed. Previous authorization review and pending approval were cleared.", "warning");
+  if (ui.activeFlow === "scan" && ui.step > 1) showWizardStep(1);
   return true;
 }
 
@@ -887,7 +884,7 @@ function handleScanInput(fieldId) {
   if (fieldId === "barcodeInput") { input.value = canonicalVehicleBarcode(rawValue); ui.vehicleEntryMethod = null; }
   // The cleared-state warning must survive: updateDriverStatus would otherwise overwrite it with
   // its success notice on the very next line, and the operator would never learn that the
-  // previous vehicle, direction, and pending approval were discarded.
+  // previous authorization review and pending approval were discarded.
   if (fieldId === "driverInput") { ui.driverEntryMethod = null; const cleared = clearDriverDerivedStateIfChanged(rawValue); updateDriverStatus({ preserveNotice: cleared }); }
   if (fieldId === "barcodeInput") updateBarcodeStatus();
 }
@@ -945,8 +942,8 @@ function submitManualEmployee() {
   saveState();
   closeManualEmployeeModal();
   updateDriverStatus();
-  setNotice("Manual employee number accepted. Continue to vehicle barcode.", "success");
-  showWizardStep(1);
+  setNotice("Manual employee number accepted. Choose the vehicle movement.", "success");
+  showWizardStep(2);
 }
 
 function openManualBarcodeModal() {
@@ -973,8 +970,8 @@ function submitManualBarcode() {
   saveState();
   closeManualBarcodeModal();
   updateBarcodeStatus();
-  setNotice("Manual barcode accepted. Choose the vehicle movement.", "success");
-  showWizardStep(2);
+  setNotice("Manual barcode accepted. Continue to driver.", "success");
+  showWizardStep(1);
 }
 
 function updateDriverStatus(options = {}) {
@@ -986,7 +983,7 @@ function updateDriverStatus(options = {}) {
     const license = licenseStatus(driver);
     const authorizationText = auth ? `Authorized through ${formatTimestamp(auth.expiresAt)}` : "Not authorized";
     el.driverStatus.textContent = `${driver.name} - ${authorizationText}. ${license.label}.`;
-    if (!options.preserveNotice) setNotice("Driver found. Continue to the vehicle barcode.", "success");
+    if (!options.preserveNotice) setNotice("Driver found. Choose the movement.", "success");
   }
 }
 
@@ -1004,7 +1001,7 @@ function updateBarcodeStatus() {
   } else {
     const vinWarning = vehicle.vin.length === 17 ? "VIN is 17 characters." : `VIN warning: ${vehicle.vin.length} characters.`;
     el.barcodeStatus.textContent = `${vehicle.assignedBarcode}: ${vehicle.year} ${vehicle.make} ${vehicle.model}, ${vehicle.color}. VIN ${vehicle.vin}; ${vehicle.plate || "No plate"}. ${vinWarning}`;
-    setNotice("Vehicle found. Choose the movement.", "success");
+    setNotice("Vehicle found. Continue to driver.", "success");
   }
 }
 
@@ -1039,7 +1036,7 @@ function validateDriverStep() {
   ui.validatedDriverEmployee = driver.employeeNumber;
   if (ui.driverEntryMethod !== "manual") ui.driverEntryMethod = "scanner_field";
   updateDriverStatus();
-  showWizardStep(1);
+  showWizardStep(2);
 }
 
 function validateBarcodeStep() {
@@ -1052,9 +1049,8 @@ function validateBarcodeStep() {
     return;
   }
   const vehicle = findVehicleByBarcode(barcode);
-  // CR-V08-BETA-CRITICAL-APP-001: unknown barcodes continue to the movement choice. The record
-  // is created on IN; OUT is gated separately in startTransaction so an unknown vehicle can
-  // never leave. Direction is not known at this step, which is why the gate lives downstream.
+  // CR-V13-SCANNER-ORDER-001: the vehicle is captured first, then the driver. Unknown barcodes
+  // continue because CR-V11 made scan-created vehicles ordinary inventory records.
   if (vehicle && !vehicle.active) {
     setNotice("Vehicle is inactive and cannot be used for a new movement.", "danger");
     shake(el.barcodeInput);
@@ -1062,7 +1058,7 @@ function validateBarcodeStep() {
   }
   if (ui.vehicleEntryMethod !== "manual") ui.vehicleEntryMethod = "scanner_field";
   updateBarcodeStatus();
-  showWizardStep(2);
+  showWizardStep(1);
 }
 
 function chooseDirection(direction) {

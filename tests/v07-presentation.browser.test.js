@@ -95,8 +95,8 @@ async function verifyViewport(cdp, url, width, height) {
   await evaluate(cdp, "document.querySelector('#startScanButton').click()");
 
   const step1 = await evaluate(cdp, `(() => {
-    const action = document.querySelector('#driverNext').getBoundingClientRect();
-    const input = document.querySelector('#driverInput').getBoundingClientRect();
+    const action = document.querySelector('#barcodeNext').getBoundingClientRect();
+    const input = document.querySelector('#barcodeInput').getBoundingClientRect();
     const dock = document.querySelector('[data-step="0"] .wizard-actions');
     return {
       actionVisible: action.top >= 0 && action.bottom <= innerHeight,
@@ -119,10 +119,10 @@ async function verifyViewport(cdp, url, width, height) {
   assert.ok(step1.dockBottomGap >= 0 && step1.dockBottomGap <= 20, `${width}x${height}: Step 1 dock must remain anchored near the viewport bottom (${JSON.stringify(step1)})`);
 
   await evaluate(cdp, `(() => {
-    const input = document.querySelector('#driverInput'); input.value = '1001'; input.dispatchEvent(new Event('input', { bubbles: true }));
-    document.querySelector('#driverNext').click();
     const barcode = document.querySelector('#barcodeInput'); barcode.value = 'G0001'; barcode.dispatchEvent(new Event('input', { bubbles: true }));
-    document.querySelector('#barcodeNext').click(); document.querySelector('#directionIn').click();
+    document.querySelector('#barcodeNext').click();
+    const input = document.querySelector('#driverInput'); input.value = '1001'; input.dispatchEvent(new Event('input', { bubbles: true }));
+    document.querySelector('#driverNext').click(); document.querySelector('#directionIn').click();
   })()`);
   const step4 = await evaluate(cdp, `(() => {
     const submit = document.querySelector('#submitTransactionButton').getBoundingClientRect();
@@ -160,8 +160,8 @@ async function verifyRecoveryBehavior(cdp, url) {
   await waitForReady(cdp);
   await evaluate(cdp, `(() => {
     document.querySelector('#startScanButton').click();
-    const driver = document.querySelector('#driverInput'); driver.value = 'E1003'; driver.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('#driverNext').click();
     const barcode = document.querySelector('#barcodeInput'); barcode.value = 'G0003'; barcode.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('#barcodeNext').click();
+    const driver = document.querySelector('#driverInput'); driver.value = 'E1003'; driver.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('#driverNext').click();
     document.querySelector('#directionOut').click(); document.querySelector('#submitTransactionButton').click();
   })()`);
   await evaluate(cdp, `(() => { const state = JSON.parse(localStorage.getItem('lot-watch.gateflow.v0.7.state')); state.supervisors[0].id = 'SUP-1001'; state.migrationVersion = 7; localStorage.setItem('lot-watch.gateflow.v0.7.state', JSON.stringify(state)); })()`);
@@ -171,20 +171,17 @@ async function verifyRecoveryBehavior(cdp, url) {
   assert.equal(migratedSupervisor, "S1001", "legacy supervisor ID must persist as S1001 after migration");
   await evaluate(cdp, `(() => {
     document.querySelector('#startScanButton').click();
-    const driver = document.querySelector('#driverInput'); driver.value = 'E1003'; driver.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('#driverNext').click();
     const barcode = document.querySelector('#barcodeInput'); barcode.value = 'G9999'; barcode.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('#barcodeNext').click();
+    const driver = document.querySelector('#driverInput'); driver.value = 'E1003'; driver.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('#driverNext').click();
   })()`);
-  const invalidNotice = await evaluate(cdp, "document.querySelector('#scannerNotice').textContent");
-  assert.match(invalidNotice, /not found/i, "invalid barcode must show a clear blocking notice");
-  await evaluate(cdp, `(() => { const barcode = document.querySelector('#barcodeInput'); barcode.value = 'G0003'; barcode.dispatchEvent(new Event('input', { bubbles: true })); })()`);
-  const recoveredBarcode = await evaluate(cdp, `({ notice: document.querySelector('#scannerNotice').textContent, tone: document.querySelector('#scannerNotice').className, status: document.querySelector('#barcodeStatus').textContent })`);
-  assert.match(recoveredBarcode.notice, /Vehicle found/i, "valid barcode must replace the stale red warning");
-  assert.match(recoveredBarcode.tone, /success/, "valid barcode must use success feedback");
-  assert.match(recoveredBarcode.status, /G0003/, "valid barcode must resolve the inventory record");
+  const unknownStatus = await evaluate(cdp, "document.querySelector('#barcodeStatus').textContent");
+  assert.match(unknownStatus, /added automatically/i, "unknown barcode must explain that it will be added automatically");
 
-  await evaluate(cdp, `(() => { document.querySelector('#barcodeNext').click(); document.querySelector('#directionOut').click(); document.querySelector('#submitTransactionButton').click(); const supervisor = document.querySelector('#supervisorInput'); supervisor.value = 'SUP-1001'; supervisor.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await evaluate(cdp, `(() => { document.querySelector('#directionOut').click(); document.querySelector('#submitTransactionButton').click(); const supervisor = document.querySelector('#supervisorInput'); supervisor.value = 'SUP-1001'; supervisor.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   const supervisorReady = await evaluate(cdp, `({ notice: document.querySelector('#scannerNotice').textContent, status: document.querySelector('#supervisorStatus').textContent })`);
-  assert.match(supervisorReady.notice, /Supervisor found/i, "legacy supervisor ID must normalize before approval");
+  // CR-V11 replaced "Supervisor found" with "<role> or above found", because the minimum approver
+  // is Fleet Lead now. Matching the tail keeps this about acceptance rather than the role name.
+  assert.match(supervisorReady.notice, /or above found/i, "legacy supervisor ID must normalize before approval");
   assert.match(supervisorReady.status, /S1001/, "supervisor status must show the canonical ID");
   await evaluate(cdp, "document.querySelector('#approveSupervisorButton').click()");
   const approval = await evaluate(cdp, `(() => { const state = JSON.parse(localStorage.getItem('lot-watch.gateflow.v0.7.state')); const authorization = state.authorizations.find(item => item.driverEmployee === 'E1003' && item.status === 'active'); return { heading: document.querySelector('#reviewStepTitle').textContent, notice: document.querySelector('#scannerNotice').textContent, summary: document.querySelector('#scanSummary').innerText, authorizedAt: authorization?.authorizedAt, expiresAt: authorization?.expiresAt }; })()`);
@@ -192,7 +189,7 @@ async function verifyRecoveryBehavior(cdp, url) {
   assert.match(approval.notice, /approved 9 Hours/i, "approval result must be clear");
   assert.match(approval.summary, /AUTHORIZATION/, "review must remain available after approval");
   assert.equal(new Date(approval.expiresAt).getTime() - new Date(approval.authorizedAt).getTime(), 9 * 60 * 60 * 1000, "temporary authorization must last exactly nine hours");
-  return { barcode: recoveredBarcode.status, approval: approval.heading };
+  return { barcode: unknownStatus, approval: approval.heading };
 }
 
 async function main() {
