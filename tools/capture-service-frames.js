@@ -11,10 +11,19 @@
 // for something real to happen - a movement arriving, for example - rather than for a keypress, so
 // a frame cannot be captured before the thing it is supposed to show is actually on screen.
 //
+// Order matters. Everything that needs nobody runs FIRST, while the console is open, so a session
+// banks most of its frames before it asks for anything. The three scenes that need a person with
+// the gate phone come last, and one of them timing out is not fatal: the rest still ran, and the
+// run reports exactly which frames are outstanding.
+//
+// A console sign-in lives in the tab, not on disk - closing Chrome ends it, whatever the profile
+// keeps. So Chrome is detached and left running between scenes rather than restarted.
+//
 // Usage:
 //   node tools/capture-service-frames.js                 the whole sequence
 //   node tools/capture-service-frames.js --scene 3       one scene, to redo a shot
-//   node tools/capture-service-frames.js --keep-open     leave Chrome open at the end
+//   node tools/capture-service-frames.js --wait 45       minutes to wait on each phone scene
+//   node tools/capture-service-frames.js --close         close Chrome at the end (default: leave it)
 
 const fs = require("node:fs");
 const os = require("node:os");
@@ -31,6 +40,19 @@ const only = (() => {
   const at = process.argv.indexOf("--scene");
   return at >= 0 && process.argv[at + 1] ? Number(process.argv[at + 1]) : null;
 })();
+
+// How long to stand waiting for somebody to walk to the phone and back.
+const phoneWaitSeconds = (() => {
+  const at = process.argv.indexOf("--wait");
+  const minutes = at >= 0 && process.argv[at + 1] ? Number(process.argv[at + 1]) : 45;
+  return Math.max(1, minutes) * 60;
+})();
+
+// Scene 1 has to come before the sign-in, and 2 is the sign-in itself. Then everything automatic,
+// so the run banks frames whether or not anyone is free. The phone scenes are last; 4 reads the log
+// that 3 fills, so it follows it.
+const DEFAULT_ORDER = [1, 2, 5, 6, 7, 9, 3, 4, 8];
+const NEEDS_PHONE = new Set([3, 4, 8]);
 
 const say = (message) => console.log(message);
 const ask = (message) => console.log(`\n>>> ${message}\n`);
@@ -160,7 +182,7 @@ const scenes = {
     if (!await readFromService(cdp)) throw new Error("This log is being read from the device, not the service. Sign in first.");
     await shot(cdp, "03a-log-before.png", `the gate log, ${before} movements in the database`);
     ask("Now record ONE movement on the gate phone (signed in as d0001).\n    I am asking the database every few seconds and will capture it the moment it is there.");
-    const deadline = Date.now() + 900 * 1000;
+    const deadline = Date.now() + phoneWaitSeconds * 1000;
     let now = before;
     while (now <= before && Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 6000));
@@ -210,7 +232,7 @@ const scenes = {
     await new Promise((r) => setTimeout(r, 800));
     const before = await serverTotal(cdp);
     ask(`Put the phone in airplane mode, record TWO movements, then turn the signal back on.\n    The database is at ${before} now; I will capture it when both have caught up.`);
-    const deadline = Date.now() + 1800 * 1000;
+    const deadline = Date.now() + phoneWaitSeconds * 1000;
     let now = before;
     while (now < before + 2 && Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 6000));
@@ -250,7 +272,10 @@ async function main() {
     "--no-default-browser-check",
     "--window-size=1366,900",
     "about:blank"
-  ], { stdio: "ignore", detached: false });
+  ], { stdio: "ignore", detached: true });
+  // Chrome has to outlive this process. A console sign-in lives in the tab, so killing the browser
+  // when a scene times out would cost the sign-in as well as the run.
+  chrome.unref();
 
   let cdp;
   try {
@@ -260,21 +285,36 @@ async function main() {
     await cdp.send("Page.enable");
     await cdp.send("Runtime.enable");
 
-    const order = only ? [only] : Object.keys(scenes).map(Number);
+    const order = only ? [only] : DEFAULT_ORDER;
+    const outstanding = [];
     for (const number of order) {
       if (!scenes[number]) throw new Error(`No scene ${number}`);
-      await scenes[number](cdp);
+      try {
+        await scenes[number](cdp);
+      } catch (error) {
+        // A scene needing someone with the gate phone may simply not get one right now. That must
+        // not throw away the frames already captured, or the sign-in that took a person to give.
+        if (!NEEDS_PHONE.has(number) || only) throw error;
+        say(`  scene ${number} not captured: ${error.message}`);
+        outstanding.push(number);
+      }
     }
 
     const captured = fs.readdirSync(frameDir).filter((name) => name.endsWith(".png"));
     say(`\nDone. ${captured.length} frames in ${frameDir}`);
     captured.sort().forEach((name) => say(`  ${name}`));
+    if (outstanding.length) {
+      say(`\nStill to capture, when someone is free with the gate phone: scene ${outstanding.join(", ")}.`);
+      say(`  ${outstanding.map((number) => `node tools/capture-service-frames.js --scene ${number}`).join("\n  ")}`);
+      say("Leave this Chrome open and it will not ask you to sign in again.");
+    }
+    say("\nThen: node tools/build-service-manifest.js");
   } finally {
     if (cdp) cdp.close();
-    if (!process.argv.includes("--keep-open")) {
+    if (process.argv.includes("--close")) {
       spawn("taskkill", ["/pid", String(chrome.pid), "/t", "/f"], { stdio: "ignore" });
     } else {
-      say("\nChrome left open. Close it yourself when you are done.");
+      say("\nChrome is left open and signed in, so a follow-up run costs you nothing.");
     }
   }
 }
