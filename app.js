@@ -24,6 +24,12 @@ const IN_TEST_HARNESS = (() => {
   }
 })();
 
+// The public review site. On this host the app is something people are sent to look at, so it opens
+// as a demo unless somebody deliberately asks for the real console with ?live=1. Anywhere else - a
+// developer's machine, the Android app, whatever the live account is called one day - the real
+// console is the default and the demo has to be asked for.
+const REVIEW_HOST = "gateflow-prototype.vercel.app";
+
 // CR-V17 step 5: the review site shows Patrick the app without a login. ?demo=1 opens that mode for
 // the tab. Its records are kept apart from the real ones (their own storage), and it never connects
 // to the shared records: a demo session in the same browser as a real console must not be able to
@@ -38,8 +44,17 @@ const DEMO_MODE = (() => {
   // failure - it hides one.
   if (IN_TEST_HARNESS) return false;
   try {
-    if (new URLSearchParams(window.location.search).has("demo")) window.sessionStorage.setItem("veri-gate.demo", "1");
-    return window.sessionStorage.getItem("veri-gate.demo") === "1";
+    const query = new URLSearchParams(window.location.search);
+    // An explicit answer, either way, is remembered for the tab.
+    if (query.has("demo")) window.sessionStorage.setItem("veri-gate.demo", "1");
+    if (query.has("live")) window.sessionStorage.setItem("veri-gate.demo", "0");
+    const remembered = window.sessionStorage.getItem("veri-gate.demo");
+    if (remembered !== null) return remembered === "1";
+    // Nobody said. On the review site that means a reviewer who followed a link, or typed the
+    // address, or used an old bookmark - and the one thing they must not meet is a login they
+    // cannot pass. Patrick did, on 2026-09-20, because the review site and the real console are
+    // the same address and only ?demo=1 told them apart.
+    return window.location.hostname === REVIEW_HOST;
   } catch (error) {
     return false;
   }

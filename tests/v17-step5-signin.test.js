@@ -115,6 +115,29 @@ test("demo mode keeps its records apart and never connects to the shared records
   assert.ok(app.includes("return !DEMO_MODE && Boolean(window.VeriGateCloud && window.VeriGateCloud.status().signedIn);"));
 });
 
+test("on the review site a visitor gets the demo, never a login they cannot pass", () => {
+  // Patrick opened the app on a laptop on 2026-09-20 and met "Sign in to continue. Ask the Admin
+  // if you do not have a login." The links sent to him were right; the review site and the real
+  // console were the same address, and only ?demo=1 told them apart. Anything that dropped it -
+  // an old bookmark, typing the address, a forwarded link - landed a reviewer on a login wall.
+  assert.ok(app.includes('const REVIEW_HOST = "gateflow-prototype.vercel.app";'));
+  assert.ok(app.includes("return window.location.hostname === REVIEW_HOST;"), "the review host defaults to the demo");
+  // And the real console is still reachable there, deliberately.
+  assert.ok(app.includes('if (query.has("live")) window.sessionStorage.setItem("veri-gate.demo", "0");'));
+  // An explicit choice, either way, wins over the default.
+  const block = app.slice(app.indexOf("const DEMO_MODE = (() => {"), app.indexOf("const STORAGE_KEY ="));
+  assert.ok(block.indexOf('query.has("demo")') < block.indexOf("hostname === REVIEW_HOST"), "asked-for demo is read first");
+  assert.ok(block.indexOf('query.has("live")') < block.indexOf("hostname === REVIEW_HOST"), "asked-for live is read first");
+  // Everywhere else - a developer's machine, the Android app, a future live domain - is the real
+  // console unless the demo is asked for.
+  assert.ok(block.includes("if (remembered !== null) return remembered === \"1\";"));
+});
+
+test("the capture of the real service asks for the real console", () => {
+  const capture = fs.readFileSync(path.join(root, "tools", "capture-service-frames.js"), "utf8");
+  assert.ok(capture.includes("?shell=console&live=1"), "or it would capture the demo and call it the service");
+});
+
 test("the validator is never a demo, whatever the tab was doing before it", () => {
   // sessionStorage is shared with every same-origin frame in a tab. Opening the demo and then the
   // validator in that tab put the harness into demo mode: it wrote to the demo's storage while the

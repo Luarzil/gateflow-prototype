@@ -223,7 +223,10 @@ const scenes = {
       say("  this tab is signed in; keeping the locked-console frame already captured");
       return;
     }
-    await go(cdp, `${SITE}/index.html?shell=console`);
+    // live=1 asks for the real console. On the review host the app opens as a demo unless it is
+    // told otherwise, because that host is where reviewers are sent and they must never meet a
+    // login they cannot pass. This capture is the opposite case: it wants the real thing.
+    await go(cdp, `${SITE}/index.html?shell=console&live=1`);
     await until(cdp, "document.body.classList.contains('console-locked')", "the sign-in panel", 60);
     await shot(cdp, "01-sign-in.png", "the console before anyone is signed in");
   },
