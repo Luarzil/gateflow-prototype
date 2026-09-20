@@ -87,6 +87,60 @@ async function connectCdp(webSocketUrl) {
   };
 }
 
+const PORT_FROM = 9333;
+const PORT_TO = 9732;
+
+async function answers(port) {
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(1500) });
+    if (!response.ok) return false;
+    const body = await response.json();
+    return String(body.Browser || "").includes("Chrome");
+  } catch (error) {
+    return false;
+  }
+}
+
+// Find the browser that is already open on this profile, so a second run does not start another one
+// beside it with a fresh, signed-out tab. Chrome usually leaves the port in DevToolsActivePort; when
+// it has not, the range this script uses is swept instead, which takes about a second.
+async function runningDebugPort() {
+  const file = path.join(profileDir, "DevToolsActivePort");
+  if (fs.existsSync(file)) {
+    const port = Number(fs.readFileSync(file, "utf8").split(/\r?\n/)[0]);
+    if (Number.isInteger(port) && port > 0 && await answers(port)) return port;
+  }
+  const ports = [];
+  for (let port = PORT_FROM; port <= PORT_TO; port += 1) ports.push(port);
+  const found = await Promise.all(ports.map(async (port) => (await answers(port) ? port : null)));
+  return found.find((port) => port !== null) || null;
+}
+
+// A console sign-in lives in ONE tab. Picking whichever tab comes back first means asking somebody
+// to sign in again in a window where they already have - which is exactly what happened on the
+// first two runs. Prefer a tab that is already signed in.
+async function chooseTarget(pages) {
+  for (const page of pages) {
+    let cdp;
+    try {
+      cdp = await connectCdp(page.webSocketDebuggerUrl);
+      const signedIn = await evaluate(cdp, `(() => {
+        try { return Boolean(window.VeriGateCloud && window.VeriGateCloud.status().signedIn); }
+        catch (error) { return false; }
+      })()`);
+      if (signedIn) {
+        const who = await evaluate(cdp, "window.VeriGateCloud.status().username");
+        say(`  attaching to the tab already signed in as ${who}`);
+        return cdp;
+      }
+      cdp.close();
+    } catch (error) {
+      if (cdp) cdp.close();
+    }
+  }
+  return null;
+}
+
 async function waitForJson(url) {
   for (let attempt = 0; attempt < 120; attempt += 1) {
     try {
@@ -159,6 +213,16 @@ const readFromService = (cdp) => evaluate(cdp, 'ui.searchSource === "shared"');
 const scenes = {
   async 1(cdp) {
     say("\n== 1. Sign in to continue");
+    const already = await evaluate(cdp, `(() => {
+      try { return Boolean(window.VeriGateCloud && window.VeriGateCloud.status().signedIn); }
+      catch (error) { return false; }
+    })()`);
+    // This scene is the console BEFORE anyone signs in. Re-taking it from a signed-in tab would
+    // quietly replace it with the wrong picture, so it is kept rather than overwritten.
+    if (already && fs.existsSync(path.join(frameDir, "01-sign-in.png"))) {
+      say("  this tab is signed in; keeping the locked-console frame already captured");
+      return;
+    }
     await go(cdp, `${SITE}/index.html?shell=console`);
     await until(cdp, "document.body.classList.contains('console-locked')", "the sign-in panel", 60);
     await shot(cdp, "01-sign-in.png", "the console before anyone is signed in");
@@ -258,30 +322,46 @@ async function main() {
   fs.mkdirSync(frameDir, { recursive: true });
   fs.mkdirSync(profileDir, { recursive: true });
 
-  const debugPort = 9333 + Math.floor(Math.random() * 400);
   say(`Veri-Gate service capture`);
   say(`  site:    ${SITE}`);
   say(`  frames:  ${frameDir}`);
-  say(`  profile: ${profileDir}  (kept, so a sign-in survives between runs)`);
+  say(`  profile: ${profileDir}`);
 
-  const chrome = spawn(chromePath, [
-    `--user-data-dir=${profileDir}`,
-    `--remote-debugging-port=${debugPort}`,
-    "--remote-allow-origins=*",
-    "--no-first-run",
-    "--no-default-browser-check",
-    "--window-size=1366,900",
-    "about:blank"
-  ], { stdio: "ignore", detached: true });
-  // Chrome has to outlive this process. A console sign-in lives in the tab, so killing the browser
-  // when a scene times out would cost the sign-in as well as the run.
-  chrome.unref();
+  // Reuse the browser that is already open on this profile. Starting a second one beside it gives
+  // a fresh tab with no sign-in, and a console sign-in lives in the tab - which is how the first
+  // runs ended up asking for a sign-in that had already been given in the window next door.
+  const existing = await runningDebugPort();
+  let chrome = null;
+  let debugPort = existing;
+
+  if (existing && await answers(existing)) {
+    say(`  attaching to the Chrome already open (port ${existing})`);
+  } else {
+    debugPort = 9333 + Math.floor(Math.random() * 400);
+    say(`  starting Chrome (port ${debugPort})`);
+    chrome = spawn(chromePath, [
+      `--user-data-dir=${profileDir}`,
+      `--remote-debugging-port=${debugPort}`,
+      "--remote-allow-origins=*",
+      "--no-first-run",
+      "--no-default-browser-check",
+      "--window-size=1366,900",
+      "about:blank"
+    ], { stdio: "ignore", detached: true });
+    // Chrome has to outlive this process. A console sign-in lives in the tab, so killing the
+    // browser when a scene times out would cost the sign-in as well as the run.
+    chrome.unref();
+  }
 
   let cdp;
   try {
     const pages = await waitForJson(`http://127.0.0.1:${debugPort}/json/list`);
-    const page = pages.find((item) => item.type === "page");
-    cdp = await connectCdp(page.webSocketDebuggerUrl);
+    const openPages = pages.filter((item) => item.type === "page");
+    cdp = await chooseTarget(openPages);
+    if (!cdp) {
+      say("  no tab is signed in yet; using the first one");
+      cdp = await connectCdp(openPages[0].webSocketDebuggerUrl);
+    }
     await cdp.send("Page.enable");
     await cdp.send("Runtime.enable");
 
@@ -311,7 +391,7 @@ async function main() {
     say("\nThen: node tools/build-service-manifest.js");
   } finally {
     if (cdp) cdp.close();
-    if (process.argv.includes("--close")) {
+    if (process.argv.includes("--close") && chrome) {
       spawn("taskkill", ["/pid", String(chrome.pid), "/t", "/f"], { stdio: "ignore" });
     } else {
       say("\nChrome is left open and signed in, so a follow-up run costs you nothing.");

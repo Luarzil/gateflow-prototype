@@ -35,9 +35,9 @@
       "captured": true,
       "size": {
         "width": 1690,
-        "height": 990
+        "height": 985
       },
-      "bytes": 35253
+      "bytes": 35215
     },
     {
       "n": 2,
@@ -52,9 +52,9 @@
       "captured": true,
       "size": {
         "width": 1690,
-        "height": 990
+        "height": 985
       },
-      "bytes": 47544
+      "bytes": 48082
     },
     {
       "n": 3,
@@ -69,9 +69,9 @@
       "captured": true,
       "size": {
         "width": 1690,
-        "height": 990
+        "height": 985
       },
-      "bytes": 96873
+      "bytes": 96328
     },
     {
       "n": 4,
@@ -99,9 +99,12 @@
       "narration": "The log answers more than what moved and when. It answers which gate recorded it, and which login. That is the difference between a list and a record.",
       "proves": "The audit question. Highlight the last two columns.",
       "editing": "Worth a gentle zoom onto the Gate device and Recorded by columns.",
-      "captured": false,
-      "size": null,
-      "bytes": null
+      "captured": true,
+      "size": {
+        "width": 1690,
+        "height": 985
+      },
+      "bytes": 96328
     },
     {
       "n": 6,
@@ -114,9 +117,12 @@
       "narration": "Access is given here, and taken away here. Each person has a role, and the role is not a matter of hiding buttons on a screen. A gate phone records movements. A Fleet Lead can also authorize a driver. A Supervisor can also edit one. The service checks that on every single request, so changing it on a phone changes nothing. A new person gets a one-time password and chooses their own. Turn a login off, and that person stops working on every device they touch, not just this one.",
       "proves": "Access is administered, and can be withdrawn everywhere at once.",
       "editing": "Long narration over one still. Consider holding on the roles column.",
-      "captured": false,
-      "size": null,
-      "bytes": null
+      "captured": true,
+      "size": {
+        "width": 1690,
+        "height": 985
+      },
+      "bytes": 64988
     },
     {
       "n": 7,
@@ -128,9 +134,12 @@
       "takeaway": "Vehicles nobody entered by hand.",
       "narration": "Nobody typed these in. A vehicle nobody had seen before arrived at the gate, the phone recorded the movement and created the record on the spot. The inventory fills itself as the gates run.",
       "proves": "No data-entry project is needed for vehicles.",
-      "captured": false,
-      "size": null,
-      "bytes": null
+      "captured": true,
+      "size": {
+        "width": 1690,
+        "height": 985
+      },
+      "bytes": 104237
     },
     {
       "n": 8,
@@ -142,9 +151,12 @@
       "takeaway": "An authorization reaches the phones on its own.",
       "narration": "A driver is authorized on the computer, for a set number of hours. The gate phones have it within a few minutes, without anyone walking anything out to them.",
       "proves": "Office decisions reach the gate without a person carrying them.",
-      "captured": false,
-      "size": null,
-      "bytes": null
+      "captured": true,
+      "size": {
+        "width": 1690,
+        "height": 985
+      },
+      "bytes": 131461
     },
     {
       "n": 9,
@@ -171,9 +183,12 @@
       "takeaway": "Off by default, per location, and always recorded.",
       "narration": "Every location can be given an override, and every one is off until somebody turns it on. When one is used, it is saved as an override, never as an authorization, and the record says so.",
       "proves": "Exceptions are a decision, not a loophole.",
-      "captured": false,
-      "size": null,
-      "bytes": null
+      "captured": true,
+      "size": {
+        "width": 1690,
+        "height": 985
+      },
+      "bytes": 77232
     },
     {
       "n": 11,
