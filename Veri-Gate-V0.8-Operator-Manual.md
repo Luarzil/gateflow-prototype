@@ -1,7 +1,13 @@
 # Veri-Gate V0.8 — Operator Manual
 
-**Review build.** Data is stored in the browser or on the phone only. Nothing is shared between
-devices yet, and nothing connects to a server. That comes next.
+**Every gate and every office computer now share one set of records.** Everyone signs in, the
+record says who did what, and what each person may do is decided by the service rather than by the
+screen in front of them. A phone with no signal keeps working and catches up when the signal
+returns.
+
+This is running in the development account, which is where it is proved before it moves to the live
+one. Nothing about how it works changes in that move. See **Known boundaries** at the end for what
+is genuinely still outstanding.
 
 ---
 
@@ -202,6 +208,67 @@ Described above. Same application, same data.
 
 ---
 
+## Signing in, and what each person may do
+
+**The console asks who you are.** Open it and it shows a sign-in panel before anything else,
+because the console changes shared records and every change is recorded under a person's name.
+
+**A gate phone is signed in once and stays signed in.** The Admin signs it in with its own login —
+one per phone, not one per operator — using **Phone sign-in** at the bottom of the scanner screen.
+It stays signed in for about six months. If that ever lapses the phone **keeps scanning** and holds
+its records until somebody signs it in again; nothing is lost.
+
+**What each role may do:**
+
+| Role | Can do |
+|---|---|
+| Gate phone | Record movements, add vehicles met at the gate, send Fleet Lead gate approvals |
+| Fleet Lead | Also search the gate log, and authorize or revoke drivers |
+| Supervisor | Also add and edit drivers and vehicles |
+| Admin | Also the per-location override switches, and the logins |
+
+The console hides what a role may not use, but that is only tidiness. **The service checks the role
+on every request**, so changing anything on a phone changes nothing — the refusal comes from the
+service, with the reason.
+
+**Logins are managed in the Users tab.** The Admin adds a person and picks their role. The app shows
+a one-time password **once** — hand it over, and the person chooses their own when they first sign
+in. An Admin can change someone's role, issue a new one-time password, or turn a login off, which
+cuts that person off on every device they use, not just the one in front of them.
+
+---
+
+## The records are shared
+
+**Every gate and every office computer read the same records.** A movement scanned at one gate is in
+the log for everyone. A driver authorized in the console reaches the phones within about five
+minutes.
+
+**No signal is not a problem.** The phone works exactly as it does with signal, and holds everything
+it recorded. When the signal returns it sends it all, in the order it happened. A phone can be out of
+coverage for days without losing a scan. Movements that arrive late are marked as delayed, so the log
+tells the truth about when each was recorded and when it arrived.
+
+**The records survive the phone.** They are in the database, not on the handheld, so a lost, broken
+or wiped phone costs no history.
+
+**The gate log names both.** Search shows a **Gate device** column — which gate recorded the
+movement — and a **Recorded by** column, the login that sent it. Movements recorded before sign-ins
+existed show `-` rather than borrowing the gate's name.
+
+---
+
+## Printing a vehicle label
+
+Save a new vehicle, or change an existing vehicle's barcode, and the app offers to print its label.
+**Print label** prints only the label, on a 4 × 2 inch page; **Not now** closes the box. The label
+carries the barcode, the number in large type, the VIN, and the year, make, model and colour when
+they are known. Printing is recorded in the history.
+
+The barcode is Code 128, which every handheld and wedge scanner reads.
+
+---
+
 ## The supervisor console
 
 **Drivers** — roster, most recent gate activity first, licence expiry warnings at 30, 15 and 5
@@ -215,11 +282,19 @@ first. Vehicles are removed from active use rather than deleted, so history stay
 **Devices** — each handheld registered to a gate, or a floater assigned at the start of a shift.
 A device that is not Active cannot scan.
 
-**Users** — staff accounts and what each can do. Separate from drivers.
+**Users** — the logins people actually sign in with, and the role each one has. Adding, changing a
+role, issuing a new one-time password and turning a login off all happen here. Separate from
+drivers: a driver is a record, a login is a way in.
 
 **Admin** — the scanned-badge override switch for each location, described above.
 
 **Search** — every movement by driver, vehicle, plate, VIN, gate or date, 50 at a time, with Print.
+Signed in, this reads the shared database, so it finds movements from every gate, not only the ones
+recorded on the computer you are sitting at. The printout says which it came from.
+
+Each driver row has one **Actions** menu — Edit, Mark inactive or Reactivate, Authorize, Revoke —
+so the list stays one line per driver with thousands on it. The name still opens the profile.
+Anything that changes a driver asks first.
 
 ---
 
@@ -227,16 +302,19 @@ A device that is not Active cannot scan.
 
 These are expected, not defects:
 
-- **Data lives on the device.** Two phones will not see each other's movements. The shared
-  database exists but the app does not talk to it yet.
-- **No login.** Anyone opening the app has full access to whatever shell they open. Real
-  authentication is designed but not built.
-- **Offline behaviour is not implemented yet.** The agreed design — keep working offline, store
-  locally, upload when the signal returns, mark those movements as delayed — is next.
+- **It runs in the development account.** That is where things are proved before they move to the
+  live one. Before a real gate depends on it, the live account needs backups, an alert when
+  something stops, and a database that does not go to sleep when nobody is using it. Nothing about
+  how the app works changes in that move.
+- **No real driver roster has been loaded.** Vehicles look after themselves — a phone that meets an
+  unknown vehicle creates its record on the spot — but a driver has to be on the roster before a
+  Fleet Lead can authorize him. Somebody has to supply that list.
 - **The Android app is a debug build.** Fine for sideloading and demos, not a Play Store release.
 - **The scanner trigger is untested on an XCover.** It has been tested on a standard Android
   phone. The hardware scan button behaves as a keyboard, which should work, but that has not been
   confirmed on the rugged device.
+- **A printed label has not been scanned by a gate scanner yet**, and no label printer has been
+  chosen. The label is 4 × 2 inches today; that may need to change once the printer is known.
 
 ---
 
